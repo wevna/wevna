@@ -5,10 +5,20 @@
   "description": "Local development server for Wevna.",
   "type": "module",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx watch src/dev.ts",
+    "start": "node dist/dev.js",
     "check": "tsc --build",
     "test": "vitest run",
     "lint": "biome check ."
