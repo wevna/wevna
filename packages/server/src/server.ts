@@ -1,14 +1,23 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { registerDashboard } from "./dashboard.js";
 
-// TODO: Register WebSocket transport, event ingestion routes, and the
-// dashboard static bundle once capture and the dashboard are implemented.
-export function createServer(): FastifyInstance {
+export interface CreateServerOptions {
+  dashboardDir?: string;
+}
+
+// TODO: Register WebSocket transport and event ingestion routes once
+// capture is implemented.
+export function createServer(options: CreateServerOptions = {}): FastifyInstance {
   const app = Fastify();
 
-  app.get("/", async () => ({
+  app.get("/health", async () => ({
     status: "running",
     product: "wevna",
   }));
+
+  // Registered after /health so the dashboard's static assets never shadow
+  // it.
+  registerDashboard(app, options.dashboardDir);
 
   return app;
 }

@@ -18,17 +18,19 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --build && node ../../scripts/copy-dashboard-assets.mjs dist/dashboard",
     "dev": "tsup --watch",
     "check": "tsc --build",
     "test": "vitest run",
     "lint": "biome check ."
   },
   "dependencies": {
+    "@fastify/static": "^10.1.2",
     "fastify": "^5.10.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@wevna/dashboard": "workspace:*",
     "@wevna/server": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",

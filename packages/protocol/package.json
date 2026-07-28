@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --build",
     "dev": "tsup --watch",
     "check": "tsc --build",
     "test": "vitest run",

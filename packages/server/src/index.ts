@@ -1,4 +1,4 @@
-export { createServer } from "./server.js";
+export { type CreateServerOptions, createServer } from "./server.js";
 export {
   DEFAULT_HOST,
   DEFAULT_PORT,
