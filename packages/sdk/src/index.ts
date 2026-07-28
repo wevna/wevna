@@ -1,50 +1,20 @@
-import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
+import type { StartServerOptions } from "@wevna/server";
+import { Runtime } from "./runtime.js";
 
 // TODO: Once capture (AsyncLocalStorage hooks, EventEmitter patching) exists,
-// this module will also wire instrumentation up on start() and tear it down
-// on stop().
+// it will be wired up as another subsystem inside Runtime, not here.
 
-let activeServer: StartedServer | undefined;
-let startPromise: Promise<void> | undefined;
+// A single shared Runtime instance is intentional: Wevna mirrors tools like
+// Prisma Studio and Storybook, where one local dev server is started per
+// process. The SDK is just a thin public-facing wrapper — Runtime owns the
+// actual lifecycle.
+const runtime = new Runtime();
 
-async function start(options?: StartServerOptions): Promise<void> {
-  if (activeServer) {
-    return;
-  }
-  if (!startPromise) {
-    startPromise = performStart(options);
-  }
-
-  try {
-    await startPromise;
-  } finally {
-    startPromise = undefined;
-  }
-}
-
-async function performStart(options?: StartServerOptions): Promise<void> {
-  console.log("Starting Wevna...");
-  const server = await startServer(options);
-  activeServer = server;
-  console.log(`Wevna running at ${server.url}`);
-}
-
-async function stop(): Promise<void> {
-  if (!activeServer) {
-    return;
-  }
-
-  const server = activeServer;
-  activeServer = undefined;
-
-  console.log("Stopping Wevna...");
-  await server.stop();
-  console.log("Wevna stopped.");
-}
-
-// A single shared instance is intentional: Wevna mirrors tools like Prisma
-// Studio and Storybook, where one local dev server is started per process.
 export const wevna = {
-  start,
-  stop,
+  start(options?: StartServerOptions): Promise<void> {
+    return runtime.start(options);
+  },
+  stop(): Promise<void> {
+    return runtime.stop();
+  },
 };
