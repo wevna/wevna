@@ -7,6 +7,7 @@ export const DEFAULT_HOST = "localhost";
 export interface StartServerOptions {
   port?: number;
   host?: string;
+  dashboardDir?: string;
 }
 
 export interface StartedServer {
@@ -20,7 +21,7 @@ export interface StartedServer {
 export async function startServer(options: StartServerOptions = {}): Promise<StartedServer> {
   const port = options.port ?? DEFAULT_PORT;
   const host = options.host ?? DEFAULT_HOST;
-  const app = createServer();
+  const app = createServer({ dashboardDir: options.dashboardDir });
 
   try {
     await app.listen({ port, host });

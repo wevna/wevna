@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --build",
     "dev": "tsx watch src/dev.ts",
     "start": "node dist/dev.js",
     "check": "tsc --build",
@@ -24,10 +24,12 @@
     "lint": "biome check ."
   },
   "dependencies": {
+    "@fastify/static": "^10.1.2",
     "fastify": "^5.10.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@wevna/dashboard": "workspace:*",
     "tsup": "^8.5.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",

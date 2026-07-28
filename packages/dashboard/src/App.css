@@ -1,0 +1,45 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+.app__title {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.app__description {
+  opacity: 0.7;
+  margin-bottom: 1.5rem;
+}
+
+.app__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  opacity: 0.85;
+  margin-bottom: 2rem;
+}
+
+.app__placeholder {
+  display: block;
+  padding: 2rem;
+  border: 1px dashed currentColor;
+  border-radius: 0.5rem;
+  opacity: 0.6;
+}
