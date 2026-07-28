@@ -31,6 +31,7 @@
   "devDependencies": {
     "@types/node": "^26.1.2",
     "@wevna/dashboard": "workspace:*",
+    "@wevna/protocol": "workspace:*",
     "@wevna/server": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
