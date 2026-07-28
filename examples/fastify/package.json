@@ -1,0 +1,10 @@
+{
+  "name": "@wevna/example-fastify",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Example Fastify app instrumented with Wevna.",
+  "type": "module",
+  "scripts": {
+    "lint": "biome check ."
+  }
+}

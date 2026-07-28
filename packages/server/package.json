@@ -1,0 +1,26 @@
+{
+  "name": "@wevna/server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Local development server for Wevna.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "check": "tsc --build",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "fastify": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

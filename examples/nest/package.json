@@ -1,0 +1,10 @@
+{
+  "name": "@wevna/example-nest",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Example NestJS app instrumented with Wevna.",
+  "type": "module",
+  "scripts": {
+    "lint": "biome check ."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@wevna/example-bullmq",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Example BullMQ worker instrumented with Wevna.",
+  "type": "module",
+  "scripts": {
+    "lint": "biome check ."
+  }
+}
