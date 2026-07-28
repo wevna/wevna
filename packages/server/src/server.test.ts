@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildServer } from "./server.js";
+import { createServer } from "./server.js";
 
-describe("buildServer", () => {
-  it("responds to GET / with 'Wevna Server'", async () => {
-    const app = buildServer();
+describe("createServer", () => {
+  it("responds to GET / with a running status payload", async () => {
+    const app = createServer();
 
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toBe("Wevna Server");
+    expect(response.json()).toEqual({ status: "running", product: "wevna" });
   });
 });
