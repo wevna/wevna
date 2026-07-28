@@ -60,4 +60,70 @@ describe("Runtime", () => {
     await expect(runtime.start({ port: 0 })).resolves.toBeUndefined();
     expect(runtime.state).toBe("running");
   });
+
+  it("has no session before the first start", () => {
+    runtime = new Runtime();
+
+    expect(runtime.session).toBeUndefined();
+  });
+
+  it("creates a running session when started", async () => {
+    runtime = new Runtime();
+
+    await runtime.start({ port: 0 });
+
+    expect(runtime.session).toBeDefined();
+    expect(runtime.session?.status).toBe("running");
+  });
+
+  it("marks the session stopped when stopped", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const sessionId = runtime.session?.id;
+
+    await runtime.stop();
+
+    expect(runtime.session?.id).toBe(sessionId);
+    expect(runtime.session?.status).toBe("stopped");
+  });
+
+  it("keeps the same session across a repeated start", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const sessionId = runtime.session?.id;
+
+    await runtime.start({ port: 0 });
+
+    expect(runtime.session?.id).toBe(sessionId);
+    expect(runtime.session?.status).toBe("running");
+  });
+
+  it("keeps the session stopped across a repeated stop", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    await runtime.stop();
+    const sessionId = runtime.session?.id;
+
+    await runtime.stop();
+
+    expect(runtime.session?.id).toBe(sessionId);
+    expect(runtime.session?.status).toBe("stopped");
+  });
+
+  it("discards the session if the server fails to start", async () => {
+    runtime = new Runtime();
+
+    await expect(runtime.start({ port: -1 })).rejects.toThrow();
+
+    expect(runtime.session).toBeUndefined();
+  });
+
+  it("creates a fresh session on a successful start after a failed one", async () => {
+    runtime = new Runtime();
+    await expect(runtime.start({ port: -1 })).rejects.toThrow();
+
+    await runtime.start({ port: 0 });
+
+    expect(runtime.session?.status).toBe("running");
+  });
 });

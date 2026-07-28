@@ -6,6 +6,6 @@
     "rootDir": "src",
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "references": [{ "path": "../server" }],
+  "references": [{ "path": "../protocol" }, { "path": "../server" }],
   "include": ["src"]
 }

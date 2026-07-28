@@ -87,6 +87,9 @@ importers:
       '@wevna/dashboard':
         specifier: workspace:*
         version: link:../dashboard
+      '@wevna/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@wevna/server':
         specifier: workspace:*
         version: link:../server
