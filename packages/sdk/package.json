@@ -24,8 +24,12 @@
     "test": "vitest run",
     "lint": "biome check ."
   },
+  "dependencies": {
+    "fastify": "^5.10.0"
+  },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@wevna/server": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
