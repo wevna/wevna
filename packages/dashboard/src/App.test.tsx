@@ -37,6 +37,14 @@ function makeEnvelope(sequence = 1): Envelope<CapturedEvent> {
   };
 }
 
+function receiveEventWithKind(sequence: number, kind: string): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = kind;
+  act(() => {
+    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
+  });
+}
+
 function receiveEvent(sequence: number): void {
   act(() => {
     lastSocket?.dispatchEvent(
@@ -191,5 +199,47 @@ describe("App", () => {
     receiveEvent(2);
 
     expect(screen.getByText("event-1")).toBeInTheDocument();
+  });
+
+  it("filters the visible list by free-text query without changing the live count", () => {
+    render(<App />);
+    receiveEvent(1);
+    receiveEvent(2);
+
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "message 1" } });
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(screen.queryByText("message 2")).not.toBeInTheDocument();
+    expect(screen.getByText("2 events")).toBeInTheDocument();
+  });
+
+  it("filters the visible list by kind", () => {
+    render(<App />);
+    receiveEventWithKind(1, "console.log");
+    receiveEventWithKind(2, "http.request");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+
+    fireEvent.change(screen.getByLabelText("Filter by kind"), {
+      target: { value: "http.request" },
+    });
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain("http.request");
+  });
+
+  it("reveals every event again once the filter is cleared, proving EventStore was never touched", () => {
+    render(<App />);
+    receiveEvent(1);
+    receiveEvent(2);
+
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "nonexistent" } });
+    expect(screen.queryByText("message 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("message 2")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "" } });
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(screen.getByText("message 2")).toBeInTheDocument();
   });
 });

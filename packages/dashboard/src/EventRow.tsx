@@ -1,11 +1,5 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
-
-function summarize(event: CapturedEvent): string {
-  if (event.kind === "console.log" && typeof event.attributes.message === "string") {
-    return event.attributes.message;
-  }
-  return "";
-}
+import { summarizeEvent } from "./summarize-event.ts";
 
 export interface EventRowProps {
   event: Envelope<CapturedEvent>;
@@ -22,7 +16,7 @@ export function EventRow({ event, selected, onSelect }: EventRowProps) {
       <button type="button" className="event-row__button" onClick={onSelect}>
         <span className="event-row__kind">{kind}</span>
         <span className="event-row__time">{new Date(occurredAt).toLocaleTimeString()}</span>
-        <span className="event-row__summary">{summarize(event.payload)}</span>
+        <span className="event-row__summary">{summarizeEvent(event.payload)}</span>
       </button>
     </li>
   );
