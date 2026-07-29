@@ -6,3 +6,4 @@ export {
   type StartServerOptions,
   startServer,
 } from "./start.js";
+export type { EventListener, EventSource } from "./websocket-transport.js";

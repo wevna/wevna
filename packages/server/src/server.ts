@@ -1,13 +1,13 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerDashboard } from "./dashboard.js";
+import { type EventSource, WebSocketTransport } from "./websocket-transport.js";
 
 export interface CreateServerOptions {
   dashboardDir?: string;
+  eventSource?: EventSource;
 }
 
-// TODO: Register WebSocket transport and event ingestion routes once
-// capture is implemented.
-export function createServer(options: CreateServerOptions = {}): FastifyInstance {
+export async function createServer(options: CreateServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify();
 
   app.get("/health", async () => ({
@@ -15,8 +15,12 @@ export function createServer(options: CreateServerOptions = {}): FastifyInstance
     product: "wevna",
   }));
 
-  // Registered after /health so the dashboard's static assets never shadow
-  // it.
+  if (options.eventSource) {
+    await new WebSocketTransport().register(app, options.eventSource);
+  }
+
+  // Registered after /health (and the websocket route) so the dashboard's
+  // static assets never shadow them.
   registerDashboard(app, options.dashboardDir);
 
   return app;
