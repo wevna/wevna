@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import App from "./App.tsx";
@@ -78,5 +78,43 @@ describe("App", () => {
 
     expect(screen.getByText("Wevna")).toBeInTheDocument();
     expect(screen.getByText("message 1")).toBeInTheDocument();
+  });
+
+  it("shows the clicked event's details in the details panel", () => {
+    render(<App />);
+
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(1)) }),
+      );
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(2)) }),
+      );
+    });
+
+    expect(screen.queryByText("event-2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("message 2"));
+
+    expect(screen.getByText("event-2")).toBeInTheDocument();
+  });
+
+  it("keeps the selected event's details after a new live event arrives", () => {
+    render(<App />);
+
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(1)) }),
+      );
+    });
+    fireEvent.click(screen.getByText("message 1"));
+
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(2)) }),
+      );
+    });
+
+    expect(screen.getByText("event-1")).toBeInTheDocument();
   });
 });
