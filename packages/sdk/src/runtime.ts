@@ -1,5 +1,6 @@
 import { type CapturedEvent, type Envelope, PROTOCOL_VERSION, type Session } from "@wevna/protocol";
 import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
+import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import { EventBus } from "./event-bus.js";
 import { createSession, stopSession } from "./session.js";
 
@@ -8,8 +9,8 @@ import { createSession, stopSession } from "./session.js";
 // management, storage, and plugins all get coordinated together in a
 // defined startup/shutdown order — the SDK itself stays a thin,
 // publicly-facing wrapper around it. Only the server, the current session,
-// and the internal event bus exist so far. Future milestones attach to
-// Runtime, not to the SDK.
+// the internal event bus, and console instrumentation exist so far. Future
+// milestones attach to Runtime, not to the SDK.
 export type RuntimeState = "stopped" | "starting" | "running" | "stopping";
 
 export class Runtime {
@@ -26,6 +27,9 @@ export class Runtime {
   // Reset to 0 whenever a new session is created, so sequence numbers start
   // at 1 for each new runtime session rather than continuing across it.
   #sequence = 0;
+  // Runtime's first event producer. It only ever emits CapturedEvent —
+  // publish() (below) is what turns that into an Envelope.
+  readonly #consoleInstrumentation = new ConsoleInstrumentation((event) => this.publish(event));
 
   get state(): RuntimeState {
     return this.#state;
@@ -102,11 +106,13 @@ export class Runtime {
       throw error;
     }
 
-    // Future subsystems (transport, instrumentation, storage, plugins)
-    // start here, after the server, in dependency order.
-
     this.#state = "running";
     console.log(`Wevna running at ${this.#server.url}`);
+
+    // Future subsystems (transport, storage, plugins) start here, after
+    // Runtime's own startup logging, so its own log lines are never
+    // captured as instrumented events.
+    this.#consoleInstrumentation.start();
   }
 
   async stop(): Promise<void> {
@@ -115,14 +121,17 @@ export class Runtime {
     }
 
     this.#state = "stopping";
+
+    // Future subsystems stop here, before Runtime's own shutdown logging
+    // (reverse of the startup order above), so its own log lines are never
+    // captured as instrumented events.
+    this.#consoleInstrumentation.stop();
+
     console.log("Stopping Wevna...");
 
     if (this.#session) {
       this.#session = stopSession(this.#session);
     }
-
-    // Future subsystems stop here, before the server, in reverse startup
-    // order.
 
     const server = this.#server;
     this.#server = undefined;
