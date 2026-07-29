@@ -12,5 +12,5 @@
     "emitDeclarationOnly": false,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "vitest.setup.ts"]
 }

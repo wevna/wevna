@@ -105,9 +105,10 @@ describe("WebSocketTransport", () => {
     await leavingClosed;
 
     const stayingReceived = nextMessage(staying);
-    expect(() => eventSource.emit(makeEnvelope())).not.toThrow();
+    const envelope = makeEnvelope();
+    expect(() => eventSource.emit(envelope)).not.toThrow();
 
-    expect(JSON.parse(await stayingReceived)).toEqual(makeEnvelope());
+    expect(JSON.parse(await stayingReceived)).toEqual(envelope);
     staying.terminate();
   });
 

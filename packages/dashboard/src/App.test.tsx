@@ -1,0 +1,82 @@
+import { act, render, screen } from "@testing-library/react";
+import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import App from "./App.tsx";
+
+let lastSocket: MockWebSocket | undefined;
+
+class MockWebSocket extends EventTarget {
+  readyState = 1;
+  url: string;
+
+  constructor(url: string) {
+    super();
+    this.url = url;
+    lastSocket = this;
+  }
+
+  close(): void {
+    this.readyState = 3;
+    this.dispatchEvent(new Event("close"));
+  }
+
+  send(): void {}
+}
+
+function makeEnvelope(sequence = 1): Envelope<CapturedEvent> {
+  return {
+    version: 1,
+    sessionId: "session-1",
+    sequence,
+    payload: {
+      id: `event-${sequence}`,
+      kind: "console.log",
+      occurredAt: Date.now(),
+      attributes: { message: `message ${sequence}` },
+    },
+  };
+}
+
+describe("App", () => {
+  const OriginalWebSocket = globalThis.WebSocket;
+
+  beforeEach(() => {
+    lastSocket = undefined;
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+  });
+
+  afterEach(() => {
+    globalThis.WebSocket = OriginalWebSocket;
+  });
+
+  it("renders events received over the WebSocket connection", () => {
+    render(<App />);
+
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(1)) }),
+      );
+    });
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+  });
+
+  it("keeps rendering already-received events after the socket disconnects", () => {
+    render(<App />);
+
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(makeEnvelope(1)) }),
+      );
+    });
+
+    expect(() => {
+      act(() => {
+        lastSocket?.close();
+      });
+    }).not.toThrow();
+
+    expect(screen.getByText("Wevna")).toBeInTheDocument();
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+  });
+});
