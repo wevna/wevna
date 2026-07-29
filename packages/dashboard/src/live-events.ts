@@ -1,15 +1,22 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import type { EventStore } from "./event-store.ts";
 
-// Proves end-to-end connectivity through Wevna's WebSocket transport: opens
-// a connection and logs every received protocol envelope to the browser
-// console, unchanged. No event viewer, filtering, or state yet — this only
-// establishes that messages arrive.
-export function connectToLiveEvents(): void {
+// Networking only: opens a connection to Wevna's WebSocket transport and
+// appends every received envelope into the given store, unchanged. Knows
+// nothing about React or rendering — that lives in useLiveEvents.
+export function connectToLiveEvents(store: EventStore): () => void {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-  socket.addEventListener("message", (message) => {
-    const envelope = JSON.parse(message.data as string) as Envelope<CapturedEvent>;
-    console.log("[wevna]", envelope);
-  });
+  const handleMessage = (message: MessageEvent<string>): void => {
+    const envelope = JSON.parse(message.data) as Envelope<CapturedEvent>;
+    store.append(envelope);
+  };
+
+  socket.addEventListener("message", handleMessage);
+
+  return () => {
+    socket.removeEventListener("message", handleMessage);
+    socket.close();
+  };
 }
