@@ -1,7 +1,12 @@
-// TODO: Define the real shape of a captured runtime event (source, kind,
-// timestamp, payload, correlation ids) once the capture pipeline is designed.
-// biome-ignore lint/suspicious/noEmptyInterface: placeholder until the shape is designed
-export interface CapturedEvent {}
+// A single observation made by the runtime. This is deliberately generic —
+// event-specific shapes (HTTP, SQL, Redis, BullMQ, ...) are not modelled
+// here; callers narrow `attributes` themselves until those subtypes exist.
+export interface CapturedEvent {
+  id: string;
+  kind: string;
+  occurredAt: number;
+  attributes: Record<string, unknown>;
+}
 
 export type SessionStatus = "running" | "stopped";
 
@@ -15,7 +20,13 @@ export interface Session {
   status: SessionStatus;
 }
 
-// TODO: Define the wire envelope used to transport captured events from the
-// SDK to the local server once the transport layer is implemented.
-// biome-ignore lint/suspicious/noEmptyInterface: placeholder until the shape is designed
-export interface Envelope {}
+// The wire wrapper around any protocol payload — a CapturedEvent, a Session,
+// or a future payload type. Every subsystem that moves data between the
+// SDK, runtime, server, and dashboard agrees on this shape rather than
+// inventing its own per payload type.
+export interface Envelope<T> {
+  version: number;
+  sessionId: string;
+  sequence: number;
+  payload: T;
+}
