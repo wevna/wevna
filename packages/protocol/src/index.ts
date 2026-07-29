@@ -30,3 +30,8 @@ export interface Envelope<T> {
   sequence: number;
   payload: T;
 }
+
+// The current protocol version, stamped onto every Envelope. Callers that
+// construct envelopes should consume this rather than hardcoding a literal,
+// so a future protocol revision only needs to change it in one place.
+export const PROTOCOL_VERSION = 1;
