@@ -2,6 +2,7 @@ import { type CapturedEvent, type Envelope, PROTOCOL_VERSION, type Session } fro
 import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import { EventBus } from "./event-bus.js";
+import { HttpInstrumentation } from "./http-instrumentation.js";
 import { createSession, stopSession } from "./session.js";
 
 // Runtime is the single owner of Wevna's application lifecycle. As Wevna
@@ -9,8 +10,8 @@ import { createSession, stopSession } from "./session.js";
 // management, storage, and plugins all get coordinated together in a
 // defined startup/shutdown order — the SDK itself stays a thin,
 // publicly-facing wrapper around it. Only the server, the current session,
-// the internal event bus, and console instrumentation exist so far. Future
-// milestones attach to Runtime, not to the SDK.
+// the internal event bus, and console/HTTP instrumentation exist so far.
+// Future milestones attach to Runtime, not to the SDK.
 export type RuntimeState = "stopped" | "starting" | "running" | "stopping";
 
 export class Runtime {
@@ -27,9 +28,11 @@ export class Runtime {
   // Reset to 0 whenever a new session is created, so sequence numbers start
   // at 1 for each new runtime session rather than continuing across it.
   #sequence = 0;
-  // Runtime's first event producer. It only ever emits CapturedEvent —
-  // publish() (below) is what turns that into an Envelope.
+  // Runtime's event producers. Each only ever emits CapturedEvent —
+  // publish() (below) is what turns that into an Envelope. Instrumentation
+  // owns observation; Runtime just wires it to the publisher.
   readonly #consoleInstrumentation = new ConsoleInstrumentation((event) => this.publish(event));
+  readonly #httpInstrumentation = new HttpInstrumentation((event) => this.publish(event));
 
   get state(): RuntimeState {
     return this.#state;
@@ -52,6 +55,11 @@ export class Runtime {
   // public SDK API.
   get eventBus(): EventBus {
     return this.#eventBus;
+  }
+
+  // Internal-only: the dashboard server's own bound URL, once running.
+  get url(): string | undefined {
+    return this.#server?.url;
   }
 
   // Internal-only: the single place protocol envelopes get constructed.
@@ -115,6 +123,10 @@ export class Runtime {
     // lives entirely inside the server, which subscribes to #eventBus
     // itself (passed in above) — Runtime stays unaware of WebSockets.
     this.#consoleInstrumentation.start();
+    // The dashboard's own server is excluded so its asset/health/WS-upgrade
+    // traffic never shows up as a captured event — only the developer's
+    // own HTTP servers are observed.
+    this.#httpInstrumentation.start({ ignoreServers: [this.#server.app.server] });
   }
 
   async stop(): Promise<void> {
@@ -128,6 +140,7 @@ export class Runtime {
     // (reverse of the startup order above), so its own log lines are never
     // captured as instrumented events.
     this.#consoleInstrumentation.stop();
+    this.#httpInstrumentation.stop();
 
     console.log("Stopping Wevna...");
 

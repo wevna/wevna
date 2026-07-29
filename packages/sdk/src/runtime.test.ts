@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import type { CapturedEvent } from "@wevna/protocol";
 import { PROTOCOL_VERSION } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -238,5 +240,47 @@ describe("Runtime#publish", () => {
     runtime.publish(makeCapturedEvent());
 
     expect(listener.mock.calls[0]?.[0].sequence).toBe(1);
+  });
+});
+
+describe("Runtime HTTP instrumentation", () => {
+  let runtime: Runtime | undefined;
+  let externalServer: http.Server | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+    runtime = undefined;
+    if (externalServer) {
+      await new Promise((resolve) => externalServer?.close(resolve));
+      externalServer = undefined;
+    }
+  });
+
+  it("captures requests made to an external HTTP server while running", async () => {
+    externalServer = http.createServer((_req, res) => res.end("ok"));
+    await new Promise<void>((resolve) => externalServer?.listen(0, resolve));
+    const externalPort = (externalServer.address() as AddressInfo).port;
+
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    await fetch(`http://localhost:${externalPort}/users`);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener.mock.calls[0]?.[0].payload.kind).toBe("http.request");
+    expect(listener.mock.calls[0]?.[0].payload.attributes.url).toBe("/users");
+  });
+
+  it("never captures requests made to its own dashboard server", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    await fetch(`${runtime.url}/health`);
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

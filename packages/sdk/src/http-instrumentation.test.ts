@@ -1,0 +1,149 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import type { CapturedEvent } from "@wevna/protocol";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { HttpInstrumentation } from "./http-instrumentation.js";
+
+async function listen(server: http.Server): Promise<number> {
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  return (server.address() as AddressInfo).port;
+}
+
+function createTestServer(
+  handler: http.RequestListener = (_req, res) => res.end("ok"),
+): http.Server {
+  return http.createServer(handler);
+}
+
+describe("HttpInstrumentation", () => {
+  const servers: http.Server[] = [];
+  let instrumentation: HttpInstrumentation | undefined;
+
+  afterEach(async () => {
+    instrumentation?.stop();
+    instrumentation = undefined;
+    await Promise.all(
+      servers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))),
+    );
+  });
+
+  async function startServer(
+    handler?: http.RequestListener,
+  ): Promise<{ port: number; server: http.Server }> {
+    const server = createTestServer(handler);
+    servers.push(server);
+    const port = await listen(server);
+    return { port, server };
+  }
+
+  it("publishes exactly one event for one incoming request", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/hello`);
+
+    expect(publish).toHaveBeenCalledOnce();
+  });
+
+  it("captures method, url, statusCode, and durationMs", async () => {
+    const { port } = await startServer((_req, res) => {
+      res.statusCode = 201;
+      res.end("created");
+    });
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/widgets`, { method: "POST" });
+
+    const event = publish.mock.calls[0]?.[0];
+    expect(event?.kind).toBe("http.request");
+    expect(event?.attributes.method).toBe("POST");
+    expect(event?.attributes.url).toBe("/widgets");
+    expect(event?.attributes.statusCode).toBe(201);
+    expect(event?.attributes.durationMs).toBeTypeOf("number");
+    expect(event?.attributes.durationMs as number).toBeGreaterThanOrEqual(0);
+  });
+
+  it("publishes one event per request across multiple requests", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/a`);
+    await fetch(`http://localhost:${port}/b`);
+    await fetch(`http://localhost:${port}/c`);
+
+    expect(publish).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not capture requests to an ignored server", async () => {
+    const { port, server } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start({ ignoreServers: [server] });
+
+    await fetch(`http://localhost:${port}/health`);
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("captures requests to a non-ignored server while ignoring another", async () => {
+    const ignored = await startServer();
+    const observed = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start({ ignoreServers: [ignored.server] });
+
+    await fetch(`http://localhost:${ignored.port}/health`);
+    await fetch(`http://localhost:${observed.port}/users`);
+
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish.mock.calls[0]?.[0].attributes.url).toBe("/users");
+  });
+
+  it("does not capture requests before start() is called", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+
+    await fetch(`http://localhost:${port}/before-start`);
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("does not capture requests after stop() is called", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+    instrumentation.stop();
+
+    await fetch(`http://localhost:${port}/after-stop`);
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("does not double-wrap when started twice", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/x`);
+
+    expect(publish).toHaveBeenCalledOnce();
+  });
+
+  it("is safe to stop multiple times", () => {
+    instrumentation = new HttpInstrumentation(vi.fn());
+    instrumentation.start();
+    instrumentation.stop();
+
+    expect(() => instrumentation?.stop()).not.toThrow();
+  });
+});
