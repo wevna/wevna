@@ -3,6 +3,8 @@ import { type StartedServer, type StartServerOptions, startServer } from "@wevna
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import { EventBus } from "./event-bus.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
+import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
+import { RedisInstrumentation, type RedisSendCommandLike } from "./redis-instrumentation.js";
 import { createSession, stopSession } from "./session.js";
 
 // Runtime is the single owner of Wevna's application lifecycle. As Wevna
@@ -10,8 +12,8 @@ import { createSession, stopSession } from "./session.js";
 // management, storage, and plugins all get coordinated together in a
 // defined startup/shutdown order — the SDK itself stays a thin,
 // publicly-facing wrapper around it. Only the server, the current session,
-// the internal event bus, and console/HTTP instrumentation exist so far.
-// Future milestones attach to Runtime, not to the SDK.
+// the internal event bus, and console/HTTP/pg/Redis instrumentation exist
+// so far. Future milestones attach to Runtime, not to the SDK.
 export type RuntimeState = "stopped" | "starting" | "running" | "stopping";
 
 export class Runtime {
@@ -33,6 +35,23 @@ export class Runtime {
   // owns observation; Runtime just wires it to the publisher.
   readonly #consoleInstrumentation = new ConsoleInstrumentation((event) => this.publish(event));
   readonly #httpInstrumentation = new HttpInstrumentation((event) => this.publish(event));
+  // Unlike console/HTTP, these can't be auto-installed: there's no global
+  // "every pg.Pool" or "every ioredis client" hook to patch, so a developer
+  // must hand us their own instance via instrumentPg()/instrumentRedis().
+  // That means they can be called before Runtime has ever started (or
+  // after it's stopped), so their publish callback guards on isRunning
+  // instead of calling this.publish() directly — a real query or command
+  // must never throw just because Wevna isn't running.
+  readonly #pgInstrumentation = new PgInstrumentation((event) => {
+    if (this.isRunning) {
+      this.publish(event);
+    }
+  });
+  readonly #redisInstrumentation = new RedisInstrumentation((event) => {
+    if (this.isRunning) {
+      this.publish(event);
+    }
+  });
 
   get state(): RuntimeState {
     return this.#state;
@@ -82,6 +101,19 @@ export class Runtime {
     };
 
     this.#eventBus.publish(envelope);
+  }
+
+  // Wraps a pg Pool or Client's query() to publish sql.query events. Safe
+  // to call at any point in Runtime's lifecycle, and safe to call more
+  // than once with the same instance (a no-op past the first call).
+  instrumentPg(queryable: PgQueryable): void {
+    this.#pgInstrumentation.instrument(queryable);
+  }
+
+  // Wraps an ioredis client's sendCommand() to publish redis.command
+  // events. Same safety guarantees as instrumentPg().
+  instrumentRedis(client: RedisSendCommandLike): void {
+    this.#redisInstrumentation.instrument(client);
   }
 
   async start(options?: StartServerOptions): Promise<void> {

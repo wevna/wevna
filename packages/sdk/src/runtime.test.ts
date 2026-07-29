@@ -284,3 +284,63 @@ describe("Runtime HTTP instrumentation", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 });
+
+describe("Runtime database instrumentation", () => {
+  let runtime: Runtime | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+  });
+
+  it("publishes sql.query events for a pg-style queryable while running", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+    await queryable.query();
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener.mock.calls[0]?.[0].payload.kind).toBe("sql.query");
+  });
+
+  it("does not throw and does not publish when a pg query settles before Runtime has started", async () => {
+    runtime = new Runtime();
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+
+    await expect(queryable.query()).resolves.toEqual({ rowCount: 1 });
+  });
+
+  it("publishes redis.command events for an ioredis-style client while running", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const client = { sendCommand: (_command: unknown) => undefined };
+    runtime.instrumentRedis(client);
+    const command = { name: "get", promise: Promise.resolve("value") };
+    client.sendCommand(command);
+    await command.promise;
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener.mock.calls[0]?.[0].payload.kind).toBe("redis.command");
+  });
+
+  it("does not throw when a redis command settles after Runtime has stopped", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const client = { sendCommand: (_command: unknown) => undefined };
+    runtime.instrumentRedis(client);
+    await runtime.stop();
+
+    const command = { name: "get", promise: Promise.resolve("value") };
+    expect(() => client.sendCommand(command)).not.toThrow();
+    await command.promise;
+    await expect(Promise.resolve()).resolves.toBeUndefined();
+  });
+});
