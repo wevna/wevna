@@ -1,4 +1,4 @@
-import type { Session } from "@wevna/protocol";
+import { type CapturedEvent, type Envelope, PROTOCOL_VERSION, type Session } from "@wevna/protocol";
 import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
 import { EventBus } from "./event-bus.js";
 import { createSession, stopSession } from "./session.js";
@@ -23,6 +23,9 @@ export class Runtime {
   // dashboard, storage) should be able to subscribe once and keep receiving
   // events across restarts.
   readonly #eventBus = new EventBus();
+  // Reset to 0 whenever a new session is created, so sequence numbers start
+  // at 1 for each new runtime session rather than continuing across it.
+  #sequence = 0;
 
   get state(): RuntimeState {
     return this.#state;
@@ -47,6 +50,28 @@ export class Runtime {
     return this.#eventBus;
   }
 
+  // Internal-only: the single place protocol envelopes get constructed.
+  // Producers (future instrumentation) only ever deal in CapturedEvent —
+  // Runtime is solely responsible for stamping the protocol version,
+  // attaching the active session, and assigning the next sequence number
+  // before handing the envelope to the event bus.
+  publish(event: CapturedEvent): void {
+    if (!this.#session) {
+      throw new Error("Cannot publish an event before Runtime has started a session.");
+    }
+
+    this.#sequence += 1;
+
+    const envelope: Envelope<CapturedEvent> = {
+      version: PROTOCOL_VERSION,
+      sessionId: this.#session.id,
+      sequence: this.#sequence,
+      payload: event,
+    };
+
+    this.#eventBus.publish(envelope);
+  }
+
   async start(options?: StartServerOptions): Promise<void> {
     if (this.#state === "running") {
       return;
@@ -67,6 +92,7 @@ export class Runtime {
     console.log("Starting Wevna...");
 
     this.#session = createSession();
+    this.#sequence = 0;
 
     try {
       this.#server = await startServer(options);

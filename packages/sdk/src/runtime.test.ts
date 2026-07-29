@@ -1,5 +1,11 @@
+import type { CapturedEvent } from "@wevna/protocol";
+import { PROTOCOL_VERSION } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Runtime } from "./runtime.js";
+
+function makeCapturedEvent(kind = "test"): CapturedEvent {
+  return { id: "event-1", kind, occurredAt: Date.now(), attributes: {} };
+}
 
 describe("Runtime", () => {
   let runtime: Runtime | undefined;
@@ -152,5 +158,85 @@ describe("Runtime", () => {
     runtime.eventBus.publish(event);
 
     expect(listener).toHaveBeenCalledExactlyOnceWith(event);
+  });
+});
+
+describe("Runtime#publish", () => {
+  let runtime: Runtime | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+  });
+
+  it("throws when publishing before a session exists", () => {
+    runtime = new Runtime();
+
+    expect(() => runtime?.publish(makeCapturedEvent())).toThrow();
+  });
+
+  it("attaches the protocol version to the envelope", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent());
+
+    expect(listener.mock.calls[0]?.[0].version).toBe(PROTOCOL_VERSION);
+  });
+
+  it("copies the active session id into every envelope", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent());
+    runtime.publish(makeCapturedEvent());
+
+    expect(listener.mock.calls[0]?.[0].sessionId).toBe(runtime.session?.id);
+    expect(listener.mock.calls[1]?.[0].sessionId).toBe(runtime.session?.id);
+  });
+
+  it("carries the CapturedEvent through as the envelope payload", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+    const event = makeCapturedEvent("http.request");
+
+    runtime.publish(event);
+
+    expect(listener.mock.calls[0]?.[0].payload).toBe(event);
+  });
+
+  it("increments the sequence number for each published event", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent());
+    runtime.publish(makeCapturedEvent());
+    runtime.publish(makeCapturedEvent());
+
+    expect(listener.mock.calls[0]?.[0].sequence).toBe(1);
+    expect(listener.mock.calls[1]?.[0].sequence).toBe(2);
+    expect(listener.mock.calls[2]?.[0].sequence).toBe(3);
+  });
+
+  it("resets the sequence counter to 1 for a new runtime session", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    runtime.publish(makeCapturedEvent());
+    runtime.publish(makeCapturedEvent());
+    await runtime.stop();
+    await runtime.start({ port: 0 });
+
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+    runtime.publish(makeCapturedEvent());
+
+    expect(listener.mock.calls[0]?.[0].sequence).toBe(1);
   });
 });
