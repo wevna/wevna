@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Runtime } from "./runtime.js";
 
 describe("Runtime", () => {
@@ -125,5 +125,32 @@ describe("Runtime", () => {
     await runtime.start({ port: 0 });
 
     expect(runtime.session?.status).toBe("running");
+  });
+
+  it("owns the same event bus instance across a restart", async () => {
+    runtime = new Runtime();
+    const busBeforeStart = runtime.eventBus;
+
+    await runtime.start({ port: 0 });
+    await runtime.stop();
+    await runtime.start({ port: 0 });
+
+    expect(runtime.eventBus).toBe(busBeforeStart);
+  });
+
+  it("delivers events published through its event bus to subscribers", () => {
+    runtime = new Runtime();
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const event = {
+      version: 1,
+      sessionId: "session-1",
+      sequence: 1,
+      payload: { id: "event-1", kind: "test", occurredAt: Date.now(), attributes: {} },
+    };
+    runtime.eventBus.publish(event);
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith(event);
   });
 });

@@ -1,14 +1,15 @@
 import type { Session } from "@wevna/protocol";
 import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
+import { EventBus } from "./event-bus.js";
 import { createSession, stopSession } from "./session.js";
 
 // Runtime is the single owner of Wevna's application lifecycle. As Wevna
 // grows, it's where the server, transport, instrumentation, session
 // management, storage, and plugins all get coordinated together in a
 // defined startup/shutdown order — the SDK itself stays a thin,
-// publicly-facing wrapper around it. Only the server and the current
-// session exist so far. Future milestones attach to Runtime, not to the
-// SDK.
+// publicly-facing wrapper around it. Only the server, the current session,
+// and the internal event bus exist so far. Future milestones attach to
+// Runtime, not to the SDK.
 export type RuntimeState = "stopped" | "starting" | "running" | "stopping";
 
 export class Runtime {
@@ -16,6 +17,12 @@ export class Runtime {
   #server: StartedServer | undefined;
   #session: Session | undefined;
   #startPromise: Promise<void> | undefined;
+  // Owned once for the life of this Runtime instance rather than recreated
+  // per start/stop cycle: it is pure in-memory infrastructure with no
+  // external resource to tear down, and future subscribers (transport,
+  // dashboard, storage) should be able to subscribe once and keep receiving
+  // events across restarts.
+  readonly #eventBus = new EventBus();
 
   get state(): RuntimeState {
     return this.#state;
@@ -30,6 +37,14 @@ export class Runtime {
   // state anywhere else.
   get session(): Session | undefined {
     return this.#session;
+  }
+
+  // Internal-only: lets other Runtime-owned subsystems publish and
+  // subscribe to protocol events. Deliberately not re-exported from the
+  // package's public entrypoint (src/index.ts) — this is not part of the
+  // public SDK API.
+  get eventBus(): EventBus {
+    return this.#eventBus;
   }
 
   async start(options?: StartServerOptions): Promise<void> {
