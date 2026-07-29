@@ -37,6 +37,14 @@ function makeEnvelope(sequence = 1): Envelope<CapturedEvent> {
   };
 }
 
+function receiveEvent(sequence: number): void {
+  act(() => {
+    lastSocket?.dispatchEvent(
+      new MessageEvent("message", { data: JSON.stringify(makeEnvelope(sequence)) }),
+    );
+  });
+}
+
 describe("App", () => {
   const OriginalWebSocket = globalThis.WebSocket;
 
@@ -114,6 +122,73 @@ describe("App", () => {
         new MessageEvent("message", { data: JSON.stringify(makeEnvelope(2)) }),
       );
     });
+
+    expect(screen.getByText("event-1")).toBeInTheDocument();
+  });
+
+  it("shows the live event count regardless of pause state", () => {
+    render(<App />);
+
+    receiveEvent(1);
+    expect(screen.getByText("1 event")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    receiveEvent(2);
+    receiveEvent(3);
+
+    expect(screen.getByText("3 events")).toBeInTheDocument();
+  });
+
+  it("stops rendering new events while paused, without stopping capture", () => {
+    render(<App />);
+    receiveEvent(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    receiveEvent(2);
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(screen.queryByText("message 2")).not.toBeInTheDocument();
+    // The count still reflects the event that arrived while paused.
+    expect(screen.getByText("2 events")).toBeInTheDocument();
+  });
+
+  it("immediately shows everything accumulated once resumed", () => {
+    render(<App />);
+    receiveEvent(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    receiveEvent(2);
+    receiveEvent(3);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(screen.getByText("message 2")).toBeInTheDocument();
+    expect(screen.getByText("message 3")).toBeInTheDocument();
+  });
+
+  it("hides existing events on Clear without losing the live count", () => {
+    render(<App />);
+    receiveEvent(1);
+    receiveEvent(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(screen.queryByText("message 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("message 2")).not.toBeInTheDocument();
+    expect(screen.getByText("2 events")).toBeInTheDocument();
+
+    receiveEvent(3);
+    expect(screen.getByText("message 3")).toBeInTheDocument();
+    expect(screen.getByText("3 events")).toBeInTheDocument();
+  });
+
+  it("keeps the selected event's details visible while paused", () => {
+    render(<App />);
+    receiveEvent(1);
+    fireEvent.click(screen.getByText("message 1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    receiveEvent(2);
 
     expect(screen.getByText("event-1")).toBeInTheDocument();
   });

@@ -24,6 +24,19 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.timeline-controls__count {
+  opacity: 0.7;
+  font-size: 0.875rem;
+  margin-right: auto;
+}
+
 .app__layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
