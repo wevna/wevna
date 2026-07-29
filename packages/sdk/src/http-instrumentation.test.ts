@@ -2,7 +2,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import type { CapturedEvent } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HttpInstrumentation } from "./http-instrumentation.js";
+import { enrichHttpRequest, HttpInstrumentation } from "./http-instrumentation.js";
 
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -145,5 +145,37 @@ describe("HttpInstrumentation", () => {
     instrumentation.stop();
 
     expect(() => instrumentation?.stop()).not.toThrow();
+  });
+
+  it("merges framework enrichment attached via enrichHttpRequest into the published event", async () => {
+    const { port } = await startServer((req, res) => {
+      enrichHttpRequest(req, { framework: "fastify", route: "/widgets/:id", handler: "getWidget" });
+      res.end("ok");
+    });
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/widgets/42`);
+
+    expect(publish.mock.calls[0]?.[0].attributes).toMatchObject({
+      framework: "fastify",
+      route: "/widgets/:id",
+      handler: "getWidget",
+    });
+  });
+
+  it("does not add framework attributes when nothing enriches the request", async () => {
+    const { port } = await startServer();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    instrumentation = new HttpInstrumentation(publish);
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/plain`);
+
+    const attributes = publish.mock.calls[0]?.[0].attributes;
+    expect(attributes?.framework).toBeUndefined();
+    expect(attributes?.route).toBeUndefined();
+    expect(attributes?.handler).toBeUndefined();
   });
 });

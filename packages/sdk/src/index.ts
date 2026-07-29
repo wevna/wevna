@@ -1,9 +1,6 @@
 import type { StartServerOptions } from "@wevna/server";
 import { Runtime } from "./runtime.js";
 
-// TODO: Once capture (AsyncLocalStorage hooks, EventEmitter patching) exists,
-// it will be wired up as another subsystem inside Runtime, not here.
-
 // A single shared Runtime instance is intentional: Wevna mirrors tools like
 // Prisma Studio and Storybook, where one local dev server is started per
 // process. The SDK is just a thin public-facing wrapper — Runtime owns the
@@ -18,3 +15,15 @@ export const wevna = {
     return runtime.stop();
   },
 };
+
+// Framework enrichment layers a developer wires into their own app to get
+// richer http.request attributes (framework/route/handler). Express needs
+// none of these — its route data is already readable directly off the raw
+// request HttpInstrumentation observes, so it's applied automatically with
+// no developer action required.
+export { wevnaFastifyEnrichment } from "./fastify-enrichment.js";
+export {
+  type NestCallHandlerLike,
+  type NestExecutionContextLike,
+  WevnaNestInterceptor,
+} from "./nest-enrichment.js";
