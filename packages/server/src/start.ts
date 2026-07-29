@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { createServer } from "./server.js";
+import type { EventSource } from "./websocket-transport.js";
 
 export const DEFAULT_PORT = 4123;
 export const DEFAULT_HOST = "localhost";
@@ -8,6 +9,7 @@ export interface StartServerOptions {
   port?: number;
   host?: string;
   dashboardDir?: string;
+  eventSource?: EventSource;
 }
 
 export interface StartedServer {
@@ -21,7 +23,10 @@ export interface StartedServer {
 export async function startServer(options: StartServerOptions = {}): Promise<StartedServer> {
   const port = options.port ?? DEFAULT_PORT;
   const host = options.host ?? DEFAULT_HOST;
-  const app = createServer({ dashboardDir: options.dashboardDir });
+  const app = await createServer({
+    dashboardDir: options.dashboardDir,
+    eventSource: options.eventSource,
+  });
 
   try {
     await app.listen({ port, host });

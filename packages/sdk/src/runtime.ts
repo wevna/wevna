@@ -99,7 +99,7 @@ export class Runtime {
     this.#sequence = 0;
 
     try {
-      this.#server = await startServer(options);
+      this.#server = await startServer({ ...options, eventSource: this.#eventBus });
     } catch (error) {
       this.#state = "stopped";
       this.#session = undefined;
@@ -109,9 +109,11 @@ export class Runtime {
     this.#state = "running";
     console.log(`Wevna running at ${this.#server.url}`);
 
-    // Future subsystems (transport, storage, plugins) start here, after
-    // Runtime's own startup logging, so its own log lines are never
-    // captured as instrumented events.
+    // Future subsystems (storage, plugins) start here, after Runtime's own
+    // startup logging, so its own log lines are never captured as
+    // instrumented events. The WebSocket transport is not one of them: it
+    // lives entirely inside the server, which subscribes to #eventBus
+    // itself (passed in above) — Runtime stays unaware of WebSockets.
     this.#consoleInstrumentation.start();
   }
 

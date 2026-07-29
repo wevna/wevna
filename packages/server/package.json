@@ -25,10 +25,13 @@
   },
   "dependencies": {
     "@fastify/static": "^10.1.2",
+    "@fastify/websocket": "^11.3.0",
+    "@wevna/protocol": "workspace:*",
     "fastify": "^5.10.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@types/ws": "^8.18.1",
     "@wevna/dashboard": "workspace:*",
     "tsup": "^8.5.1",
     "tsx": "^4.23.1",
