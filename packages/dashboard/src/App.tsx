@@ -1,10 +1,12 @@
 import "./App.css";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
+import { RequestList } from "./RequestList.tsx";
 import { SearchControls } from "./SearchControls.tsx";
 import { TimelineControls } from "./TimelineControls.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useLiveEvents } from "./use-live-events.ts";
+import { useRequests } from "./use-requests.ts";
 import { useSelection } from "./use-selection.ts";
 import { useTimeline } from "./use-timeline.ts";
 
@@ -22,6 +24,11 @@ function App() {
   const { visibleEvents, paused, liveCount, pause, resume, clear } = useTimeline(events);
   const { query, kind, availableKinds, filteredEvents, setQuery, setKind } =
     useEventFilter(visibleEvents);
+  // Requests are assembled from the full, raw event list — independent of
+  // pause/filter/search, exactly like EventStore itself. Those are
+  // presentation concerns layered on top of the raw pipeline, not part of
+  // what a request "is".
+  const { requests, clear: clearRequests } = useRequests(events);
 
   return (
     <main className="app">
@@ -47,6 +54,16 @@ function App() {
         <EventList events={filteredEvents} selectedId={selectedId} onSelect={select} />
         <EventDetails event={selectedEvent} />
       </div>
+
+      <section className="requests-section">
+        <div className="requests-section__header">
+          <h2 className="requests-section__title">Requests</h2>
+          <button type="button" onClick={clearRequests}>
+            Clear requests
+          </button>
+        </div>
+        <RequestList requests={requests} />
+      </section>
     </main>
   );
 }

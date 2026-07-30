@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import App from "./App.tsx";
@@ -50,6 +50,24 @@ function receiveEvent(sequence: number): void {
     lastSocket?.dispatchEvent(
       new MessageEvent("message", { data: JSON.stringify(makeEnvelope(sequence)) }),
     );
+  });
+}
+
+function receiveHttpEvent(sequence: number, correlationId: string): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = "http.request";
+  envelope.payload.attributes = { method: "GET", url: "/widgets", statusCode: 200, durationMs: 5 };
+  envelope.payload.correlation = { id: correlationId };
+  act(() => {
+    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
+  });
+}
+
+function receiveCorrelatedEvent(sequence: number, correlationId: string): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.correlation = { id: correlationId };
+  act(() => {
+    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
   });
 }
 
@@ -241,5 +259,56 @@ describe("App", () => {
 
     expect(screen.getByText("message 1")).toBeInTheDocument();
     expect(screen.getByText("message 2")).toBeInTheDocument();
+  });
+
+  it("assembles correlated events into one request row", () => {
+    render(<App />);
+
+    receiveCorrelatedEvent(1, "corr-1");
+    receiveHttpEvent(2, "corr-1");
+
+    const requestList = document.querySelector(".request-list");
+    expect(requestList).not.toBeNull();
+    const requestScope = within(requestList as HTMLElement);
+    expect(requestScope.getByText("GET")).toBeInTheDocument();
+    expect(requestScope.getByText("/widgets")).toBeInTheDocument();
+    expect(requestScope.getByText("200")).toBeInTheDocument();
+    expect(requestScope.getByText("2 events")).toBeInTheDocument();
+  });
+
+  it("keeps concurrent requests as separate rows", () => {
+    render(<App />);
+
+    receiveCorrelatedEvent(1, "corr-a");
+    receiveCorrelatedEvent(2, "corr-b");
+
+    // Both the event list and the request list render <li> rows; filter
+    // down to the request list's own rows specifically.
+    const requestRows = screen
+      .getAllByRole("listitem")
+      .filter((row) => row.className.includes("request-row"));
+    expect(requestRows).toHaveLength(2);
+  });
+
+  it("Clear requests empties the request list without touching the event list", () => {
+    render(<App />);
+    receiveCorrelatedEvent(1, "corr-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear requests" }));
+
+    expect(screen.getByText(/no requests yet/i)).toBeInTheDocument();
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+  });
+
+  it("keeps assembling requests while the timeline is paused", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    receiveCorrelatedEvent(1, "corr-1");
+    receiveHttpEvent(2, "corr-1");
+
+    const requestList = document.querySelector(".request-list");
+    expect(requestList).not.toBeNull();
+    expect(within(requestList as HTMLElement).getByText("2 events")).toBeInTheDocument();
   });
 });
