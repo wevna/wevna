@@ -219,6 +219,77 @@ describe("WaterfallTimeline", () => {
     });
   });
 
+  describe("timeline axis", () => {
+    it("renders a timeline axis above the waterfall list", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [makeTimelineEntry({ relativeOffsetMs: 0 })],
+          })}
+        />,
+      );
+
+      expect(document.querySelector(".timeline-axis")).not.toBeNull();
+    });
+
+    it("renders no axis when there are no timeline entries", () => {
+      render(<WaterfallTimeline request={makeRequest({ timeline: [] })} />);
+
+      expect(document.querySelector(".timeline-axis")).toBeNull();
+    });
+  });
+
+  describe("event kind styling", () => {
+    it("tags http/sql/redis bars and markers with a data-kind-category attribute", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [
+              makeTimelineEntry({ kind: "http.request", relativeOffsetMs: 100, durationMs: 100 }),
+              makeTimelineEntry({
+                kind: "sql.query",
+                relativeOffsetMs: 50,
+                durationMs: 5,
+                sequence: 2,
+              }),
+              makeTimelineEntry({
+                kind: "redis.command",
+                relativeOffsetMs: 60,
+                durationMs: 2,
+                sequence: 3,
+              }),
+              makeTimelineEntry({ kind: "console.log", relativeOffsetMs: 10, sequence: 4 }),
+            ],
+          })}
+        />,
+      );
+
+      expect(document.querySelector('[data-kind-category="http"]')).not.toBeNull();
+      expect(document.querySelector('[data-kind-category="sql"]')).not.toBeNull();
+      expect(document.querySelector('[data-kind-category="redis"]')).not.toBeNull();
+      expect(document.querySelector('[data-kind-category="other"]')).not.toBeNull();
+    });
+
+    it("still shows the kind as visible text alongside its category, never colour alone", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [
+              makeTimelineEntry({ kind: "sql.query", relativeOffsetMs: 10, durationMs: 5 }),
+            ],
+          })}
+        />,
+      );
+
+      const bar = document.querySelector('[data-kind-category="sql"]');
+      expect(bar).not.toBeNull();
+      expect(screen.getByText("sql.query")).toBeInTheDocument();
+    });
+  });
+
   describe("updates", () => {
     it("re-renders with the new row when the request's timeline grows", () => {
       const { rerender } = render(
