@@ -37,6 +37,23 @@ what the base instrumentation — or, for Fastify,
 `WevnaNestInterceptor` adds Nest-specific detail (controller/handler
 names) on top; it doesn't replace that.
 
+## Capturing exceptions
+
+There's no `WevnaNestInterceptor`-level hook for this yet — Nest wraps
+whichever adapter you're using with its own exception handling, and
+safely tapping that without risking a route handler running twice needs
+more verification than this integration has had so far. In the meantime:
+
+- A rejected async handler nobody caught is captured regardless, the same
+  framework-agnostic way it is anywhere else (Wevna also listens for
+  `unhandledRejection`/`uncaughtException`).
+- On the Express adapter (Nest's default), you can additionally register
+  [`wevnaExpressErrorHandler`](../express/README.md) directly on the
+  underlying instance: `app.getHttpAdapter().getInstance().use(wevnaExpressErrorHandler)`.
+- On the Fastify adapter, [`wevnaFastifyEnrichment`](../fastify/README.md)
+  registered on the underlying instance covers this the same way it does
+  for plain Fastify: `app.getHttpAdapter().getInstance().register(wevnaFastifyEnrichment)`.
+
 ## What you'll see
 
 Open the dashboard Wevna prints (`http://localhost:4123` by default) and
@@ -47,5 +64,7 @@ hit an endpoint. You'll see, correlated to that one request:
 - any logging done while handling it
 - any instrumented `pg`/`ioredis` calls made while handling it (see the
   root README for wiring those up)
+- any exception thrown or rejected while handling it (see above for
+  what's covered without extra setup)
 
 all grouped together and laid out on that request's waterfall.

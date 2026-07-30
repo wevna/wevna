@@ -1,4 +1,5 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import { getEventKindCategory } from "./event-kind-category.ts";
 import { summarizeEvent } from "./summarize-event.ts";
 
 export interface EventRowProps {
@@ -12,7 +13,7 @@ export function EventRow({ event, selected, onSelect }: EventRowProps) {
   const className = selected ? "event-row event-row--selected" : "event-row";
 
   return (
-    <li className={className}>
+    <li className={className} data-kind-category={getEventKindCategory(kind)}>
       <button type="button" className="event-row__button" onClick={onSelect}>
         <span className="event-row__kind">{kind}</span>
         <span className="event-row__time">{new Date(occurredAt).toLocaleTimeString()}</span>

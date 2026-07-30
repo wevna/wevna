@@ -29,6 +29,13 @@ export const wevna = {
   },
 };
 
+// Exception capture. Process-level uncaughtException/unhandledRejection
+// coverage is automatic (no wiring needed, same as console/HTTP), and
+// wevnaFastifyEnrichment (above) already captures anything Fastify catches
+// internally. Express has no equivalent hook to patch, so this is the one
+// piece of exception capture that needs an explicit registration step —
+// see exception-instrumentation.ts / express-error-handler.ts for why.
+export { type ExpressNextFunction, wevnaExpressErrorHandler } from "./express-error-handler.js";
 // Framework enrichment layers a developer wires into their own app to get
 // richer http.request attributes (framework/route/handler). Express needs
 // none of these — its route data is already readable directly off the raw

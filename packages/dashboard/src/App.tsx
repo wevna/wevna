@@ -1,6 +1,7 @@
 import "./App.css";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
+import { findTimelineEntry } from "./find-timeline-entry.ts";
 import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
 import { SearchControls } from "./SearchControls.tsx";
@@ -39,6 +40,11 @@ function App() {
   // selected request's inspector view updates automatically as its model
   // object changes.
   const selectedRequest = requests.find((request) => request.id === selectedRequestId);
+  // Looked up across every request, not just selectedRequest — an event
+  // can be selected (from the raw list, or a different request's own
+  // event list) without its owning request being the one currently open
+  // in the inspector.
+  const selectedTimelineEntry = findTimelineEntry(requests, selectedId);
 
   // Clearing the request list removes whatever was selected too — leaving
   // a stale id selected here would be harmless (selectedRequest would just
@@ -70,7 +76,10 @@ function App() {
 
       <div className="app__layout">
         <EventList events={filteredEvents} selectedId={selectedId} onSelect={select} />
-        <EventDetails event={selectedEvent} />
+        <EventDetails
+          event={selectedEvent}
+          relativeOffsetMs={selectedTimelineEntry?.relativeOffsetMs}
+        />
       </div>
 
       <section className="requests-section">

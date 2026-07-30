@@ -13,6 +13,13 @@
   --wf-color-http: light-dark(#2a78d6, #3987e5);
   --wf-color-sql: light-dark(#eb6834, #d95926);
   --wf-color-redis: light-dark(#1baf7a, #199e70);
+  /* Reserved status colour (dataviz skill's fixed status palette, not the
+     categorical set above) — an exception is a state ("this failed"), not
+     another kind of operation, so it never competes with http/sql/redis
+     for a categorical slot. Mode-invariant by design. Ships with the
+     diamond marker shape below and the always-visible kind label, per the
+     skill's "status colour never carries meaning alone" rule. */
+  --wf-color-exception: #d03b3b;
 }
 
 body {
@@ -107,6 +114,7 @@ body {
 
 .event-row {
   border-bottom: 1px solid currentColor;
+  border-left: 3px solid transparent;
 }
 
 .event-row:last-child {
@@ -115,6 +123,14 @@ body {
 
 .event-row--selected {
   background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* The border-left (a mark, not text) carries the colour; the .event-row__kind
+   override further down (font-weight only, no colour) is the independent,
+   colour-free signal — text itself stays in the ordinary ink, per "text
+   never wears the series colour." */
+.event-row[data-kind-category="exception"] {
+  border-left-color: var(--wf-color-exception);
 }
 
 .event-row__button {
@@ -139,6 +155,10 @@ body {
 .event-row__kind {
   font-weight: 600;
   white-space: nowrap;
+}
+
+.event-row[data-kind-category="exception"] .event-row__kind {
+  font-weight: 700;
 }
 
 .event-row__time {
@@ -192,6 +212,43 @@ body {
   border: 1px solid currentColor;
   border-radius: 0.375rem;
   font-size: 0.8125rem;
+}
+
+.exception-details {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--wf-color-exception);
+  border-radius: 0.375rem;
+}
+
+.exception-details__fields {
+  margin: 0;
+}
+
+.exception-details__fields dt {
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.exception-details__fields dd {
+  margin: 0 0 0.5rem;
+  word-break: break-word;
+}
+
+.exception-details__stack-heading {
+  font-size: 0.875rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.exception-details__stack {
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .requests-section {
@@ -426,6 +483,19 @@ body {
 
 .waterfall-row__marker[data-kind-category="redis"] {
   background: var(--wf-color-redis);
+}
+
+.waterfall-row__bar[data-kind-category="exception"] {
+  background: color-mix(in srgb, var(--wf-color-exception) 55%, transparent);
+  border-color: var(--wf-color-exception);
+}
+
+/* A diamond, not the neutral dot every other instantaneous kind uses —
+   shape carries the "this failed" distinction independently of colour. */
+.waterfall-row__marker[data-kind-category="exception"] {
+  background: var(--wf-color-exception);
+  border-radius: 0;
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .timeline-axis {

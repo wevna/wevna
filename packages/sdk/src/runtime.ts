@@ -9,6 +9,7 @@ import { type StartedServer, type StartServerOptions, startServer } from "@wevna
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import * as correlationContext from "./correlation-context.js";
 import { EventBus } from "./event-bus.js";
+import { ExceptionInstrumentation } from "./exception-instrumentation.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
 import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
 import { RedisInstrumentation, type RedisSendCommandLike } from "./redis-instrumentation.js";
@@ -43,6 +44,11 @@ export class Runtime {
   // owns observation; Runtime just wires it to the publisher.
   readonly #consoleInstrumentation = new ConsoleInstrumentation((event) => this.publish(event));
   readonly #httpInstrumentation = new HttpInstrumentation((event) => this.publish(event));
+  // Registers process-level 'uncaughtException'/'unhandledRejection'
+  // listeners once running — see exception-instrumentation.ts for why
+  // those, plus the minimal Express/Fastify hooks, are the two coverage
+  // paths, and for the documented side effect on default crash behaviour.
+  readonly #exceptionInstrumentation = new ExceptionInstrumentation((event) => this.publish(event));
   // Unlike console/HTTP, these can't be auto-installed: there's no global
   // "every pg.Pool" or "every ioredis client" hook to patch, so a developer
   // must hand us their own instance via instrumentPg()/instrumentRedis().
@@ -195,6 +201,7 @@ export class Runtime {
     // traffic never shows up as a captured event — only the developer's
     // own HTTP servers are observed.
     this.#httpInstrumentation.start({ ignoreServers: [this.#server.app.server] });
+    this.#exceptionInstrumentation.start();
   }
 
   async stop(): Promise<void> {
@@ -209,6 +216,7 @@ export class Runtime {
     // captured as instrumented events.
     this.#consoleInstrumentation.stop();
     this.#httpInstrumentation.stop();
+    this.#exceptionInstrumentation.stop();
 
     console.log("Stopping Wevna...");
 

@@ -96,10 +96,12 @@ What's actually implemented and running, today:
   happened during
 - ✅ **Request correlation** — every event from the same request shares
   one identifier, automatically, via `AsyncLocalStorage`
-- ✅ **Request view** — raw events grouped into "here's one request," not
-  a firehose of individual log lines
+- ✅ **Request Inspector** — select a request to see its full summary,
+  waterfall, and events in one place, DevTools-Network-panel style
 - ✅ **Waterfall timeline** — each request's events laid out visually,
   proportional to when they happened and how long they took
+- ✅ **Exception capture** — uncaught errors and rejections, correlated to
+  the request that produced them, with type/message/stack trace
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -143,10 +145,11 @@ Nothing leaves your machine.
 - ✔ Request model
 - ✔ Timeline model
 - ✔ Waterfall view
+- ✔ Request Inspector
+- ✔ Exception capture & inspector
 
 **Next**
 
-- Exception inspector
 - Replay
 - More instrumentation targets (BullMQ, Prisma, MongoDB)
 

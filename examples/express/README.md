@@ -11,7 +11,7 @@ How to run Wevna alongside a plain Express application.
 
 ```ts
 import express from "express";
-import { wevna } from "wevna";
+import { wevna, wevnaExpressErrorHandler } from "wevna";
 
 await wevna.start();
 
@@ -22,10 +22,15 @@ app.get("/widgets/:id", (req, res) => {
   res.json({ id: req.params.id });
 });
 
+// Registered after your routes — see "Capturing exceptions" below.
+app.use(wevnaExpressErrorHandler);
+
 app.listen(3000);
 ```
 
-That's the whole integration. No middleware, no route wrapping.
+Requests, routes, and console logs need nothing beyond `wevna.start()`.
+`wevnaExpressErrorHandler` is the one addition, and it's only for
+capturing exceptions (next section) — everything else here is automatic.
 
 ## Why nothing else is needed
 
@@ -42,6 +47,22 @@ configuration. This is the one framework where enrichment needs no setup
 at all — see [Fastify](../fastify/README.md) and [NestJS](../nest/README.md)
 for the frameworks that do.
 
+## Capturing exceptions
+
+Unlike routing, Express *does* catch a handler's thrown or rejected error
+itself and finishes the response before Wevna's HTTP instrumentation ever
+sees the error object — so exception capture needs the one explicit line
+above. `wevnaExpressErrorHandler` only observes: it reports the error to
+Wevna, correlated to the request it came from, and immediately calls
+`next(err)` — your own error handling (or Express's default) runs exactly
+as it would without it.
+
+A rejected async handler nobody awaited or caught is captured either way,
+even without this middleware — Wevna also listens for
+`unhandledRejection`/`uncaughtException` as a framework-agnostic baseline.
+Registering `wevnaExpressErrorHandler` is what additionally catches the
+errors Express handles internally, which is the common case.
+
 ## What you'll see
 
 Open the dashboard Wevna prints (`http://localhost:4123` by default) and
@@ -51,5 +72,7 @@ hit an endpoint. You'll see, correlated to that one request:
 - any `console.log` calls made while handling it
 - any instrumented `pg`/`ioredis` calls made while handling it (see the
   root README for wiring those up)
+- any exception thrown or rejected while handling it, with its type,
+  message, and stack trace
 
 all grouped together and laid out on that request's waterfall.

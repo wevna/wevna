@@ -18,6 +18,10 @@ describe("getEventKindCategory", () => {
     expect(getEventKindCategory("console.log")).toBe("other");
   });
 
+  it("categorizes exception.* kinds as exception", () => {
+    expect(getEventKindCategory("exception.captured")).toBe("exception");
+  });
+
   it("falls back to other for an unrecognized future kind", () => {
     expect(getEventKindCategory("bullmq.job")).toBe("other");
   });

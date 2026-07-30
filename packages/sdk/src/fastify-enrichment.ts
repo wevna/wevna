@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from "fastify";
 import fp from "fastify-plugin";
+import { captureException } from "./exception-instrumentation.js";
 import { enrichHttpRequest } from "./http-instrumentation.js";
 
 // Fastify wraps the raw request rather than mutating it (unlike Express),
@@ -40,6 +41,15 @@ const wevnaFastifyEnrichmentPlugin: FastifyPluginCallback = (app, _opts, done) =
         ? { handler: handlerName }
         : {}),
     });
+  });
+
+  // Fastify catches a route handler's thrown/rejected error internally
+  // (verified for both sync and async handlers) and finishes the response
+  // itself — onError is Fastify's own dedicated hook for observing that
+  // without taking over the response, so this never changes what Fastify
+  // sends back.
+  app.addHook("onError", async (_request, _reply, error) => {
+    captureException(error, { framework: "fastify" });
   });
 
   done();

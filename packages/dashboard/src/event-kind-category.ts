@@ -6,12 +6,18 @@
 // update here; a genuinely new instrumentation target (BullMQ, Prisma, ...)
 // falls back to "other" and renders with neutral, uncoloured styling until
 // this list is deliberately extended.
-export type EventKindCategory = "http" | "sql" | "redis" | "other";
+//
+// "exception" is kept distinct from the other three: those are categorical
+// (which *kind* of operation), this is a status (something *failed*) — per
+// the dataviz skill's palette, status colours are a separate reserved set,
+// never folded into the categorical series order.
+export type EventKindCategory = "http" | "sql" | "redis" | "exception" | "other";
 
 const PREFIX_CATEGORIES: readonly (readonly [prefix: string, category: EventKindCategory])[] = [
   ["http.", "http"],
   ["sql.", "sql"],
   ["redis.", "redis"],
+  ["exception.", "exception"],
 ];
 
 export function getEventKindCategory(kind: string): EventKindCategory {
