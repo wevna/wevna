@@ -260,22 +260,65 @@ body {
   white-space: nowrap;
 }
 
-.request-row__timeline {
+.waterfall {
   list-style: none;
   margin: 0.5rem 0 0;
-  padding: 0.5rem 0 0 1.25rem;
+  padding: 0.5rem 0 0;
   border-top: 1px dashed currentColor;
-  opacity: 0.8;
 }
 
-.request-row__timeline-entry {
+.waterfall-row {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  font-size: 0.8125rem;
+  padding: 0.125rem 0;
+  font-size: 0.75rem;
+}
+
+.waterfall-row__label {
+  flex: none;
+  width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
   font-family: ui-monospace, monospace;
 }
 
-.request-row__timeline-offset {
+.waterfall-row__track {
+  position: relative;
+  flex: 1;
+  height: 0.875rem;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 0.125rem;
+}
+
+.waterfall-row__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+  border: 1px solid currentColor;
+  border-radius: 0.125rem;
+}
+
+.waterfall-row__marker {
+  position: absolute;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: -0.25rem;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.waterfall-row__timing {
+  flex: none;
+  width: 6rem;
+  text-align: right;
   opacity: 0.6;
-  min-width: 3.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.6875rem;
 }
