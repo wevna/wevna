@@ -509,3 +509,135 @@ describe("Runtime correlation", () => {
     expect(serialized).not.toContain("correlation");
   });
 });
+
+describe("Runtime exception instrumentation", () => {
+  let runtime: Runtime | undefined;
+  let externalServer: http.Server | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+    runtime = undefined;
+    if (externalServer) {
+      // A handler that throws before res.end() leaves its connection open
+      // forever waiting for a response that will never come — a plain
+      // close() would then hang this hook until it times out.
+      externalServer.closeAllConnections();
+      await new Promise((resolve) => externalServer?.close(resolve));
+      externalServer = undefined;
+    }
+  });
+
+  it("captures a synchronous handler exception with no framework catching it, correlated to its request", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    externalServer = http.createServer(() => {
+      // Bare http.Server: nothing catches this, so it becomes a genuine
+      // uncaughtException — this is exactly the case the process-level
+      // fallback exists for.
+      throw new Error("bare handler boom");
+    });
+    await new Promise<void>((resolve) => externalServer?.listen(0, resolve));
+    const externalPort = (externalServer.address() as AddressInfo).port;
+
+    fetch(`http://localhost:${externalPort}/boom`).catch(() => {});
+    await waitUntil(() =>
+      listener.mock.calls.some((call) => call[0]?.payload.kind === "exception.captured"),
+    );
+
+    const exceptionCall = listener.mock.calls.find(
+      (call) => call[0]?.payload.kind === "exception.captured",
+    );
+    expect(exceptionCall?.[0]?.payload.attributes.message).toBe("bare handler boom");
+    expect(exceptionCall?.[0]?.payload.attributes.name).toBe("Error");
+    expect(exceptionCall?.[0]?.payload.correlation?.id).toBeDefined();
+  });
+
+  it("captures an asynchronous rejection with no framework catching it, correlated to its request", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    externalServer = http.createServer((_req, res) => {
+      async function handle(): Promise<void> {
+        await Promise.resolve();
+        throw new Error("bare async boom");
+      }
+      // Deliberately not awaited/caught — becomes an unhandledRejection,
+      // just like an async Express 4 handler with no try/catch.
+      handle();
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => externalServer?.listen(0, resolve));
+    const externalPort = (externalServer.address() as AddressInfo).port;
+
+    await fetch(`http://localhost:${externalPort}/boom`);
+    await waitUntil(() =>
+      listener.mock.calls.some((call) => call[0]?.payload.kind === "exception.captured"),
+    );
+
+    const exceptionCall = listener.mock.calls.find(
+      (call) => call[0]?.payload.kind === "exception.captured",
+    );
+    expect(exceptionCall?.[0]?.payload.attributes.message).toBe("bare async boom");
+    // Same request also still completes normally — the http.request event
+    // for it should share the same correlation id as the exception.
+    const httpCall = listener.mock.calls.find((call) => call[0]?.payload.kind === "http.request");
+    expect(httpCall?.[0]?.payload.correlation?.id).toBe(
+      exceptionCall?.[0]?.payload.correlation?.id,
+    );
+  });
+
+  it("never mixes correlation ids between concurrent failing requests", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    externalServer = http.createServer((req) => {
+      throw new Error(`boom for ${req.url}`);
+    });
+    await new Promise<void>((resolve) => externalServer?.listen(0, resolve));
+    const externalPort = (externalServer.address() as AddressInfo).port;
+
+    fetch(`http://localhost:${externalPort}/a`).catch(() => {});
+    fetch(`http://localhost:${externalPort}/b`).catch(() => {});
+    fetch(`http://localhost:${externalPort}/c`).catch(() => {});
+    await waitUntil(
+      () =>
+        listener.mock.calls.filter((call) => call[0]?.payload.kind === "exception.captured")
+          .length >= 3,
+    );
+
+    const exceptionEvents = listener.mock.calls
+      .map((call) => call[0]?.payload)
+      .filter((payload) => payload.kind === "exception.captured");
+    const correlationIds = new Set(exceptionEvents.map((payload) => payload.correlation?.id));
+    const messages = new Set(exceptionEvents.map((payload) => payload.attributes.message));
+
+    expect(correlationIds.size).toBe(3);
+    expect(messages).toEqual(new Set(["boom for /a", "boom for /b", "boom for /c"]));
+  });
+
+  it("stops capturing exceptions once stopped", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    await runtime.stop();
+
+    // A safety listener so this doesn't register as a genuinely-unhandled
+    // exception in the surrounding test process once Runtime's own
+    // listener has been removed by stop().
+    const safetyListener = vi.fn();
+    process.on("uncaughtException", safetyListener);
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    process.emit("uncaughtException", new Error("after runtime stopped"));
+
+    process.off("uncaughtException", safetyListener);
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

@@ -10,6 +10,7 @@ function makeTimelineEntry(overrides: {
   relativeOffsetMs: number;
   durationMs?: number;
   sequence?: number;
+  attributes?: Record<string, unknown>;
 }): TimelineEntry {
   const sequence = overrides.sequence ?? 1;
   const event: Envelope<CapturedEvent> = {
@@ -20,7 +21,7 @@ function makeTimelineEntry(overrides: {
       id: `event-${sequence}`,
       kind: overrides.kind ?? "console.log",
       occurredAt: overrides.relativeOffsetMs,
-      attributes: {},
+      attributes: overrides.attributes ?? {},
     },
   };
   return {
@@ -287,6 +288,70 @@ describe("WaterfallTimeline", () => {
       const bar = document.querySelector('[data-kind-category="sql"]');
       expect(bar).not.toBeNull();
       expect(screen.getByText("sql.query")).toBeInTheDocument();
+    });
+  });
+
+  describe("exception events", () => {
+    it("renders an exception.captured entry as a marker tagged with the exception category", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [
+              makeTimelineEntry({
+                kind: "exception.captured",
+                relativeOffsetMs: 20,
+                attributes: { name: "TypeError", message: "boom" },
+              }),
+            ],
+          })}
+        />,
+      );
+
+      const marker = document.querySelector(".waterfall-row__marker");
+      expect(marker).not.toBeNull();
+      expect(marker).toHaveAttribute("data-kind-category", "exception");
+      expect(document.querySelector(".waterfall-row__bar")).toBeNull();
+    });
+
+    it("includes the exception's message in its accessible name, not just the kind", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [
+              makeTimelineEntry({
+                kind: "exception.captured",
+                relativeOffsetMs: 20,
+                attributes: { name: "TypeError", message: "cannot read property" },
+              }),
+            ],
+          })}
+        />,
+      );
+
+      expect(
+        screen.getByRole("img", { name: /exception\.captured: cannot read property/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("still shows the kind as visible text, independent of the marker's colour or shape", () => {
+      render(
+        <WaterfallTimeline
+          request={makeRequest({
+            durationMs: 100,
+            timeline: [
+              makeTimelineEntry({
+                kind: "exception.captured",
+                relativeOffsetMs: 20,
+                attributes: { name: "TypeError", message: "boom" },
+              }),
+            ],
+          })}
+        />,
+      );
+
+      expect(screen.getByText("exception.captured")).toBeInTheDocument();
     });
   });
 

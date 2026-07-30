@@ -42,8 +42,14 @@ export function WaterfallTimeline({ request }: WaterfallTimelineProps) {
             entry.durationMs !== undefined ? ` for ${formatMs(entry.durationMs)}` : "";
           // Shape (bar vs. marker) plus this data attribute (colour) plus
           // the label text below are three independent ways to tell kinds
-          // apart — colour is never the only signal.
+          // apart — colour is never the only signal. Exceptions get a
+          // fourth: a diamond marker (CSS-only, see App.css) instead of
+          // the neutral dot every other instantaneous kind uses.
           const category = getEventKindCategory(entry.kind);
+          const exceptionMessage =
+            category === "exception" && typeof entry.event.payload.attributes.message === "string"
+              ? entry.event.payload.attributes.message
+              : undefined;
 
           return (
             <li key={entry.event.payload.id} className="waterfall-row">
@@ -57,8 +63,16 @@ export function WaterfallTimeline({ request }: WaterfallTimelineProps) {
                     data-kind-category={category}
                     style={{ left: `${leftPercent}%` }}
                     role="img"
-                    aria-label={`${entry.kind} at ${offsetLabel}`}
-                    title={`${entry.kind} · ${offsetLabel}`}
+                    aria-label={
+                      exceptionMessage
+                        ? `${entry.kind}: ${exceptionMessage} at ${offsetLabel}`
+                        : `${entry.kind} at ${offsetLabel}`
+                    }
+                    title={
+                      exceptionMessage
+                        ? `${entry.kind} · ${exceptionMessage}`
+                        : `${entry.kind} · ${offsetLabel}`
+                    }
                   />
                 ) : (
                   <span

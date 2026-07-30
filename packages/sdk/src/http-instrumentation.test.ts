@@ -3,7 +3,18 @@ import type { AddressInfo } from "node:net";
 import type { CapturedEvent } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { currentCorrelation } from "./correlation-context.js";
+import { ExceptionInstrumentation } from "./exception-instrumentation.js";
 import { enrichHttpRequest, HttpInstrumentation } from "./http-instrumentation.js";
+
+async function waitUntil(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) {
+      throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -228,5 +239,78 @@ describe("HttpInstrumentation", () => {
     await fetch(`http://localhost:${port}/`);
 
     expect(seenDuringRequest).toBeUndefined();
+  });
+
+  describe("exception capture", () => {
+    let exceptionInstrumentation: ExceptionInstrumentation | undefined;
+    let safetyListener: ((error: Error) => void) | undefined;
+
+    afterEach(() => {
+      exceptionInstrumentation?.stop();
+      exceptionInstrumentation = undefined;
+      if (safetyListener) {
+        // The dispatch catch (below) always rethrows, so with nothing else
+        // handling the raw http.Server's own request dispatch, the error
+        // genuinely reaches 'uncaughtException' afterward — a safety
+        // listener keeps that from being reported as genuinely unhandled
+        // by the surrounding test process.
+        process.off("uncaughtException", safetyListener);
+        safetyListener = undefined;
+      }
+    });
+
+    it("captures a synchronous handler throw while a correlation context is still active, before rethrowing it", async () => {
+      const { port, server } = await startServer(() => {
+        throw new Error("sync handler boom");
+      });
+      instrumentation = new HttpInstrumentation(vi.fn());
+      instrumentation.start();
+      const captured: CapturedEvent[] = [];
+      // ExceptionInstrumentation itself never sets .correlation on the raw
+      // CapturedEvent it builds — attaching it is Runtime.publish()'s job
+      // (covered in runtime.test.ts). What matters at this layer is that
+      // ambient correlation is still readable at the exact moment capture()
+      // runs — recorded here via the publish callback, which fires
+      // synchronously from within the dispatch catch.
+      const correlationsSeenDuringCapture: unknown[] = [];
+      exceptionInstrumentation = new ExceptionInstrumentation((event) => {
+        correlationsSeenDuringCapture.push(currentCorrelation());
+        captured.push(event);
+      });
+      exceptionInstrumentation.start();
+      safetyListener = () => {};
+      process.on("uncaughtException", safetyListener);
+
+      fetch(`http://localhost:${port}/boom`).catch(() => {});
+      await waitUntil(() => captured.length > 0);
+      server.closeAllConnections();
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0]?.kind).toBe("exception.captured");
+      expect(captured[0]?.attributes.message).toBe("sync handler boom");
+      expect(captured[0]?.attributes.origin).toBe("requestDispatch");
+      expect(correlationsSeenDuringCapture[0]).toMatchObject({ id: expect.any(String) });
+    });
+
+    it("does not publish an http.request event for a request whose handler threw", async () => {
+      const { port, server } = await startServer(() => {
+        throw new Error("sync handler boom");
+      });
+      const publish = vi.fn<(event: CapturedEvent) => void>();
+      instrumentation = new HttpInstrumentation(publish);
+      instrumentation.start();
+      exceptionInstrumentation = new ExceptionInstrumentation(vi.fn());
+      exceptionInstrumentation.start();
+      safetyListener = () => {};
+      process.on("uncaughtException", safetyListener);
+
+      fetch(`http://localhost:${port}/boom`).catch(() => {});
+      // No "finish" ever fires (res.end() was never reached), so give it a
+      // moment to (not) happen rather than asserting instantly.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      server.closeAllConnections();
+
+      expect(publish).not.toHaveBeenCalled();
+    });
   });
 });

@@ -3,6 +3,7 @@ import http from "node:http";
 import { performance } from "node:perf_hooks";
 import type { CapturedEvent } from "@wevna/protocol";
 import { startCorrelation } from "./correlation-context.js";
+import { captureException } from "./exception-instrumentation.js";
 import { detectExpressEnrichment } from "./express-enrichment.js";
 
 export type PublishCapturedEvent = (event: CapturedEvent) => void;
@@ -135,7 +136,22 @@ export class HttpInstrumentation {
           });
         });
 
-        return originalEmit.apply(this, [event, ...args] as Parameters<ServerEmit>);
+        try {
+          return originalEmit.apply(this, [event, ...args] as Parameters<ServerEmit>);
+        } catch (error) {
+          // A synchronous throw from here propagates out through Node's
+          // own HTTP dispatch internals to become a process-level
+          // uncaughtException — but verified empirically that by the time
+          // it gets there, AsyncLocalStorage no longer reports the
+          // correlation active right here, one frame up. Capturing it in
+          // this catch, still inside the same synchronous call stack
+          // startCorrelation established, is what keeps it correlated.
+          // Rethrown unchanged afterward — this only observes, it doesn't
+          // change how the framework (or Node's default) ends up handling
+          // the error.
+          captureException(error, { origin: "requestDispatch" });
+          throw error;
+        }
       });
     };
   }

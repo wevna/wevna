@@ -90,4 +90,38 @@ describe("EventList", () => {
     expect(rows[0]?.className).not.toContain("event-row--selected");
     expect(rows[1]?.className).toContain("event-row--selected");
   });
+
+  describe("exception rows", () => {
+    it("tags an exception.captured row with the exception kind category", () => {
+      const events = [
+        makeEnvelope({
+          kind: "exception.captured",
+          attributes: { name: "TypeError", message: "boom" },
+        }),
+      ];
+
+      render(<EventList events={events} selectedId={undefined} onSelect={vi.fn()} />);
+
+      expect(screen.getByRole("listitem")).toHaveAttribute("data-kind-category", "exception");
+    });
+
+    it("leaves a console.log row tagged as 'other', not 'exception'", () => {
+      render(<EventList events={[makeEnvelope()]} selectedId={undefined} onSelect={vi.fn()} />);
+
+      expect(screen.getByRole("listitem")).toHaveAttribute("data-kind-category", "other");
+    });
+
+    it("shows the exception's name and message as the row's visible summary", () => {
+      const events = [
+        makeEnvelope({
+          kind: "exception.captured",
+          attributes: { name: "TypeError", message: "cannot read property of undefined" },
+        }),
+      ];
+
+      render(<EventList events={events} selectedId={undefined} onSelect={vi.fn()} />);
+
+      expect(screen.getByText("TypeError: cannot read property of undefined")).toBeInTheDocument();
+    });
+  });
 });

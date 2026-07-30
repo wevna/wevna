@@ -28,8 +28,8 @@ await app.listen({ port: 3000 });
 
 Every request Fastify handles is captured with no setup at all — Wevna's
 HTTP instrumentation observes Node's raw `http.Server`, one layer below
-Fastify. The one extra line, `app.register(wevnaFastifyEnrichment)`, is
-only for **route enrichment**.
+Fastify. The one extra line, `app.register(wevnaFastifyEnrichment)`, adds
+**route enrichment** and **exception capture**.
 
 ## Why Fastify needs that one extra line
 
@@ -44,6 +44,12 @@ route pattern (`/widgets/:id`) and handler name show up on the
 Skip it and Wevna still captures every request — you'll just see the raw
 URL instead of the route pattern.
 
+The same registration also covers exceptions: Fastify catches a route
+handler's thrown or rejected error itself and finishes the response
+before Wevna's HTTP instrumentation ever sees the error object, so
+`wevnaFastifyEnrichment` additionally hooks Fastify's own `onError` —
+purely to observe, never to change what Fastify sends back.
+
 ## What you'll see
 
 Open the dashboard Wevna prints (`http://localhost:4123` by default) and
@@ -53,5 +59,7 @@ hit an endpoint. You'll see, correlated to that one request:
 - any logging done while handling it
 - any instrumented `pg`/`ioredis` calls made while handling it (see the
   root README for wiring those up)
+- any exception thrown or rejected while handling it, with its type,
+  message, and stack trace
 
 all grouped together and laid out on that request's waterfall.

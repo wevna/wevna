@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { CapturedEvent } from "@wevna/protocol";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ExceptionInstrumentation } from "./exception-instrumentation.js";
 import { wevnaFastifyEnrichment } from "./fastify-enrichment.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
 
@@ -77,5 +78,70 @@ describe("wevnaFastifyEnrichment", () => {
     await fetch(`http://localhost:${port}/widgets/42`);
 
     expect(publish).toHaveBeenCalledOnce();
+  });
+
+  describe("exception capture", () => {
+    let exceptionInstrumentation: ExceptionInstrumentation | undefined;
+
+    afterEach(() => {
+      exceptionInstrumentation?.stop();
+      exceptionInstrumentation = undefined;
+    });
+
+    it("captures a synchronously-thrown handler error without changing the response", async () => {
+      const app = Fastify();
+      await app.register(wevnaFastifyEnrichment);
+      app.get("/boom", async () => {
+        throw new Error("sync boom");
+      });
+      const port = await listen(app);
+
+      const captured: CapturedEvent[] = [];
+      exceptionInstrumentation = new ExceptionInstrumentation((event) => captured.push(event));
+      exceptionInstrumentation.start();
+
+      const response = await fetch(`http://localhost:${port}/boom`);
+
+      expect(response.status).toBe(500);
+      expect(captured).toHaveLength(1);
+      expect(captured[0]?.kind).toBe("exception.captured");
+      expect(captured[0]?.attributes.message).toBe("sync boom");
+      expect(captured[0]?.attributes.framework).toBe("fastify");
+    });
+
+    it("captures an asynchronously-rejected handler error without changing the response", async () => {
+      const app = Fastify();
+      await app.register(wevnaFastifyEnrichment);
+      app.get("/async-boom", async () => {
+        await Promise.resolve();
+        throw new Error("async boom");
+      });
+      const port = await listen(app);
+
+      const captured: CapturedEvent[] = [];
+      exceptionInstrumentation = new ExceptionInstrumentation((event) => captured.push(event));
+      exceptionInstrumentation.start();
+
+      const response = await fetch(`http://localhost:${port}/async-boom`);
+
+      expect(response.status).toBe(500);
+      expect(captured).toHaveLength(1);
+      expect(captured[0]?.attributes.message).toBe("async boom");
+    });
+
+    it("does not capture anything for a request that never errors", async () => {
+      const app = Fastify();
+      await app.register(wevnaFastifyEnrichment);
+      app.get("/widgets/:id", async () => ({ ok: true }));
+      const port = await listen(app);
+
+      const captured: CapturedEvent[] = [];
+      exceptionInstrumentation = new ExceptionInstrumentation((event) => captured.push(event));
+      exceptionInstrumentation.start();
+
+      await fetch(`http://localhost:${port}/widgets/42`);
+
+      expect(captured).toHaveLength(0);
+    });
   });
 });

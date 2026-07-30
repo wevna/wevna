@@ -71,6 +71,20 @@ function receiveCorrelatedEvent(sequence: number, correlationId: string): void {
   });
 }
 
+function receiveExceptionEvent(sequence: number, correlationId: string): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = "exception.captured";
+  envelope.payload.attributes = {
+    name: "TypeError",
+    message: "cannot read property of undefined",
+    stack: "TypeError: cannot read property of undefined\n    at handler (/app/index.js:1:1)",
+  };
+  envelope.payload.correlation = { id: correlationId };
+  act(() => {
+    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
+  });
+}
+
 describe("App", () => {
   const OriginalWebSocket = globalThis.WebSocket;
 
@@ -390,6 +404,128 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: "Clear requests" }));
 
       expect(screen.getByText(/select a request to inspect it/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("Exception capture", () => {
+    it("shows a captured exception in the raw event list, tagged with the exception category", () => {
+      render(<App />);
+
+      receiveExceptionEvent(1, "corr-1");
+
+      const row = document.querySelector(".event-list")?.querySelector(".event-row");
+      expect(row).toHaveAttribute("data-kind-category", "exception");
+      expect(screen.getByText("TypeError: cannot read property of undefined")).toBeInTheDocument();
+    });
+
+    it("groups a captured exception into its correlated request", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+
+      const requestList = document.querySelector(".request-list") as HTMLElement;
+      expect(within(requestList).getByText("2 events")).toBeInTheDocument();
+    });
+
+    it("renders the exception as a diamond marker in the request's waterfall", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(
+        inspector.querySelector('.waterfall-row__marker[data-kind-category="exception"]'),
+      ).not.toBeNull();
+    });
+
+    it("shows the dedicated exception details panel when the exception event is selected from the inspector", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+      const inspectorEventList = document
+        .querySelector(".request-inspector")
+        ?.querySelector(".event-list") as HTMLElement;
+
+      fireEvent.click(within(inspectorEventList).getByText("exception.captured"));
+
+      expect(document.querySelector(".exception-details")).not.toBeNull();
+      expect(screen.getByText("TypeError")).toBeInTheDocument();
+      expect(screen.getByText("cannot read property of undefined")).toBeInTheDocument();
+    });
+
+    it("shows Time Within Request and Correlation ID for a selected exception", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+      const inspectorEventList = document
+        .querySelector(".request-inspector")
+        ?.querySelector(".event-list") as HTMLElement;
+
+      fireEvent.click(within(inspectorEventList).getByText("exception.captured"));
+
+      // Scoped to the top-level EventDetails panel specifically —
+      // RequestInspector's own summary also has a "Correlation ID" field.
+      const eventDetails = document.querySelector(".event-details") as HTMLElement;
+      expect(within(eventDetails).getByText("Time Within Request")).toBeInTheDocument();
+      expect(within(eventDetails).getByText("Correlation ID")).toBeInTheDocument();
+      expect(within(eventDetails).getByText("corr-1")).toBeInTheDocument();
+    });
+
+    it("shows the stack trace exactly as captured", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      fireEvent.click(screen.getByText("TypeError: cannot read property of undefined"));
+
+      const stack = document.querySelector(".exception-details__stack");
+      expect(stack?.textContent).toBe(
+        "TypeError: cannot read property of undefined\n    at handler (/app/index.js:1:1)",
+      );
+    });
+
+    it("does not affect existing dashboard functionality: search, filter, pause, and clear still work", () => {
+      render(<App />);
+      receiveExceptionEvent(1, "corr-1");
+      receiveEvent(2);
+
+      fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "TypeError" } });
+      expect(screen.getByText("TypeError: cannot read property of undefined")).toBeInTheDocument();
+      expect(screen.queryByText("message 2")).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText("Filter by kind"), {
+        target: { value: "exception.captured" },
+      });
+      const eventListRows = (document.querySelector(".event-list") as HTMLElement).querySelectorAll(
+        ".event-row",
+      );
+      expect(eventListRows).toHaveLength(1);
+
+      fireEvent.change(screen.getByLabelText("Filter by kind"), { target: { value: "" } });
+      fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+      receiveEvent(3);
+      expect(screen.queryByText("message 3")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+      expect(screen.getByText("message 3")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+      expect(
+        screen.queryByText("TypeError: cannot read property of undefined"),
+      ).not.toBeInTheDocument();
     });
   });
 });
