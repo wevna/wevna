@@ -1,11 +1,13 @@
 import "./App.css";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
+import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
 import { SearchControls } from "./SearchControls.tsx";
 import { TimelineControls } from "./TimelineControls.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useLiveEvents } from "./use-live-events.ts";
+import { useRequestSelection } from "./use-request-selection.ts";
 import { useRequests } from "./use-requests.ts";
 import { useSelection } from "./use-selection.ts";
 import { useTimeline } from "./use-timeline.ts";
@@ -28,7 +30,23 @@ function App() {
   // pause/filter/search, exactly like EventStore itself. Those are
   // presentation concerns layered on top of the raw pipeline, not part of
   // what a request "is".
-  const { requests, clear: clearRequests } = useRequests(events);
+  const { requests, clear: clearRequestsStore } = useRequests(events);
+  const { selectedRequestId, selectRequest, clearRequestSelection } = useRequestSelection();
+  // Resolves against the live requests list every render, same as
+  // selectedEvent above — a request whose model object hasn't changed
+  // (see request-store.ts) is the same reference, so this doesn't defeat
+  // RequestList's/RequestInspector's memoization, and a still-executing
+  // selected request's inspector view updates automatically as its model
+  // object changes.
+  const selectedRequest = requests.find((request) => request.id === selectedRequestId);
+
+  // Clearing the request list removes whatever was selected too — leaving
+  // a stale id selected here would be harmless (selectedRequest would just
+  // resolve to undefined) but pointless to keep around.
+  function clearRequests(): void {
+    clearRequestsStore();
+    clearRequestSelection();
+  }
 
   return (
     <main className="app">
@@ -62,7 +80,18 @@ function App() {
             Clear requests
           </button>
         </div>
-        <RequestList requests={requests} />
+        <div className="requests-section__layout">
+          <RequestList
+            requests={requests}
+            selectedRequestId={selectedRequestId}
+            onSelectRequest={selectRequest}
+          />
+          <RequestInspector
+            request={selectedRequest}
+            selectedEventId={selectedId}
+            onSelectEvent={select}
+          />
+        </div>
       </section>
     </main>
   );

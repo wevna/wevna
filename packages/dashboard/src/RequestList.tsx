@@ -1,45 +1,51 @@
 import { memo } from "react";
+import { formatEventCount, formatRequestDuration } from "./request-format.ts";
 import type { RequestModel } from "./request-store.ts";
-import { WaterfallTimeline } from "./WaterfallTimeline.tsx";
 
 export interface RequestListProps {
   requests: readonly RequestModel[];
+  selectedRequestId: string | undefined;
+  onSelectRequest: (id: string) => void;
 }
 
-function formatDuration(durationMs: number | undefined): string {
-  return durationMs === undefined ? "…" : `${durationMs.toFixed(1)}ms`;
+interface RequestRowProps {
+  request: RequestModel;
+  selected: boolean;
+  onSelect: () => void;
 }
 
 // Memoized so a request whose model object hasn't changed (every request
 // except the one an incoming event just touched — see request-store.ts)
-// skips re-rendering, including recomputing its waterfall layout, even
-// though RequestList itself re-renders on every event.
-const RequestRow = memo(function RequestRow({ request }: { request: RequestModel }) {
+// skips re-rendering, even though RequestList itself re-renders on every
+// event. `selected` is a plain boolean, so React.memo's default shallow
+// comparison already limits a selection change to re-rendering just the
+// previously- and newly-selected rows.
+const RequestRow = memo(function RequestRow({ request, selected, onSelect }: RequestRowProps) {
+  const className = selected ? "request-row request-row--selected" : "request-row";
+
   return (
-    <li className="request-row">
-      <div className="request-row__summary">
+    <li className={className}>
+      <button type="button" className="request-row__button" onClick={onSelect}>
         <span className="request-row__status" data-status={request.status}>
           {request.status}
         </span>
         <span className="request-row__method">{request.method ?? "—"}</span>
         <span className="request-row__route">{request.route ?? "—"}</span>
         <span className="request-row__status-code">{request.statusCode ?? "—"}</span>
-        <span className="request-row__duration">{formatDuration(request.durationMs)}</span>
-        <span className="request-row__count">
-          {request.events.length} event{request.events.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <WaterfallTimeline request={request} />
+        <span className="request-row__duration">{formatRequestDuration(request.durationMs)}</span>
+        <span className="request-row__count">{formatEventCount(request.events.length)}</span>
+      </button>
     </li>
   );
 });
 
-// Minimal, developer-oriented validation view: proves requests assemble
-// correctly from raw events, and that each renders as an intuitive
-// waterfall. Not a full inspector — no expansion/collapse, no per-event
-// detail panel. That's future work built on top of RequestStore/
-// timeline.ts/timeline-layout.ts.
-export function RequestList({ requests }: RequestListProps) {
+// Pure navigation, in the spirit of Chrome DevTools' Network panel: a
+// request row identifies the request and lets you select it, nothing
+// more. Its full detail (summary, timeline, events) lives in
+// RequestInspector — see RequestInspector.tsx — which is the one place
+// that renders a request's WaterfallTimeline and event list, so neither
+// gets duplicated between the two components.
+export function RequestList({ requests, selectedRequestId, onSelectRequest }: RequestListProps) {
   if (requests.length === 0) {
     return <p className="request-list__empty">No requests yet.</p>;
   }
@@ -47,7 +53,12 @@ export function RequestList({ requests }: RequestListProps) {
   return (
     <ul className="request-list">
       {requests.map((request) => (
-        <RequestRow key={request.id} request={request} />
+        <RequestRow
+          key={request.id}
+          request={request}
+          selected={request.id === selectedRequestId}
+          onSelect={() => onSelectRequest(request.id)}
+        />
       ))}
     </ul>
   );

@@ -47,4 +47,36 @@ describe("SelectionStore", () => {
 
     expect(listener).not.toHaveBeenCalled();
   });
+
+  describe("clear", () => {
+    it("resets the selection to undefined", () => {
+      const store = new SelectionStore();
+      store.select("event-1");
+
+      store.clear();
+
+      expect(store.getSelectedId()).toBeUndefined();
+    });
+
+    it("notifies subscribers when clearing an active selection", () => {
+      const store = new SelectionStore();
+      store.select("event-1");
+      const listener = vi.fn();
+      store.subscribe(listener);
+
+      store.clear();
+
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("does not notify subscribers when clearing an already-empty selection", () => {
+      const store = new SelectionStore();
+      const listener = vi.fn();
+      store.subscribe(listener);
+
+      store.clear();
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
 });
