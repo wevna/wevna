@@ -1,5 +1,18 @@
 :root {
   color-scheme: light dark;
+  /* Shared with .timeline-axis's spacers so its ticks line up with the
+     waterfall track directly below them. */
+  --wf-label-width: 7rem;
+  --wf-timing-width: 6rem;
+  /* Validated categorical palette (dataviz skill: CVD ΔE + contrast
+     checked via scripts/validate_palette.js for both surfaces) — one hue
+     per duration-bearing event kind. Fixed order, never cycled. Kinds with
+     no duration (console.log) stay uncoloured; shape (marker vs. bar)
+     already sets them apart, and a 4th competing hue isn't needed for a
+     single category. */
+  --wf-color-http: light-dark(#2a78d6, #3987e5);
+  --wf-color-sql: light-dark(#eb6834, #d95926);
+  --wf-color-redis: light-dark(#1baf7a, #199e70);
 }
 
 body {
@@ -277,7 +290,7 @@ body {
 
 .waterfall-row__label {
   flex: none;
-  width: 7rem;
+  width: var(--wf-label-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -316,9 +329,68 @@ body {
 
 .waterfall-row__timing {
   flex: none;
-  width: 6rem;
+  width: var(--wf-timing-width);
   text-align: right;
   opacity: 0.6;
   font-family: ui-monospace, monospace;
   font-size: 0.6875rem;
+}
+
+.waterfall-row__bar[data-kind-category="http"] {
+  background: color-mix(in srgb, var(--wf-color-http) 55%, transparent);
+  border-color: var(--wf-color-http);
+}
+
+.waterfall-row__bar[data-kind-category="sql"] {
+  background: color-mix(in srgb, var(--wf-color-sql) 55%, transparent);
+  border-color: var(--wf-color-sql);
+}
+
+.waterfall-row__bar[data-kind-category="redis"] {
+  background: color-mix(in srgb, var(--wf-color-redis) 55%, transparent);
+  border-color: var(--wf-color-redis);
+}
+
+.waterfall-row__marker[data-kind-category="http"] {
+  background: var(--wf-color-http);
+}
+
+.waterfall-row__marker[data-kind-category="sql"] {
+  background: var(--wf-color-sql);
+}
+
+.waterfall-row__marker[data-kind-category="redis"] {
+  background: var(--wf-color-redis);
+}
+
+.timeline-axis {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 0.875rem;
+  margin: 0.5rem 0 0.125rem;
+}
+
+.timeline-axis__spacer {
+  flex: none;
+  width: var(--wf-label-width);
+}
+
+.timeline-axis__spacer--timing {
+  width: var(--wf-timing-width);
+}
+
+.timeline-axis__track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+}
+
+.timeline-axis__tick {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  opacity: 0.5;
+  font-family: ui-monospace, monospace;
+  font-size: 0.625rem;
 }

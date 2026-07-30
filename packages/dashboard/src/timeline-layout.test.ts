@@ -1,7 +1,7 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
 import type { TimelineEntry } from "./timeline.ts";
-import { computeTimelineLayout } from "./timeline-layout.ts";
+import { computeTimelineAxisTicks, computeTimelineLayout } from "./timeline-layout.ts";
 
 function makeEntry(overrides: {
   kind?: string;
@@ -225,5 +225,75 @@ describe("computeTimelineLayout", () => {
 
       expect(layout.entries[0]?.leftPercent).toBe(100);
     });
+  });
+});
+
+describe("computeTimelineAxisTicks", () => {
+  it("defaults to 5 evenly-spaced ticks spanning 0% to 100%", () => {
+    const ticks = computeTimelineAxisTicks(100);
+
+    expect(ticks).toHaveLength(5);
+    expect(ticks.map((t) => t.leftPercent)).toEqual([0, 25, 50, 75, 100]);
+    expect(ticks.map((t) => t.ms)).toEqual([0, 25, 50, 75, 100]);
+  });
+
+  it("labels each tick with its millisecond value", () => {
+    const ticks = computeTimelineAxisTicks(40);
+
+    expect(ticks.map((t) => t.label)).toEqual(["0ms", "10ms", "20ms", "30ms", "40ms"]);
+  });
+
+  it("honors a custom tick count", () => {
+    const ticks = computeTimelineAxisTicks(100, 3);
+
+    expect(ticks.map((t) => t.leftPercent)).toEqual([0, 50, 100]);
+    expect(ticks.map((t) => t.ms)).toEqual([0, 50, 100]);
+  });
+
+  it("clamps a tick count below 2 up to the minimum of 2", () => {
+    const ticks = computeTimelineAxisTicks(100, 1);
+
+    expect(ticks.map((t) => t.leftPercent)).toEqual([0, 100]);
+  });
+
+  it("scales correctly for long-running requests", () => {
+    const ticks = computeTimelineAxisTicks(3000);
+
+    expect(ticks.map((t) => t.ms)).toEqual([0, 750, 1500, 2250, 3000]);
+  });
+
+  it("rounds fractional millisecond values to one decimal place", () => {
+    const ticks = computeTimelineAxisTicks(10, 3);
+
+    // Midpoint of a 10ms span split into 2 segments is 5ms exactly, but a
+    // duration that doesn't divide evenly should still round cleanly.
+    const oddTicks = computeTimelineAxisTicks(33, 4);
+    expect(oddTicks.map((t) => t.label)).toEqual(["0ms", "11ms", "22ms", "33ms"]);
+    expect(ticks.map((t) => t.label)).toEqual(["0ms", "5ms", "10ms"]);
+  });
+
+  it("returns a single 0ms tick for a zero total duration", () => {
+    const ticks = computeTimelineAxisTicks(0);
+
+    expect(ticks).toEqual([{ ms: 0, leftPercent: 0, label: "0ms" }]);
+  });
+
+  it("returns a single 0ms tick for a negative total duration", () => {
+    const ticks = computeTimelineAxisTicks(-10);
+
+    expect(ticks).toEqual([{ ms: 0, leftPercent: 0, label: "0ms" }]);
+  });
+
+  it("is deterministic: identical input produces identical output", () => {
+    expect(computeTimelineAxisTicks(250)).toEqual(computeTimelineAxisTicks(250));
+  });
+
+  it("never produces NaN or Infinity for very large durations", () => {
+    const ticks = computeTimelineAxisTicks(1_000_000);
+
+    for (const tick of ticks) {
+      expect(Number.isFinite(tick.ms)).toBe(true);
+      expect(Number.isFinite(tick.leftPercent)).toBe(true);
+    }
   });
 });

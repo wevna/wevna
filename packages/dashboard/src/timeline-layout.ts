@@ -25,6 +25,27 @@ export interface TimelineLayout {
   entries: readonly TimelineLayoutEntry[];
 }
 
+export interface TimelineAxisTick {
+  // Milliseconds since the request started, matching relativeOffsetMs's
+  // units so a caller can line a tick up against an entry directly.
+  ms: number;
+  // Percentage position, dimensionless like TimelineLayoutEntry's — no
+  // pixels here either, and expressed as a position rather than an even
+  // fraction so a future zoom feature (out of scope for this PR) can
+  // generate a non-uniform tick set without changing this shape.
+  leftPercent: number;
+  label: string;
+}
+
+const DEFAULT_AXIS_TICK_COUNT = 5;
+
+function formatAxisTickLabel(ms: number): string {
+  // One decimal place is enough resolution for a glanceable scale; a
+  // whole-number tick renders without a trailing ".0".
+  const rounded = Math.round(ms * 10) / 10;
+  return `${rounded}ms`;
+}
+
 function clampPercent(value: number): number {
   if (Number.isNaN(value)) {
     return 0;
@@ -115,4 +136,28 @@ export function computeTimelineLayout(
       };
     }),
   };
+}
+
+// Evenly-spaced reference ticks for a minimal scale above the waterfall —
+// not the full "nice round numbers" axis a general-purpose chart would
+// need, since PR scope is "communicate scale without overwhelming the UI."
+// Pure and DOM-free like computeTimelineLayout: a consuming component
+// decides how leftPercent/label become markup.
+export function computeTimelineAxisTicks(
+  totalDurationMs: number,
+  tickCount: number = DEFAULT_AXIS_TICK_COUNT,
+): readonly TimelineAxisTick[] {
+  if (totalDurationMs <= 0) {
+    return [{ ms: 0, leftPercent: 0, label: formatAxisTickLabel(0) }];
+  }
+
+  // A single segment is the smallest tick set that still shows both ends
+  // of the scale.
+  const count = Math.max(2, Math.floor(tickCount));
+
+  return Array.from({ length: count }, (_, index) => {
+    const leftPercent = (index / (count - 1)) * 100;
+    const ms = (leftPercent / 100) * totalDurationMs;
+    return { ms, leftPercent, label: formatAxisTickLabel(ms) };
+  });
 }
