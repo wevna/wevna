@@ -52,4 +52,22 @@ describe("EventStore", () => {
 
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it("preserves correlation metadata on stored events unchanged", () => {
+    const store = new EventStore();
+    const envelope = makeEnvelope(1);
+    envelope.payload.correlation = { id: "correlation-1" };
+
+    store.append(envelope);
+
+    expect(store.getEvents()[0]?.payload.correlation).toEqual({ id: "correlation-1" });
+  });
+
+  it("keeps events without correlation metadata working exactly as before", () => {
+    const store = new EventStore();
+
+    store.append(makeEnvelope(1));
+
+    expect(store.getEvents()[0]?.payload.correlation).toBeUndefined();
+  });
 });

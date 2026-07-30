@@ -1,6 +1,13 @@
-import { type CapturedEvent, type Envelope, PROTOCOL_VERSION, type Session } from "@wevna/protocol";
+import {
+  type CapturedEvent,
+  type Correlation,
+  type Envelope,
+  PROTOCOL_VERSION,
+  type Session,
+} from "@wevna/protocol";
 import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
+import * as correlationContext from "./correlation-context.js";
 import { EventBus } from "./event-bus.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
 import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
@@ -12,8 +19,9 @@ import { createSession, stopSession } from "./session.js";
 // management, storage, and plugins all get coordinated together in a
 // defined startup/shutdown order — the SDK itself stays a thin,
 // publicly-facing wrapper around it. Only the server, the current session,
-// the internal event bus, and console/HTTP/pg/Redis instrumentation exist
-// so far. Future milestones attach to Runtime, not to the SDK.
+// the internal event bus, console/HTTP/pg/Redis instrumentation, and
+// correlation context exist so far. Future milestones attach to Runtime,
+// not to the SDK.
 export type RuntimeState = "stopped" | "starting" | "running" | "stopping";
 
 export class Runtime {
@@ -82,10 +90,19 @@ export class Runtime {
   }
 
   // Internal-only: the single place protocol envelopes get constructed.
-  // Producers (future instrumentation) only ever deal in CapturedEvent —
-  // Runtime is solely responsible for stamping the protocol version,
-  // attaching the active session, and assigning the next sequence number
-  // before handing the envelope to the event bus.
+  // Producers (instrumentation) only ever deal in CapturedEvent — Runtime
+  // is solely responsible for stamping the protocol version, attaching
+  // the active session, assigning the next sequence number, and — new in
+  // this milestone — attaching whichever correlation is active for the
+  // calling async flow, before handing the envelope to the event bus.
+  //
+  // This is the entire mechanism by which every producer (console, HTTP,
+  // pg, Redis) gets correlation for free: none of them need to know
+  // correlation exists. If a producer already set its own `correlation`
+  // (nothing does today), that's honoured over the ambient one. If no
+  // correlation is active at all (startup logs, background work outside
+  // any request), the event publishes exactly as it did before this
+  // milestone — no `correlation` key present.
   publish(event: CapturedEvent): void {
     if (!this.#session) {
       throw new Error("Cannot publish an event before Runtime has started a session.");
@@ -93,14 +110,33 @@ export class Runtime {
 
     this.#sequence += 1;
 
+    const correlation = event.correlation ?? correlationContext.currentCorrelation();
+    const payload: CapturedEvent = correlation ? { ...event, correlation } : event;
+
     const envelope: Envelope<CapturedEvent> = {
       version: PROTOCOL_VERSION,
       sessionId: this.#session.id,
       sequence: this.#sequence,
-      payload: event,
+      payload,
     };
 
     this.#eventBus.publish(envelope);
+  }
+
+  // Internal-only: exposes the correlation API to other Runtime-owned
+  // subsystems (and future instrumentation — queues, workers, ...)
+  // without them needing to understand AsyncLocalStorage directly. Not
+  // re-exported from the package's public entrypoint.
+  currentCorrelation(): Correlation | undefined {
+    return correlationContext.currentCorrelation();
+  }
+
+  startCorrelation<T>(fn: () => T): T {
+    return correlationContext.startCorrelation(fn);
+  }
+
+  runWithCorrelation<T>(correlation: Correlation, fn: () => T): T {
+    return correlationContext.runWithCorrelation(correlation, fn);
   }
 
   // Wraps a pg Pool or Client's query() to publish sql.query events. Safe

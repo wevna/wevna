@@ -9,6 +9,20 @@ function makeCapturedEvent(kind = "test"): CapturedEvent {
   return { id: "event-1", kind, occurredAt: Date.now(), attributes: {} };
 }
 
+// HttpInstrumentation defers publishing by one setImmediate tick after
+// "finish" (see http-instrumentation.ts), so a client's fetch() can
+// resolve fractionally before the server has actually finished publishing
+// — polls instead of assuming a fixed delay is always enough.
+async function waitUntil(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) {
+      throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 describe("Runtime", () => {
   let runtime: Runtime | undefined;
 
@@ -342,5 +356,156 @@ describe("Runtime database instrumentation", () => {
     expect(() => client.sendCommand(command)).not.toThrow();
     await command.promise;
     await expect(Promise.resolve()).resolves.toBeUndefined();
+  });
+});
+
+describe("Runtime correlation", () => {
+  let runtime: Runtime | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+    runtime = undefined;
+  });
+
+  it("does not attach correlation to an event published outside any correlation context", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent());
+
+    const published = listener.mock.calls[0]?.[0].payload;
+    expect("correlation" in published).toBe(false);
+  });
+
+  it("honours an explicitly-set correlation on the event over the ambient one", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+    const explicit = { id: "explicit-correlation" };
+
+    runtime.publish({ ...makeCapturedEvent(), correlation: explicit });
+
+    expect(listener.mock.calls[0]?.[0].payload.correlation).toEqual(explicit);
+  });
+
+  it("attaches the ambient correlation to an event published while one is active", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.startCorrelation(() => {
+      runtime?.publish(makeCapturedEvent());
+    });
+
+    expect(listener.mock.calls[0]?.[0].payload.correlation).toMatchObject({
+      id: expect.any(String),
+    });
+  });
+
+  it("gives every event published during a single HTTP request the same correlation id", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const appServer = http.createServer((_req, res) => {
+      // Stands in for a producer (e.g. console.log) firing mid-request.
+      runtime?.publish(makeCapturedEvent("console.log"));
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => appServer.listen(0, resolve));
+    const port = (appServer.address() as AddressInfo).port;
+
+    await fetch(`http://localhost:${port}/checkout`);
+    await waitUntil(() => listener.mock.calls.length >= 2);
+    await new Promise((resolve) => appServer.close(resolve));
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    const kinds = listener.mock.calls.map((call) => call[0]?.payload.kind);
+    expect(kinds).toEqual(expect.arrayContaining(["console.log", "http.request"]));
+    const correlationIds = listener.mock.calls.map((call) => call[0]?.payload.correlation?.id);
+    expect(correlationIds[0]).toBeDefined();
+    expect(correlationIds[0]).toBe(correlationIds[1]);
+  });
+
+  it("never mixes correlation ids between concurrent HTTP requests", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const appServer = http.createServer(async (_req, res) => {
+      runtime?.publish(makeCapturedEvent("console.log"));
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
+      runtime?.publish(makeCapturedEvent("console.log"));
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => appServer.listen(0, resolve));
+    const port = (appServer.address() as AddressInfo).port;
+
+    await Promise.all([
+      fetch(`http://localhost:${port}/a`),
+      fetch(`http://localhost:${port}/b`),
+      fetch(`http://localhost:${port}/c`),
+    ]);
+    // 3 requests x (2 console.log + 1 http.request) = 9 events. The
+    // http.request event for each is published a tick after "finish" (see
+    // http-instrumentation.ts), which can trail fetch() resolving.
+    await waitUntil(() => listener.mock.calls.length >= 9);
+    await new Promise((resolve) => appServer.close(resolve));
+
+    expect(listener).toHaveBeenCalledTimes(9);
+
+    const byCorrelation = new Map<string, Set<string>>();
+    for (const call of listener.mock.calls) {
+      const payload = call[0]?.payload;
+      const correlationId = payload.correlation?.id;
+      expect(correlationId).toBeDefined();
+      const kinds = byCorrelation.get(correlationId) ?? new Set();
+      kinds.add(payload.kind);
+      byCorrelation.set(correlationId, kinds);
+    }
+
+    // Three distinct requests, never merged into one another.
+    expect(byCorrelation.size).toBe(3);
+    // Every correlation saw exactly the console.log + http.request events
+    // from its own request — nothing leaked in from another.
+    for (const kinds of byCorrelation.values()) {
+      expect(kinds).toEqual(new Set(["console.log", "http.request"]));
+    }
+  });
+
+  it("round-trips correlation metadata through JSON serialization", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.startCorrelation(() => {
+      runtime?.publish(makeCapturedEvent());
+    });
+
+    const envelope = listener.mock.calls[0]?.[0];
+    const roundTripped = JSON.parse(JSON.stringify(envelope));
+
+    expect(roundTripped.payload.correlation).toEqual(envelope.payload.correlation);
+  });
+
+  it("omits the correlation key entirely from serialized JSON when none was active (backwards compatible)", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent());
+
+    const envelope = listener.mock.calls[0]?.[0];
+    const serialized = JSON.stringify(envelope);
+
+    expect(serialized).not.toContain("correlation");
   });
 });

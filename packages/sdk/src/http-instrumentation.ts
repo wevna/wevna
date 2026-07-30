@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import http from "node:http";
 import { performance } from "node:perf_hooks";
 import type { CapturedEvent } from "@wevna/protocol";
+import { startCorrelation } from "./correlation-context.js";
 import { detectExpressEnrichment } from "./express-enrichment.js";
 
 export type PublishCapturedEvent = (event: CapturedEvent) => void;
@@ -46,6 +47,9 @@ function getHttpEnrichment(req: http.IncomingMessage): HttpEnrichment | undefine
 // framework, so it works under Express, Fastify, NestJS, or a bare
 // http.Server without framework-specific integration. One incoming request
 // produces exactly one CapturedEvent, published once its response finishes.
+// Also establishes a new correlation context for each request (see
+// correlation-context.ts) — everything published during that request's
+// handling automatically shares its correlation id.
 export class HttpInstrumentation {
   readonly #publish: PublishCapturedEvent;
   #originalEmit: ServerEmit | undefined;
@@ -76,8 +80,23 @@ export class HttpInstrumentation {
       event: string,
       ...args: unknown[]
     ): boolean {
-      if (event === "request" && !ignoredServers.has(this)) {
-        const [req, res] = args as [http.IncomingMessage, http.ServerResponse];
+      if (event !== "request" || ignoredServers.has(this)) {
+        return originalEmit.apply(this, [event, ...args] as Parameters<ServerEmit>);
+      }
+
+      const [req, res] = args as [http.IncomingMessage, http.ServerResponse];
+
+      // Every event published while this server dispatches the request —
+      // by the framework's route handlers, or by console/pg/Redis
+      // instrumentation anywhere in that call chain — automatically
+      // inherits this correlation via AsyncLocalStorage, with no changes
+      // needed anywhere else: Runtime.publish() attaches whatever
+      // correlation is active to every event it publishes. The "finish"
+      // listener is registered inside here too (not just the dispatch
+      // itself) so the http.request event this instrumentation publishes
+      // — fired later, asynchronously — is also correlated with
+      // everything else from this same request.
+      return startCorrelation(() => {
         const startedAt = performance.now();
 
         res.once("finish", () => {
@@ -115,9 +134,9 @@ export class HttpInstrumentation {
             });
           });
         });
-      }
 
-      return originalEmit.apply(this, [event, ...args] as Parameters<ServerEmit>);
+        return originalEmit.apply(this, [event, ...args] as Parameters<ServerEmit>);
+      });
     };
   }
 
