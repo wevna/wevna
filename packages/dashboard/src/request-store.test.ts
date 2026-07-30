@@ -430,4 +430,74 @@ describe("RequestStore", () => {
       expect(store.getRequest("a")).toBe(aModel);
     });
   });
+
+  describe("timeline", () => {
+    it("reflects each event with a relative offset from the request start", () => {
+      const store = new RequestStore();
+      const c = "corr-1";
+
+      store.addEvent(httpEvent({ correlationId: c, occurredAt: 100 }));
+      store.addEvent(makeEvent({ correlationId: c, kind: "console.log", occurredAt: 103 }));
+      store.addEvent(makeEvent({ correlationId: c, kind: "sql.query", occurredAt: 111 }));
+
+      const offsets = store.getRequest(c)?.timeline.map((entry) => entry.relativeOffsetMs);
+      expect(offsets).toEqual([0, 3, 11]);
+    });
+
+    it("updates incrementally as new events arrive, in the same order as events", () => {
+      const store = new RequestStore();
+      const c = "corr-1";
+
+      store.addEvent(makeEvent({ correlationId: c, kind: "console.log", occurredAt: 1 }));
+      expect(store.getRequest(c)?.timeline).toHaveLength(1);
+
+      store.addEvent(makeEvent({ correlationId: c, kind: "sql.query", occurredAt: 2 }));
+      const timeline = store.getRequest(c)?.timeline;
+      expect(timeline).toHaveLength(2);
+      expect(timeline?.map((entry) => entry.kind)).toEqual(
+        store.getRequest(c)?.events.map((e) => e.payload.kind),
+      );
+    });
+
+    it("exists for a pending request with no http.request event", () => {
+      const store = new RequestStore();
+      store.addEvent(makeEvent({ correlationId: "corr-1", kind: "console.log" }));
+
+      const timeline = store.getRequest("corr-1")?.timeline;
+      expect(timeline).toHaveLength(1);
+      expect(timeline?.[0]?.kind).toBe("console.log");
+    });
+
+    it("keeps concurrent requests' timelines independent", () => {
+      const store = new RequestStore();
+
+      store.addEvent(makeEvent({ correlationId: "a", kind: "console.log", occurredAt: 1 }));
+      store.addEvent(makeEvent({ correlationId: "b", kind: "sql.query", occurredAt: 2 }));
+      store.addEvent(makeEvent({ correlationId: "a", kind: "redis.command", occurredAt: 3 }));
+
+      expect(store.getRequest("a")?.timeline.map((e) => e.kind)).toEqual([
+        "console.log",
+        "redis.command",
+      ]);
+      expect(store.getRequest("b")?.timeline.map((e) => e.kind)).toEqual(["sql.query"]);
+    });
+
+    it("references the exact same event objects as request.events", () => {
+      const store = new RequestStore();
+      const event = makeEvent({ correlationId: "corr-1" });
+
+      store.addEvent(event);
+
+      expect(store.getRequest("corr-1")?.timeline[0]?.event).toBe(event);
+    });
+
+    it("is cleared along with everything else on clear()", () => {
+      const store = new RequestStore();
+      store.addEvent(makeEvent({ correlationId: "corr-1" }));
+
+      store.clear();
+
+      expect(store.getRequest("corr-1")).toBeUndefined();
+    });
+  });
 });

@@ -282,11 +282,12 @@ describe("App", () => {
     receiveCorrelatedEvent(1, "corr-a");
     receiveCorrelatedEvent(2, "corr-b");
 
-    // Both the event list and the request list render <li> rows; filter
-    // down to the request list's own rows specifically.
+    // Both the event list and the request list render <li> rows (and each
+    // request row can itself contain nested timeline-entry <li>s); filter
+    // down to top-level request rows specifically, by exact class.
     const requestRows = screen
       .getAllByRole("listitem")
-      .filter((row) => row.className.includes("request-row"));
+      .filter((row) => row.classList.contains("request-row"));
     expect(requestRows).toHaveLength(2);
   });
 
