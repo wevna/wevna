@@ -1,11 +1,25 @@
+// Identifies that multiple CapturedEvents originated from the same
+// execution flow (e.g. everything that happened while handling one HTTP
+// request). Deliberately minimal for now — future metadata (a parentId for
+// nested flows, a depth for how far nested) can be added here as
+// additional optional fields without touching CapturedEvent's shape again.
+export interface Correlation {
+  id: string;
+}
+
 // A single observation made by the runtime. This is deliberately generic —
 // event-specific shapes (HTTP, SQL, Redis, BullMQ, ...) are not modelled
 // here; callers narrow `attributes` themselves until those subtypes exist.
+//
+// `correlation` is optional and omitted entirely (not present as a key)
+// when no correlation context was active when the event was published —
+// existing consumers that don't know about it are unaffected.
 export interface CapturedEvent {
   id: string;
   kind: string;
   occurredAt: number;
   attributes: Record<string, unknown>;
+  correlation?: Correlation;
 }
 
 export type SessionStatus = "running" | "stopped";

@@ -2,6 +2,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import type { CapturedEvent } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { currentCorrelation } from "./correlation-context.js";
 import { enrichHttpRequest, HttpInstrumentation } from "./http-instrumentation.js";
 
 async function listen(server: http.Server): Promise<number> {
@@ -177,5 +178,55 @@ describe("HttpInstrumentation", () => {
     expect(attributes?.framework).toBeUndefined();
     expect(attributes?.route).toBeUndefined();
     expect(attributes?.handler).toBeUndefined();
+  });
+
+  it("establishes an active correlation context for the duration of the request", async () => {
+    let seenDuringRequest: unknown;
+    const { port } = await startServer((_req, res) => {
+      seenDuringRequest = currentCorrelation();
+      res.end("ok");
+    });
+    instrumentation = new HttpInstrumentation(vi.fn());
+    instrumentation.start();
+
+    await fetch(`http://localhost:${port}/`);
+
+    expect(seenDuringRequest).toMatchObject({ id: expect.any(String) });
+  });
+
+  it("gives concurrent requests different, non-leaking correlation contexts", async () => {
+    const seen: unknown[] = [];
+    const { port } = await startServer(async (_req, res) => {
+      seen.push(currentCorrelation());
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
+      seen.push(currentCorrelation());
+      res.end("ok");
+    });
+    instrumentation = new HttpInstrumentation(vi.fn());
+    instrumentation.start();
+
+    await Promise.all([
+      fetch(`http://localhost:${port}/a`),
+      fetch(`http://localhost:${port}/b`),
+      fetch(`http://localhost:${port}/c`),
+    ]);
+
+    expect(seen).toHaveLength(6);
+    const ids = seen.map((c) => (c as { id: string }).id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it("does not establish a correlation context for a request to an ignored server", async () => {
+    let seenDuringRequest: unknown = "not-set";
+    const { port, server } = await startServer((_req, res) => {
+      seenDuringRequest = currentCorrelation();
+      res.end("ok");
+    });
+    instrumentation = new HttpInstrumentation(vi.fn());
+    instrumentation.start({ ignoreServers: [server] });
+
+    await fetch(`http://localhost:${port}/`);
+
+    expect(seenDuringRequest).toBeUndefined();
   });
 });
