@@ -1,4 +1,5 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import { buildTimeline, type TimelineEntry } from "./timeline.ts";
 
 export type RequestStatus = "pending" | "complete";
 
@@ -18,6 +19,10 @@ export interface RequestModel {
   // The same Envelope objects EventStore already holds — never copied —
   // in chronological order.
   events: readonly Envelope<CapturedEvent>[];
+  // events expressed relative to startedAt — see timeline.ts. Purely
+  // derived from `events` and `startedAt`; carries no information they
+  // don't already have.
+  timeline: readonly TimelineEntry[];
 }
 
 export type RequestStoreListener = () => void;
@@ -101,6 +106,7 @@ function buildRequestModel(
     durationMs,
     status: httpEvent ? "complete" : "pending",
     events,
+    timeline: buildTimeline(events, startedAt),
   };
 }
 
