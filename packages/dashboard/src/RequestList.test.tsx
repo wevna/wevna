@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { RequestList } from "./RequestList.tsx";
 import type { RequestModel } from "./request-store.ts";
 
@@ -22,13 +22,19 @@ function makeRequest(overrides: Partial<RequestModel> = {}): RequestModel {
 
 describe("RequestList", () => {
   it("shows a placeholder when there are no requests yet", () => {
-    render(<RequestList requests={[]} />);
+    render(<RequestList requests={[]} selectedRequestId={undefined} onSelectRequest={vi.fn()} />);
 
     expect(screen.getByText(/no requests yet/i)).toBeInTheDocument();
   });
 
   it("renders method, route, status code, and duration for a complete request", () => {
-    render(<RequestList requests={[makeRequest()]} />);
+    render(
+      <RequestList
+        requests={[makeRequest()]}
+        selectedRequestId={undefined}
+        onSelectRequest={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("GET")).toBeInTheDocument();
     expect(screen.getByText("/widgets/:id")).toBeInTheDocument();
@@ -48,6 +54,8 @@ describe("RequestList", () => {
             status: "pending",
           }),
         ]}
+        selectedRequestId={undefined}
+        onSelectRequest={vi.fn()}
       />,
     );
 
@@ -63,6 +71,8 @@ describe("RequestList", () => {
           makeRequest({ id: "a", correlationId: "a", route: "/a" }),
           makeRequest({ id: "b", correlationId: "b", route: "/b" }),
         ]}
+        selectedRequestId={undefined}
+        onSelectRequest={vi.fn()}
       />,
     );
 
@@ -79,6 +89,8 @@ describe("RequestList", () => {
           makeRequest({ id: "a", correlationId: "a", events: [{} as never] }),
           makeRequest({ id: "b", correlationId: "b", events: [{} as never, {} as never] }),
         ]}
+        selectedRequestId={undefined}
+        onSelectRequest={vi.fn()}
       />,
     );
 
@@ -86,40 +98,61 @@ describe("RequestList", () => {
     expect(screen.getByText("2 events")).toBeInTheDocument();
   });
 
-  it("does not render a waterfall for a request with an empty timeline", () => {
-    render(<RequestList requests={[makeRequest({ timeline: [] })]} />);
+  it("does not render a waterfall — that's RequestInspector's job now", () => {
+    render(
+      <RequestList
+        requests={[makeRequest()]}
+        selectedRequestId={undefined}
+        onSelectRequest={vi.fn()}
+      />,
+    );
 
     expect(document.querySelector(".waterfall")).toBeNull();
   });
 
-  // WaterfallTimeline.test.tsx covers the waterfall's own rendering
-  // (bars, markers, labels, accessibility) in detail — this just confirms
-  // RequestList actually delegates to it per request.
-  it("renders a waterfall for a request with timeline entries", () => {
-    render(
-      <RequestList
-        requests={[
-          makeRequest({
-            timeline: [
-              {
-                event: {
-                  version: 1,
-                  sessionId: "s",
-                  sequence: 1,
-                  payload: { id: "e1", kind: "http.request", occurredAt: 0, attributes: {} },
-                },
-                kind: "http.request",
-                sequence: 1,
-                timestamp: 0,
-                relativeOffsetMs: 0,
-                durationMs: undefined,
-              },
-            ],
-          }),
-        ]}
-      />,
-    );
+  describe("selection", () => {
+    it("calls onSelectRequest with the request's id when a row is clicked", () => {
+      const onSelectRequest = vi.fn();
+      render(
+        <RequestList
+          requests={[makeRequest({ id: "corr-1", correlationId: "corr-1" })]}
+          selectedRequestId={undefined}
+          onSelectRequest={onSelectRequest}
+        />,
+      );
 
-    expect(document.querySelector(".waterfall")).not.toBeNull();
+      fireEvent.click(screen.getByText("/widgets/:id"));
+
+      expect(onSelectRequest).toHaveBeenCalledWith("corr-1");
+    });
+
+    it("marks the selected request's row distinctly from the rest", () => {
+      render(
+        <RequestList
+          requests={[
+            makeRequest({ id: "a", correlationId: "a", route: "/a" }),
+            makeRequest({ id: "b", correlationId: "b", route: "/b" }),
+          ]}
+          selectedRequestId="b"
+          onSelectRequest={vi.fn()}
+        />,
+      );
+
+      const rows = screen.getAllByRole("listitem");
+      expect(rows[0]?.classList.contains("request-row--selected")).toBe(false);
+      expect(rows[1]?.classList.contains("request-row--selected")).toBe(true);
+    });
+
+    it("renders each row as a button, so selection is keyboard-accessible", () => {
+      render(
+        <RequestList
+          requests={[makeRequest()]}
+          selectedRequestId={undefined}
+          onSelectRequest={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /GET/ })).toBeInTheDocument();
+    });
   });
 });

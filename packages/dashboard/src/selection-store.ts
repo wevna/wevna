@@ -23,6 +23,16 @@ export class SelectionStore {
     }
   };
 
+  clear = (): void => {
+    if (this.#selectedId === undefined) {
+      return;
+    }
+    this.#selectedId = undefined;
+    for (const listener of this.#listeners) {
+      listener();
+    }
+  };
+
   subscribe = (listener: SelectionStoreListener): (() => void) => {
     this.#listeners.add(listener);
     return () => {

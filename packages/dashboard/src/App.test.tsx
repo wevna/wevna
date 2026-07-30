@@ -312,4 +312,84 @@ describe("App", () => {
     expect(requestList).not.toBeNull();
     expect(within(requestList as HTMLElement).getByText("2 events")).toBeInTheDocument();
   });
+
+  describe("Request Inspector", () => {
+    it("shows a placeholder in the inspector until a request is selected", () => {
+      render(<App />);
+
+      expect(screen.getByText(/select a request to inspect it/i)).toBeInTheDocument();
+    });
+
+    it("shows the selected request's summary, timeline, and events in the inspector", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+
+      fireEvent.click(
+        within(document.querySelector(".request-list") as HTMLElement).getByText("/widgets"),
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(inspector).not.toBeNull();
+      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+      expect(within(inspector).getByText("200")).toBeInTheDocument();
+      expect(inspector.querySelector(".waterfall")).not.toBeNull();
+      // Both events belonging to corr-1 show up in the inspector's own
+      // event list.
+      expect(inspector.querySelectorAll(".event-row")).toHaveLength(2);
+    });
+
+    it("highlights the selected request's row in the request list", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+
+      fireEvent.click(screen.getByText("message 1"));
+      const requestRow = document.querySelector(".request-list")?.querySelector(".request-row");
+      fireEvent.click(requestRow?.querySelector(".request-row__button") as HTMLElement);
+
+      expect(requestRow?.classList.contains("request-row--selected")).toBe(true);
+    });
+
+    it("keeps the inspector showing the same request after a new event arrives for it", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      const requestButton = document
+        .querySelector(".request-list")
+        ?.querySelector(".request-row__button") as HTMLElement;
+      fireEvent.click(requestButton);
+
+      receiveHttpEvent(2, "corr-1");
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+      expect(inspector.querySelectorAll(".event-row")).toHaveLength(2);
+    });
+
+    it("keeps selection stable while a different, unselected request updates", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-a");
+      receiveCorrelatedEvent(2, "corr-b");
+      const requestList = document.querySelector(".request-list") as HTMLElement;
+      const firstRow = requestList.querySelectorAll(".request-row")[0];
+      fireEvent.click(firstRow?.querySelector(".request-row__button") as HTMLElement);
+
+      receiveHttpEvent(3, "corr-b");
+
+      expect(firstRow?.classList.contains("request-row--selected")).toBe(true);
+    });
+
+    it("clears the request selection when Clear requests is clicked", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      const requestButton = document
+        .querySelector(".request-list")
+        ?.querySelector(".request-row__button") as HTMLElement;
+      fireEvent.click(requestButton);
+      expect(screen.queryByText(/select a request to inspect it/i)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear requests" }));
+
+      expect(screen.getByText(/select a request to inspect it/i)).toBeInTheDocument();
+    });
+  });
 });
