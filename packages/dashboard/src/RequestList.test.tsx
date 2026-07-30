@@ -1,27 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
 import { RequestList } from "./RequestList.tsx";
 import type { RequestModel } from "./request-store.ts";
-import type { TimelineEntry } from "./timeline.ts";
-
-function makeTimelineEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
-  const event: Envelope<CapturedEvent> = {
-    version: 1,
-    sessionId: "session-1",
-    sequence: 1,
-    payload: { id: "event-1", kind: "console.log", occurredAt: 0, attributes: {} },
-  };
-  return {
-    event,
-    kind: "console.log",
-    sequence: 1,
-    timestamp: 0,
-    relativeOffsetMs: 0,
-    durationMs: undefined,
-    ...overrides,
-  };
-}
 
 function makeRequest(overrides: Partial<RequestModel> = {}): RequestModel {
   return {
@@ -106,63 +86,40 @@ describe("RequestList", () => {
     expect(screen.getByText("2 events")).toBeInTheDocument();
   });
 
-  describe("timeline", () => {
-    it("renders no timeline list when there are no entries", () => {
-      render(<RequestList requests={[makeRequest({ timeline: [] })]} />);
+  it("does not render a waterfall for a request with an empty timeline", () => {
+    render(<RequestList requests={[makeRequest({ timeline: [] })]} />);
 
-      expect(document.querySelector(".request-row__timeline")).toBeNull();
-    });
+    expect(document.querySelector(".waterfall")).toBeNull();
+  });
 
-    it("renders one line per timeline entry with its offset and kind", () => {
-      render(
-        <RequestList
-          requests={[
-            makeRequest({
-              timeline: [
-                makeTimelineEntry({
-                  kind: "http.request",
-                  relativeOffsetMs: 0,
-                  event: {
-                    version: 1,
-                    sessionId: "s",
-                    sequence: 1,
-                    payload: { id: "e1", kind: "http.request", occurredAt: 0, attributes: {} },
-                  },
-                }),
-                makeTimelineEntry({
-                  kind: "console.log",
-                  relativeOffsetMs: 3,
-                  event: {
-                    version: 1,
-                    sessionId: "s",
-                    sequence: 2,
-                    payload: { id: "e2", kind: "console.log", occurredAt: 3, attributes: {} },
-                  },
-                }),
-              ],
-            }),
-          ]}
-        />,
-      );
+  // WaterfallTimeline.test.tsx covers the waterfall's own rendering
+  // (bars, markers, labels, accessibility) in detail — this just confirms
+  // RequestList actually delegates to it per request.
+  it("renders a waterfall for a request with timeline entries", () => {
+    render(
+      <RequestList
+        requests={[
+          makeRequest({
+            timeline: [
+              {
+                event: {
+                  version: 1,
+                  sessionId: "s",
+                  sequence: 1,
+                  payload: { id: "e1", kind: "http.request", occurredAt: 0, attributes: {} },
+                },
+                kind: "http.request",
+                sequence: 1,
+                timestamp: 0,
+                relativeOffsetMs: 0,
+                durationMs: undefined,
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
 
-      const entries = document.querySelectorAll(".request-row__timeline-entry");
-      expect(entries).toHaveLength(2);
-      expect(entries[0]?.textContent).toBe("0mshttp.request");
-      expect(entries[1]?.textContent).toBe("3msconsole.log");
-    });
-
-    it("rounds fractional offsets for display", () => {
-      render(
-        <RequestList
-          requests={[
-            makeRequest({
-              timeline: [makeTimelineEntry({ relativeOffsetMs: 11.7 })],
-            }),
-          ]}
-        />,
-      );
-
-      expect(screen.getByText("12ms")).toBeInTheDocument();
-    });
+    expect(document.querySelector(".waterfall")).not.toBeNull();
   });
 });
