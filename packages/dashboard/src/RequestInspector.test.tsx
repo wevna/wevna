@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { RequestInspector } from "./RequestInspector.tsx";
@@ -70,7 +70,10 @@ describe("RequestInspector", () => {
       expect(screen.getByText("POST")).toBeInTheDocument();
       expect(screen.getByText("/orders")).toBeInTheDocument();
       expect(screen.getByText("201")).toBeInTheDocument();
-      expect(screen.getByText("12.5ms")).toBeInTheDocument();
+      // "12.5ms" also appears in the Performance section's own Request
+      // Duration field, so this counts occurrences rather than assuming
+      // just one.
+      expect(screen.getAllByText("12.5ms").length).toBeGreaterThan(0);
       expect(screen.getByText("corr-xyz")).toBeInTheDocument();
       // The events section repeats "2 events" as a row label, so only
       // assert the summary's own dd via its position in the dl.
@@ -103,8 +106,9 @@ describe("RequestInspector", () => {
         />,
       );
 
-      expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
-      expect(screen.getByText("…")).toBeInTheDocument();
+      const summary = document.querySelector(".request-inspector__summary") as HTMLElement;
+      expect(within(summary).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+      expect(within(summary).getByText("…")).toBeInTheDocument();
     });
 
     it("formats Started At as a readable timestamp", () => {
@@ -223,6 +227,33 @@ describe("RequestInspector", () => {
         .filter((row) => row.classList.contains("event-row"));
       expect(rows[1]?.classList.contains("event-row--selected")).toBe(true);
       expect(rows[0]?.classList.contains("event-row--selected")).toBe(false);
+    });
+  });
+
+  describe("performance reuse", () => {
+    it("renders a Performance section for a selected request", () => {
+      render(
+        <RequestInspector
+          request={makeRequest({ durationMs: 20 })}
+          selectedEventId={undefined}
+          onSelectEvent={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Performance")).toBeInTheDocument();
+      expect(document.querySelector(".performance-section")).not.toBeNull();
+    });
+
+    it("delegates to the same analysis PerformanceSection.test.tsx covers in detail — this just confirms RequestInspector wires it in", () => {
+      render(
+        <RequestInspector
+          request={makeRequest({ durationMs: 1500 })}
+          selectedEventId={undefined}
+          onSelectEvent={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Slow Request")).toBeInTheDocument();
     });
   });
 });

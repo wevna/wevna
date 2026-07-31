@@ -1,4 +1,5 @@
 import { EventList } from "./EventList.tsx";
+import { PerformanceSection } from "./PerformanceSection.tsx";
 import { formatEventCount, formatRequestDuration } from "./request-format.ts";
 import type { RequestModel } from "./request-store.ts";
 import { WaterfallTimeline } from "./WaterfallTimeline.tsx";
@@ -50,6 +51,9 @@ export function RequestInspector({
 
       <h3 className="request-inspector__section-heading">Events</h3>
       <EventList events={request.events} selectedId={selectedEventId} onSelect={onSelectEvent} />
+
+      <h3 className="request-inspector__section-heading">Performance</h3>
+      <PerformanceSection request={request} />
     </div>
   );
 }
