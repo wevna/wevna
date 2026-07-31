@@ -102,6 +102,9 @@ What's actually implemented and running, today:
   proportional to when they happened and how long they took
 - ✅ **Exception capture** — uncaught errors and rejections, correlated to
   the request that produced them, with type/message/stack trace
+- ✅ **Performance intelligence** — deterministic per-request analysis
+  (longest operation, SQL/Redis time, event counts) and insights like
+  "Slow Request" or "Multiple Database Calls", with the numbers behind them
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -147,6 +150,7 @@ Nothing leaves your machine.
 - ✔ Waterfall view
 - ✔ Request Inspector
 - ✔ Exception capture & inspector
+- ✔ Performance intelligence
 
 **Next**
 
@@ -164,6 +168,7 @@ the only one you install; everything else supports it:
 | `packages/protocol`    | The shared event/envelope types every other package agrees on |
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
+| `packages/intelligence`| Deterministic request performance analysis — no React, no Fastify, reusable outside the dashboard |
 | `packages/shared`      | Reserved for cross-cutting utilities; currently a placeholder |
 
 ## Contributing / running locally

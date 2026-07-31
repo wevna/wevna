@@ -53,10 +53,25 @@ function receiveEvent(sequence: number): void {
   });
 }
 
-function receiveHttpEvent(sequence: number, correlationId: string): void {
+function receiveHttpEvent(sequence: number, correlationId: string, durationMs = 5): void {
   const envelope = makeEnvelope(sequence);
   envelope.payload.kind = "http.request";
-  envelope.payload.attributes = { method: "GET", url: "/widgets", statusCode: 200, durationMs: 5 };
+  envelope.payload.attributes = {
+    method: "GET",
+    url: "/widgets",
+    statusCode: 200,
+    durationMs,
+  };
+  envelope.payload.correlation = { id: correlationId };
+  act(() => {
+    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
+  });
+}
+
+function receiveSqlEvent(sequence: number, correlationId: string, durationMs: number): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = "sql.query";
+  envelope.payload.attributes = { query: "SELECT 1", durationMs };
   envelope.payload.correlation = { id: correlationId };
   act(() => {
     lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
@@ -526,6 +541,83 @@ describe("App", () => {
       expect(
         screen.queryByText("TypeError: cannot read property of undefined"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Performance Intelligence", () => {
+    it("shows the Performance section with a healthy request's metrics and no insights", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1", 20);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).getByText("Performance")).toBeInTheDocument();
+      expect(within(inspector).getByText(/no performance issues detected/i)).toBeInTheDocument();
+    });
+
+    it("surfaces a Slow Request insight once the request's http.request event arrives", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).queryByText("Slow Request")).not.toBeInTheDocument();
+
+      // Performance analysis updates automatically as the request evolves
+      // — no re-selection needed.
+      receiveHttpEvent(2, "corr-1", 1500);
+
+      expect(within(inspector).getByText("Slow Request")).toBeInTheDocument();
+    });
+
+    it("surfaces a Multiple Database Calls insight for a SQL-heavy request", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      for (let i = 0; i < 6; i += 1) {
+        receiveSqlEvent(2 + i, "corr-1", 5);
+      }
+      receiveHttpEvent(8, "corr-1", 50);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).getByText("Multiple Database Calls")).toBeInTheDocument();
+      expect(within(inspector).getByText("6 · 30ms total")).toBeInTheDocument();
+    });
+
+    it("keeps existing dashboard functionality intact alongside the Performance section", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1", 1500);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      // Waterfall, events, and performance all render side by side.
+      expect(inspector.querySelector(".waterfall")).not.toBeNull();
+      expect(inspector.querySelector(".event-list")).not.toBeNull();
+      expect(inspector.querySelector(".performance-section")).not.toBeNull();
+
+      // Pause/resume and search still work unaffected.
+      fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+      receiveEvent(3);
+      expect(screen.queryByText("message 3")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+      expect(screen.getByText("message 3")).toBeInTheDocument();
     });
   });
 });
