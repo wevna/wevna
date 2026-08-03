@@ -27,6 +27,20 @@ export const wevna = {
   instrumentRedis(client: RedisSendCommandLike): void {
     runtime.instrumentRedis(client);
   },
+  // Records the live protocol stream to filePath, in order, as it's
+  // published — see session-recorder.ts. Entirely opt-in: a session that
+  // never calls this behaves exactly as it did before this existed. Not
+  // replay — this only writes a portable recording file; nothing reads one
+  // back yet.
+  startRecording(filePath: string): Promise<void> {
+    return runtime.startRecording(filePath);
+  },
+  stopRecording(): Promise<void> {
+    return runtime.stopRecording();
+  },
+  get isRecording(): boolean {
+    return runtime.isRecording;
+  },
 };
 
 // Exception capture. Process-level uncaughtException/unhandledRejection

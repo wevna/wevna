@@ -83,6 +83,24 @@ wevna.instrumentRedis(redis);
 Everything you already do with `pool`/`redis` keeps working exactly the
 same — Wevna only observes.
 
+### Recording a session
+
+Optionally, record the live event stream to a portable file on disk:
+
+```ts
+await wevna.startRecording("./session.jsonl");
+
+// ... your app runs, events stream live to the dashboard as always ...
+
+await wevna.stopRecording();
+```
+
+This is not replay — nothing reads a recording back yet, and the dashboard
+doesn't change while one is active. It's one JSON object per line (a
+header, then one line per event, then a footer), so a recording is safe to
+inspect with `cat`/`tail -f`/`jq` even while it's still being written.
+Entirely opt-in: if you never call `startRecording()`, nothing changes.
+
 ## Features
 
 What's actually implemented and running, today:
@@ -108,6 +126,9 @@ What's actually implemented and running, today:
 - ✅ **Execution graph** — a request's events as a structured, ordered graph
   (currently shown as a simple sequential flow in the Request Inspector),
   reusable outside the dashboard for whatever renders it next
+- ✅ **Session recording** — optionally record the live protocol stream to
+  a portable JSON Lines file on disk, without changing anything about the
+  live dashboard while it's on. Not replay yet — nothing reads one back
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -155,11 +176,12 @@ Nothing leaves your machine.
 - ✔ Exception capture & inspector
 - ✔ Performance intelligence
 - ✔ Execution graph model
+- ✔ Session recording
 
 **Next**
 
 - Graph visualization (the model exists; a real renderer doesn't yet)
-- Replay
+- Replay (load and step through a recorded session — recording exists; loading one back doesn't yet)
 - More instrumentation targets (BullMQ, Prisma, MongoDB)
 
 ## Packages

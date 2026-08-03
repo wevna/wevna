@@ -49,3 +49,49 @@ export interface Envelope<T> {
 // construct envelopes should consume this rather than hardcoding a literal,
 // so a future protocol revision only needs to change it in one place.
 export const PROTOCOL_VERSION = 1;
+
+// The recording *file* format — versioned separately from PROTOCOL_VERSION
+// (which only versions Envelope/CapturedEvent's own shape) because the two
+// can evolve independently: a future recording format revision (e.g. an
+// added compression field) doesn't imply a new protocol version, and vice
+// versa. Lives here, next to the types it wraps, for the same reason
+// Envelope/CapturedEvent/Session do: any future consumer of a recording
+// file (a reader, a replay tool, ...) needs to agree on this shape the same
+// way any live consumer already agrees on Envelope's.
+export const RECORDING_FORMAT_VERSION = 1;
+
+// A session recording file is a JSON Lines (JSONL/NDJSON) stream: one
+// RecordingLine per line, in write order — never one big JSON document.
+// That makes appending a single, cheap write with nothing to rewrite or
+// keep balanced as the file grows, lets a future reader stream it
+// line-by-line instead of loading the whole file into memory, and means a
+// recording that stopped abruptly (process crash, disk full) is still
+// valid up to its last complete line rather than corrupt as a whole.
+//
+// Exactly one RecordingHeader (first line), any number of
+// RecordingEventRecords in publish order, and — only on a clean stop —
+// exactly one RecordingFooter (last line). A reader should treat a missing
+// footer as "recording ended abnormally," not as an invalid file.
+export interface RecordingHeader {
+  type: "header";
+  formatVersion: number;
+  // The PROTOCOL_VERSION in effect when this recording started, so a
+  // reader always knows how to interpret the envelopes that follow even if
+  // read by a future version of this package.
+  protocolVersion: number;
+  session: Session;
+  recordingStartedAt: number;
+}
+
+export interface RecordingEventRecord {
+  type: "event";
+  envelope: Envelope<CapturedEvent>;
+}
+
+export interface RecordingFooter {
+  type: "footer";
+  recordingEndedAt: number;
+  eventCount: number;
+}
+
+export type RecordingLine = RecordingHeader | RecordingEventRecord | RecordingFooter;
