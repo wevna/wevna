@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.tsx";
 
 let lastSocket: MockWebSocket | undefined;
@@ -37,56 +37,55 @@ function makeEnvelope(sequence = 1): Envelope<CapturedEvent> {
   };
 }
 
-function receiveEventWithKind(sequence: number, kind: string): void {
-  const envelope = makeEnvelope(sequence);
-  envelope.payload.kind = kind;
+function dispatch(envelope: Envelope<CapturedEvent>): void {
   act(() => {
     lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
   });
 }
 
-function receiveEvent(sequence: number): void {
-  act(() => {
-    lastSocket?.dispatchEvent(
-      new MessageEvent("message", { data: JSON.stringify(makeEnvelope(sequence)) }),
-    );
-  });
-}
-
-function receiveHttpEvent(sequence: number, correlationId: string, durationMs = 5): void {
+function buildHttpEnvelope(
+  sequence: number,
+  correlationId: string,
+  durationMs = 5,
+): Envelope<CapturedEvent> {
   const envelope = makeEnvelope(sequence);
   envelope.payload.kind = "http.request";
-  envelope.payload.attributes = {
-    method: "GET",
-    url: "/widgets",
-    statusCode: 200,
-    durationMs,
-  };
+  envelope.payload.attributes = { method: "GET", url: "/widgets", statusCode: 200, durationMs };
   envelope.payload.correlation = { id: correlationId };
-  act(() => {
-    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
-  });
+  return envelope;
 }
 
-function receiveSqlEvent(sequence: number, correlationId: string, durationMs: number): void {
+function buildSqlEnvelope(
+  sequence: number,
+  correlationId: string,
+  durationMs: number,
+): Envelope<CapturedEvent> {
   const envelope = makeEnvelope(sequence);
   envelope.payload.kind = "sql.query";
   envelope.payload.attributes = { query: "SELECT 1", durationMs };
   envelope.payload.correlation = { id: correlationId };
-  act(() => {
-    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
-  });
+  return envelope;
 }
 
-function receiveCorrelatedEvent(sequence: number, correlationId: string): void {
+function buildRedisEnvelope(
+  sequence: number,
+  correlationId: string,
+  durationMs: number,
+): Envelope<CapturedEvent> {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = "redis.command";
+  envelope.payload.attributes = { command: "GET", durationMs };
+  envelope.payload.correlation = { id: correlationId };
+  return envelope;
+}
+
+function buildCorrelatedEnvelope(sequence: number, correlationId: string): Envelope<CapturedEvent> {
   const envelope = makeEnvelope(sequence);
   envelope.payload.correlation = { id: correlationId };
-  act(() => {
-    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
-  });
+  return envelope;
 }
 
-function receiveExceptionEvent(sequence: number, correlationId: string): void {
+function buildExceptionEnvelope(sequence: number, correlationId: string): Envelope<CapturedEvent> {
   const envelope = makeEnvelope(sequence);
   envelope.payload.kind = "exception.captured";
   envelope.payload.attributes = {
@@ -95,9 +94,61 @@ function receiveExceptionEvent(sequence: number, correlationId: string): void {
     stack: "TypeError: cannot read property of undefined\n    at handler (/app/index.js:1:1)",
   };
   envelope.payload.correlation = { id: correlationId };
-  act(() => {
-    lastSocket?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(envelope) }));
-  });
+  return envelope;
+}
+
+function receiveEventWithKind(sequence: number, kind: string): void {
+  const envelope = makeEnvelope(sequence);
+  envelope.payload.kind = kind;
+  dispatch(envelope);
+}
+
+function receiveEvent(sequence: number): void {
+  dispatch(makeEnvelope(sequence));
+}
+
+function receiveHttpEvent(sequence: number, correlationId: string, durationMs = 5): void {
+  dispatch(buildHttpEnvelope(sequence, correlationId, durationMs));
+}
+
+function receiveSqlEvent(sequence: number, correlationId: string, durationMs: number): void {
+  dispatch(buildSqlEnvelope(sequence, correlationId, durationMs));
+}
+
+function receiveCorrelatedEvent(sequence: number, correlationId: string): void {
+  dispatch(buildCorrelatedEnvelope(sequence, correlationId));
+}
+
+function receiveExceptionEvent(sequence: number, correlationId: string): void {
+  dispatch(buildExceptionEnvelope(sequence, correlationId));
+}
+
+// Mocks fetch to serve a "recording" mode /api/session and the given
+// events from /api/session/events, matching @wevna/server's real
+// contract closely enough for App-level integration tests.
+function mockRecordingFetch(events: Envelope<CapturedEvent>[]): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/session/events")) {
+        return new Response(JSON.stringify({ events }));
+      }
+      return new Response(
+        JSON.stringify({
+          mode: "recording",
+          metadata: {
+            session: { id: "recorded-session", startedAt: 1700000000000, status: "stopped" },
+            formatVersion: 1,
+            protocolVersion: 1,
+            recordingStartedAt: 1700000000000,
+            recordingEndedAt: 1700000005000,
+            eventCount: events.length,
+          },
+        }),
+      );
+    }),
+  );
 }
 
 describe("App", () => {
@@ -696,5 +747,172 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: "Resume" }));
       expect(screen.getByText("message 3")).toBeInTheDocument();
     });
+  });
+});
+
+// These tests source events from a mocked /api/session + /api/session/events
+// (see use-event-source.ts) instead of dispatching over a WebSocket, proving
+// the dashboard's existing features work unchanged when viewing a recording
+// rather than a live runtime — the acceptance criterion at the heart of the
+// Session Loader PR. WebSocket is still mocked here (App itself always
+// starts connecting live, before /api/session resolves — see
+// use-event-source.test.ts) purely so it doesn't attempt a real connection;
+// what matters is that it ends up closed once recording mode is confirmed.
+describe("Offline session viewing", () => {
+  const OriginalWebSocket = globalThis.WebSocket;
+
+  beforeEach(() => {
+    lastSocket = undefined;
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+  });
+
+  afterEach(() => {
+    globalThis.WebSocket = OriginalWebSocket;
+    vi.unstubAllGlobals();
+  });
+
+  it("closes the live WebSocket connection once recording mode is confirmed", async () => {
+    mockRecordingFetch([]);
+    render(<App />);
+
+    await waitFor(() => expect(lastSocket?.readyState).toBe(3));
+  });
+
+  it("shows the recording banner with the session's start time and event count", async () => {
+    const events = [buildCorrelatedEnvelope(1, "corr-1")];
+    mockRecordingFetch(events);
+
+    render(<App />);
+
+    expect(await screen.findByText(/viewing a recorded session/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 events/)).toBeInTheDocument();
+  });
+
+  // Request assembly runs in a useEffect one tick after the events arrive
+  // (see use-requests.ts), so waiting for the first event's text on screen
+  // isn't quite enough to guarantee the request row already exists too.
+  async function selectFirstRequest(): Promise<void> {
+    await waitFor(() => {
+      expect(document.querySelector(".request-list .request-row__button")).not.toBeNull();
+    });
+    fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
+  }
+
+  it("renders events fetched from the recording, and search/filter work against them", async () => {
+    const events = [buildCorrelatedEnvelope(1, "corr-1"), buildHttpEnvelope(2, "corr-1")];
+    mockRecordingFetch(events);
+
+    render(<App />);
+
+    expect(await screen.findByText("message 1")).toBeInTheDocument();
+    const eventList = document.querySelector(".event-list") as HTMLElement;
+    expect(within(eventList).getByText("http.request")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "message 1" } });
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(within(eventList).queryByText("http.request")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search events"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Filter by kind"), {
+      target: { value: "http.request" },
+    });
+    expect(screen.queryByText("message 1")).not.toBeInTheDocument();
+    expect(within(eventList).getByText("http.request")).toBeInTheDocument();
+  });
+
+  it("assembles a request row from correlated recorded events and supports selection", async () => {
+    const events = [buildCorrelatedEnvelope(1, "corr-1"), buildHttpEnvelope(2, "corr-1")];
+    mockRecordingFetch(events);
+
+    render(<App />);
+    await screen.findByText("message 1");
+
+    const requestList = document.querySelector(".request-list") as HTMLElement;
+    await waitFor(() => expect(within(requestList).getByText("/widgets")).toBeInTheDocument());
+    expect(within(requestList).getByText("2 events")).toBeInTheDocument();
+
+    await selectFirstRequest();
+
+    const inspector = document.querySelector(".request-inspector") as HTMLElement;
+    expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+    expect(inspector.querySelector(".waterfall")).not.toBeNull();
+    expect(inspector.querySelectorAll(".event-row")).toHaveLength(2);
+  });
+
+  it("shows exception details for a recorded exception event", async () => {
+    const events = [
+      buildCorrelatedEnvelope(1, "corr-1"),
+      buildExceptionEnvelope(2, "corr-1"),
+      buildHttpEnvelope(3, "corr-1"),
+    ];
+    mockRecordingFetch(events);
+
+    render(<App />);
+    await screen.findByText("message 1");
+    await selectFirstRequest();
+
+    const inspectorEventList = document.querySelector(
+      ".request-inspector .event-list",
+    ) as HTMLElement;
+    fireEvent.click(within(inspectorEventList).getByText("exception.captured"));
+
+    const eventDetails = document.querySelector(".event-details") as HTMLElement;
+    expect(within(eventDetails).getByText("TypeError")).toBeInTheDocument();
+    expect(within(eventDetails).getByText("cannot read property of undefined")).toBeInTheDocument();
+  });
+
+  it("shows Performance insights for a recorded request", async () => {
+    const events = [buildCorrelatedEnvelope(1, "corr-1"), buildHttpEnvelope(2, "corr-1", 1500)];
+    mockRecordingFetch(events);
+
+    render(<App />);
+    await screen.findByText("message 1");
+    await selectFirstRequest();
+
+    const inspector = document.querySelector(".request-inspector") as HTMLElement;
+    expect(within(inspector).getByText("Performance")).toBeInTheDocument();
+    expect(within(inspector).getByText("Slow Request")).toBeInTheDocument();
+  });
+
+  it("shows the Execution Graph for a recorded request", async () => {
+    const events = [
+      buildCorrelatedEnvelope(1, "corr-1"),
+      buildSqlEnvelope(2, "corr-1", 5),
+      buildRedisEnvelope(3, "corr-1", 2),
+      buildHttpEnvelope(4, "corr-1", 20),
+    ];
+    mockRecordingFetch(events);
+
+    render(<App />);
+    await screen.findByText("message 1");
+    await selectFirstRequest();
+
+    const graph = document.querySelector(".execution-graph") as HTMLElement;
+    expect(graph).not.toBeNull();
+    const nodes = within(graph).getAllByRole("listitem");
+    expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
+      "console.log",
+      "sql.query",
+      "redis.command",
+      "http.request",
+    ]);
+  });
+
+  it("does not register a live event listener that duplicates recorded events", async () => {
+    const events = [buildCorrelatedEnvelope(1, "corr-1")];
+    mockRecordingFetch(events);
+
+    render(<App />);
+    await screen.findByText("message 1");
+
+    // A stray message on the (now-closed) socket should not add a second
+    // event — recorded events come only from /api/session/events.
+    act(() => {
+      lastSocket?.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(buildCorrelatedEnvelope(2, "corr-2")) }),
+      );
+    });
+
+    expect(document.querySelector(".timeline-controls__count")?.textContent).toBe("1 event");
   });
 });

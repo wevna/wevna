@@ -95,11 +95,38 @@ await wevna.startRecording("./session.jsonl");
 await wevna.stopRecording();
 ```
 
-This is not replay — nothing reads a recording back yet, and the dashboard
-doesn't change while one is active. It's one JSON object per line (a
-header, then one line per event, then a footer), so a recording is safe to
-inspect with `cat`/`tail -f`/`jq` even while it's still being written.
-Entirely opt-in: if you never call `startRecording()`, nothing changes.
+This is not replay — the dashboard doesn't change while a recording is
+active, and nothing controls playback timing. It's one JSON object per
+line (a header, then one line per event, then a footer), so a recording
+is safe to inspect with `cat`/`tail -f`/`jq` even while it's still being
+written. Entirely opt-in: if you never call `startRecording()`, nothing
+changes.
+
+### Opening a recording offline
+
+Once you have a recording, open it later — no running application, no
+live runtime required:
+
+```ts
+import { openRecording } from "wevna";
+
+const result = await openRecording("./session.jsonl");
+if (result.ok) {
+  console.log(`Dashboard running at ${result.recording.url}`);
+} else {
+  console.error(result.error);
+}
+```
+
+This starts the same local dashboard the live path uses, reading events
+from the file instead of a WebSocket. It's not replay either — the loader
+just reads the recording and hands its events to the dashboard in the
+order they happened; every existing dashboard feature (request
+inspection, waterfall, exceptions, performance insights, execution graph,
+search, filtering) works exactly as it does live, because from the
+dashboard's point of view it *is* live — just backed by a file instead of
+a running process. There's still no scrubbing, pausing, or stepping
+through time.
 
 ## Features
 
@@ -128,7 +155,10 @@ What's actually implemented and running, today:
   reusable outside the dashboard for whatever renders it next
 - ✅ **Session recording** — optionally record the live protocol stream to
   a portable JSON Lines file on disk, without changing anything about the
-  live dashboard while it's on. Not replay yet — nothing reads one back
+  live dashboard while it's on
+- ✅ **Session loading** — open a recording later, offline, with no live
+  runtime required; the same dashboard, streaming events from the file
+  instead of a WebSocket. Not replay — nothing controls playback timing
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -139,19 +169,16 @@ as an explicit opt-in; Express gets it automatically.
 ## Architecture
 
 ```
-Application
-     │
-     ▼
-    SDK
-     │
-     ▼
-  Runtime
-     │
-     ▼
- WebSocket
-     │
-     ▼
- Dashboard
+Application                  Recording File
+     │                             │
+     ▼                             ▼
+    SDK                     Session Loader
+     │                             │
+     ▼                             │
+  Runtime                         │
+     │                             │
+     ▼                             ▼
+ WebSocket  ─────────────►    Dashboard
 ```
 
 Your application code never talks to the dashboard directly. The SDK
@@ -159,6 +186,11 @@ instruments your app in-process, the Runtime turns what it observes into a
 structured protocol event and publishes it, and the dashboard receives it
 live over a WebSocket the Runtime's local server hosts alongside your app.
 Nothing leaves your machine.
+
+A recording is just another event source: `openRecording()` reads a file
+back through the same local server and dashboard, so the dashboard itself
+never needs to know whether events came from a live runtime or a file on
+disk.
 
 ## Roadmap
 
@@ -177,11 +209,12 @@ Nothing leaves your machine.
 - ✔ Performance intelligence
 - ✔ Execution graph model
 - ✔ Session recording
+- ✔ Session loading (offline inspection)
 
 **Next**
 
 - Graph visualization (the model exists; a real renderer doesn't yet)
-- Replay (load and step through a recorded session — recording exists; loading one back doesn't yet)
+- Replay (step through a recorded session over time — loading one back is done; controlling playback timing isn't)
 - More instrumentation targets (BullMQ, Prisma, MongoDB)
 
 ## Packages

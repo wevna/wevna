@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { OfflineSessionSource } from "./offline-session-source.js";
 import { createServer } from "./server.js";
 import type { EventSource } from "./websocket-transport.js";
 
@@ -10,6 +11,7 @@ export interface StartServerOptions {
   host?: string;
   dashboardDir?: string;
   eventSource?: EventSource;
+  session?: OfflineSessionSource;
 }
 
 export interface StartedServer {
@@ -26,6 +28,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   const app = await createServer({
     dashboardDir: options.dashboardDir,
     eventSource: options.eventSource,
+    session: options.session,
   });
 
   try {

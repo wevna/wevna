@@ -44,6 +44,15 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.app__recording-banner {
+  margin: -0.75rem 0 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--wf-color-http);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--wf-color-http) 10%, transparent);
+  font-size: 0.8125rem;
+}
+
 .timeline-controls {
   display: flex;
   align-items: center;
