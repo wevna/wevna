@@ -61,3 +61,27 @@ export {
   type NestExecutionContextLike,
   WevnaNestInterceptor,
 } from "./nest-enrichment.js";
+export type {
+  OpenedRecording,
+  OpenRecordingOptions,
+  OpenRecordingResult,
+} from "./open-recording.js";
+// Session loading — offline inspection of a previously recorded session
+// (see startRecording above). Deliberately a standalone function rather
+// than part of the `wevna` object above: it starts its own local server
+// against a recording file, independent of (and not requiring) a live
+// Runtime, so it doesn't share that object's "one live session per
+// process" lifecycle. Not replay — this only opens the file and serves its
+// events through the same dashboard the live path uses; nothing controls
+// playback timing.
+export { openRecording } from "./open-recording.js";
+export type {
+  OpenSessionResult,
+  ReadEventResult,
+  RecordedEvent,
+  SessionLoaderError,
+  SessionLoaderErrorType,
+  SessionLoaderIssue,
+  SessionMetadata,
+} from "./session-loader.js";
+export { SessionLoader } from "./session-loader.js";

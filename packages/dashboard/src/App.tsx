@@ -7,17 +7,18 @@ import { RequestList } from "./RequestList.tsx";
 import { SearchControls } from "./SearchControls.tsx";
 import { TimelineControls } from "./TimelineControls.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
-import { useLiveEvents } from "./use-live-events.ts";
+import { useEventSource } from "./use-event-source.ts";
 import { useRequestSelection } from "./use-request-selection.ts";
 import { useRequests } from "./use-requests.ts";
 import { useSelection } from "./use-selection.ts";
 import { useTimeline } from "./use-timeline.ts";
 
-// TODO: Replace with the real dashboard (session list, replay) once those
-// exist. For now this proves live events reach the UI and can be
-// inspected, paused, and searched.
+// TODO: Replace with the real dashboard (session list, replay controls)
+// once those exist. For now this proves events — live or from an opened
+// recording (see use-event-source.ts) — reach the UI and can be
+// inspected, paused, and searched, regardless of which one it is.
 function App() {
-  const events = useLiveEvents();
+  const { events, sessionMode } = useEventSource();
   const { selectedId, select } = useSelection();
   // Selection resolves against the full live list, not the
   // paused/cleared/filtered view, so it survives all three — the details
@@ -58,6 +59,18 @@ function App() {
     <main className="app">
       <h1 className="app__title">Wevna</h1>
       <p className="app__description">Runtime understanding for modern backends.</p>
+
+      {/* Purely informational — no replay controls here, just exposing
+          which recording is being viewed and when it was made. */}
+      {sessionMode.mode === "recording" && sessionMode.metadata ? (
+        <p className="app__recording-banner">
+          Viewing a recorded session · started{" "}
+          {new Date(sessionMode.metadata.recordingStartedAt).toLocaleString()}
+          {sessionMode.metadata.eventCount !== undefined
+            ? ` · ${sessionMode.metadata.eventCount} events`
+            : ""}
+        </p>
+      ) : null}
 
       <TimelineControls
         paused={paused}
