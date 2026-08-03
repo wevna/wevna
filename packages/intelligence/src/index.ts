@@ -16,6 +16,13 @@ export {
 } from "./compute-performance-metrics.js";
 export { categorizeEvent, type EventCategory } from "./event-category.js";
 export {
+  buildExecutionGraph,
+  type ExecutionGraph,
+  type ExecutionGraphEdge,
+  type ExecutionGraphEdgeType,
+  type ExecutionGraphNode,
+} from "./execution-graph.js";
+export {
   generatePerformanceInsights,
   type PerformanceInsight,
   type PerformanceInsightType,

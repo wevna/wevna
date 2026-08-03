@@ -256,4 +256,62 @@ describe("RequestInspector", () => {
       expect(screen.getByText("Slow Request")).toBeInTheDocument();
     });
   });
+
+  describe("execution graph reuse", () => {
+    it("renders an Execution Graph section heading for a selected request", () => {
+      render(
+        <RequestInspector
+          request={makeRequest({ durationMs: 20 })}
+          selectedEventId={undefined}
+          onSelectEvent={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Execution Graph")).toBeInTheDocument();
+    });
+
+    it("shows the empty-graph placeholder for a request with no events", () => {
+      render(
+        <RequestInspector
+          request={makeRequest({ durationMs: 20, timeline: [] })}
+          selectedEventId={undefined}
+          onSelectEvent={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText(/no events to graph yet/i)).toBeInTheDocument();
+    });
+
+    it("delegates to the same graph ExecutionGraphSection.test.tsx covers in detail — this just confirms RequestInspector wires it in", () => {
+      render(
+        <RequestInspector
+          request={makeRequest({
+            durationMs: 20,
+            timeline: [
+              {
+                event: {
+                  version: 1,
+                  sessionId: "s",
+                  sequence: 1,
+                  payload: { id: "e1", kind: "sql.query", occurredAt: 0, attributes: {} },
+                },
+                kind: "sql.query",
+                sequence: 1,
+                timestamp: 0,
+                relativeOffsetMs: 5,
+                durationMs: 2,
+              },
+            ],
+          })}
+          selectedEventId={undefined}
+          onSelectEvent={vi.fn()}
+        />,
+      );
+
+      const graphNodes = document
+        .querySelector(".execution-graph")
+        ?.querySelectorAll(".execution-graph__node");
+      expect(graphNodes).toHaveLength(1);
+    });
+  });
 });

@@ -620,4 +620,81 @@ describe("App", () => {
       expect(screen.getByText("message 3")).toBeInTheDocument();
     });
   });
+
+  describe("Execution Graph", () => {
+    it("shows the Execution Graph section with one node per event, in order", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveSqlEvent(2, "corr-1", 5);
+      receiveHttpEvent(3, "corr-1", 20);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const graph = document.querySelector(".execution-graph") as HTMLElement;
+      expect(graph).not.toBeNull();
+      const nodes = within(graph).getAllByRole("listitem");
+      expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
+        "console.log",
+        "sql.query",
+        "http.request",
+      ]);
+    });
+
+    it("updates the graph automatically as new events arrive for the selected request", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+      expect(document.querySelector(".request-inspector")).not.toBeNull();
+      expect(document.querySelectorAll(".execution-graph__node")).toHaveLength(1);
+
+      receiveHttpEvent(2, "corr-1", 10);
+
+      expect(document.querySelectorAll(".execution-graph__node")).toHaveLength(2);
+    });
+
+    it("includes an exception node for a request that captured one", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveExceptionEvent(2, "corr-1");
+      receiveHttpEvent(3, "corr-1", 10);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      expect(
+        document.querySelector('.execution-graph__node[data-kind-category="exception"]'),
+      ).not.toBeNull();
+    });
+
+    it("keeps existing dashboard functionality intact alongside the Execution Graph", () => {
+      render(<App />);
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1", 10);
+      fireEvent.click(
+        document
+          .querySelector(".request-list")
+          ?.querySelector(".request-row__button") as HTMLElement,
+      );
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(inspector.querySelector(".waterfall")).not.toBeNull();
+      expect(inspector.querySelector(".performance-section")).not.toBeNull();
+      expect(inspector.querySelector(".execution-graph")).not.toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+      receiveEvent(3);
+      expect(screen.queryByText("message 3")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+      expect(screen.getByText("message 3")).toBeInTheDocument();
+    });
+  });
 });
