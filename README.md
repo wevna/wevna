@@ -119,14 +119,17 @@ if (result.ok) {
 ```
 
 This starts the same local dashboard the live path uses, reading events
-from the file instead of a WebSocket. It's not replay either — the loader
-just reads the recording and hands its events to the dashboard in the
-order they happened; every existing dashboard feature (request
+from the file instead of a WebSocket. The dashboard opens fully played by
+default — exactly what you'd see if you'd loaded it before replay
+existed — with a transport controls bar (Restart, Step Back/Forward,
+Play/Pause, a seek slider, and a playback speed selector) letting you
+scrub through the recording and watch it unfold at up to 8x recorded
+speed or one event at a time. Every existing dashboard feature (request
 inspection, waterfall, exceptions, performance insights, execution graph,
-search, filtering) works exactly as it does live, because from the
-dashboard's point of view it *is* live — just backed by a file instead of
-a running process. There's still no scrubbing, pausing, or stepping
-through time.
+search, filtering) works exactly as it does live at whatever position
+you're viewing, because from the dashboard's point of view it *is* live —
+just backed by a file instead of a running process, with a
+position you control instead of "now."
 
 ## Features
 
@@ -158,7 +161,13 @@ What's actually implemented and running, today:
   live dashboard while it's on
 - ✅ **Session loading** — open a recording later, offline, with no live
   runtime required; the same dashboard, streaming events from the file
-  instead of a WebSocket. Not replay — nothing controls playback timing
+  instead of a WebSocket
+- ✅ **Replay & time travel** — play, pause, restart, step, seek, and
+  change playback speed (0.25x–8x) through an opened recording, with the
+  dashboard's request list, waterfall, performance insights, execution
+  graph, and exception details all reconstructed live at whatever
+  position you're viewing — deterministically, and fast enough to seek
+  around a recording with tens of thousands of events
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -174,8 +183,11 @@ Application                  Recording File
      ▼                             ▼
     SDK                     Session Loader
      │                             │
-     ▼                             │
-  Runtime                         │
+     ▼                             ▼
+  Runtime                   Replay Engine
+     │                             │
+     │                             ▼
+     │                     Snapshot Engine
      │                             │
      ▼                             ▼
  WebSocket  ─────────────►    Dashboard
@@ -190,7 +202,16 @@ Nothing leaves your machine.
 A recording is just another event source: `openRecording()` reads a file
 back through the same local server and dashboard, so the dashboard itself
 never needs to know whether events came from a live runtime or a file on
-disk.
+disk. For a recording specifically, two small, independent,
+React-free modules sit between the file and the dashboard: the Replay
+Engine tracks *when* — position, playback state, speed, preserving
+recorded relative timing — purely as a timer-driven state machine over the
+loaded event list, and the Snapshot Engine turns a replay position into
+*what the dashboard should show* (the request list at that point in time),
+using periodic checkpoints so seeking around a large recording stays fast
+without rebuilding everything from scratch on every scrub. Neither engine
+knows the other exists, and the dashboard consumes both through the same
+single event-source hook it already used for live vs. offline mode.
 
 ## Roadmap
 
@@ -210,11 +231,12 @@ disk.
 - ✔ Execution graph model
 - ✔ Session recording
 - ✔ Session loading (offline inspection)
+- ✔ Replay engine & time travel (play/pause/restart/step/seek/speed, with
+  deterministic dashboard state reconstruction at any position)
 
 **Next**
 
 - Graph visualization (the model exists; a real renderer doesn't yet)
-- Replay (step through a recorded session over time — loading one back is done; controlling playback timing isn't)
 - More instrumentation targets (BullMQ, Prisma, MongoDB)
 
 ## Packages

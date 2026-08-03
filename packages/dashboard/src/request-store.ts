@@ -66,7 +66,13 @@ function findHttpRequestEvent(
   return events.find((event) => event.payload.kind === "http.request");
 }
 
-function buildRequestModel(
+// Exported so replay's SnapshotEngine can reconstruct the exact same
+// RequestModel shape from an arbitrary event slice, instead of
+// reimplementing this grouping logic a second time — see
+// snapshot-engine.ts. RequestStore itself only ever calls this with one
+// correlation's events at a time, incrementally; SnapshotEngine calls it
+// the same way, just from a different starting point.
+export function buildRequestModel(
   correlationId: string,
   events: readonly Envelope<CapturedEvent>[],
 ): RequestModel {
