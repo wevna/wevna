@@ -784,8 +784,9 @@ describe("Offline session viewing", () => {
 
     render(<App />);
 
-    expect(await screen.findByText(/viewing a recorded session/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 events/)).toBeInTheDocument();
+    const banner = await screen.findByText(/viewing a recorded session/i);
+    expect(banner).toBeInTheDocument();
+    expect(banner.textContent).toMatch(/1 events/);
   });
 
   // Request assembly runs in a useEffect one tick after the events arrive
@@ -914,5 +915,272 @@ describe("Offline session viewing", () => {
     });
 
     expect(document.querySelector(".timeline-controls__count")?.textContent).toBe("1 event");
+  });
+});
+
+// A recording with several correlated requests, spread across recorded
+// timestamps far enough apart that fake-timer advances in the tests below
+// land unambiguously on one event at a time. Built once per test via a
+// fresh array (see buildReplayEvents) so no test can leak position state
+// into another by mutating a shared one.
+function buildReplayEvents(): Envelope<CapturedEvent>[] {
+  const base = 1_700_000_000_000;
+  const withTime = (envelope: Envelope<CapturedEvent>, occurredAt: number) => ({
+    ...envelope,
+    payload: { ...envelope.payload, occurredAt: base + occurredAt },
+  });
+
+  return [
+    withTime(buildCorrelatedEnvelope(1, "corr-1"), 0),
+    withTime(buildSqlEnvelope(2, "corr-1", 5), 100),
+    withTime(buildHttpEnvelope(3, "corr-1", 1500), 1_000),
+    withTime(buildCorrelatedEnvelope(4, "corr-2"), 2_000),
+    withTime(buildExceptionEnvelope(5, "corr-2"), 2_100),
+    withTime(buildHttpEnvelope(6, "corr-2", 10), 3_000),
+  ];
+}
+
+describe("Replay", () => {
+  const OriginalWebSocket = globalThis.WebSocket;
+
+  beforeEach(() => {
+    lastSocket = undefined;
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+  });
+
+  afterEach(() => {
+    globalThis.WebSocket = OriginalWebSocket;
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not render replay controls in live mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ mode: "live" }))),
+    );
+    render(<App />);
+
+    await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+    expect(document.querySelector(".replay-controls")).toBeNull();
+  });
+
+  it("renders replay controls, starting fully played, when viewing a recording", async () => {
+    mockRecordingFetch(buildReplayEvents());
+    render(<App />);
+
+    await screen.findByText("message 1");
+
+    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+    expect(screen.getByText("6 / 6 events")).toBeInTheDocument();
+  });
+
+  it("hides the Clear requests button while viewing a recording", async () => {
+    mockRecordingFetch(buildReplayEvents());
+    render(<App />);
+
+    await screen.findByText("message 1");
+
+    expect(screen.queryByRole("button", { name: "Clear requests" })).not.toBeInTheDocument();
+  });
+
+  it("Restart jumps to the start; the dashboard shows nothing yet", async () => {
+    mockRecordingFetch(buildReplayEvents());
+    render(<App />);
+    await screen.findByText("message 1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+
+    expect(screen.getByText("0 / 6 events")).toBeInTheDocument();
+    expect(document.querySelectorAll(".request-row")).toHaveLength(0);
+  });
+
+  it("Step Forward reveals events one at a time, request assembly included", async () => {
+    mockRecordingFetch(buildReplayEvents());
+    render(<App />);
+    await screen.findByText("message 1");
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Step Forward" }));
+    expect(screen.getByText("1 / 6 events")).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Step Back" }));
+    expect(screen.getByText("0 / 6 events")).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(0));
+  });
+
+  it("the seek slider jumps directly to a position and updates the requests shown", async () => {
+    mockRecordingFetch(buildReplayEvents());
+    render(<App />);
+    await screen.findByText("message 1");
+
+    fireEvent.change(screen.getByLabelText("Seek"), { target: { value: "3" } });
+
+    expect(screen.getByText("3 / 6 events")).toBeInTheDocument();
+    // Only corr-1 (events 0-2) has happened by position 3; corr-2 hasn't
+    // started yet.
+    await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(1));
+  });
+
+  describe("timed playback", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    it("Play advances position over recorded time, and Pause stops it", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+      expect(screen.getByText("0 / 6 events")).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      expect(screen.getByText("2 / 6 events")).toBeInTheDocument();
+
+      const replayControls = document.querySelector(".replay-controls") as HTMLElement;
+      fireEvent.click(within(replayControls).getByRole("button", { name: "Pause" }));
+      const label = screen.getByText(/\/ 6 events/).textContent;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(screen.getByText(label as string)).toBeInTheDocument();
+    });
+
+    it("changing playback speed is reflected in the speed selector", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+
+      const speedSelect = screen.getByLabelText("Playback speed") as HTMLSelectElement;
+      fireEvent.change(speedSelect, { target: { value: "8" } });
+
+      expect(speedSelect.value).toBe("8");
+    });
+
+    it("reaches the end of the recording and auto-pauses there", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(screen.getByText("6 / 6 events")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+    });
+  });
+
+  describe("dashboard feature parity at a specific replay position", () => {
+    async function seekToEnd(): Promise<void> {
+      fireEvent.change(screen.getByLabelText("Seek"), { target: { value: "6" } });
+      await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(2));
+    }
+
+    it("request inspection, waterfall, and events work the same as fully-loaded offline mode", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+      await seekToEnd();
+
+      fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+      expect(inspector.querySelector(".waterfall")).not.toBeNull();
+      expect(inspector.querySelectorAll(".event-row")).toHaveLength(3);
+    });
+
+    it("performance insights reflect the request as reconstructed at that position", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+      await seekToEnd();
+
+      fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
+
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(within(inspector).getByText("Performance")).toBeInTheDocument();
+      expect(within(inspector).getByText("Slow Request")).toBeInTheDocument();
+    });
+
+    it("the execution graph reflects the request as reconstructed at that position", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+      await seekToEnd();
+
+      fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
+
+      const graph = document.querySelector(".execution-graph") as HTMLElement;
+      const nodes = within(graph).getAllByRole("listitem");
+      expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
+        "console.log",
+        "sql.query",
+        "http.request",
+      ]);
+    });
+
+    it("exception inspection works for a request reconstructed via replay", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+      await seekToEnd();
+
+      const requestRows = document.querySelectorAll(".request-list .request-row__button");
+      fireEvent.click(requestRows[1] as HTMLElement);
+
+      const inspectorEventList = document.querySelector(
+        ".request-inspector .event-list",
+      ) as HTMLElement;
+      fireEvent.click(within(inspectorEventList).getByText("exception.captured"));
+
+      const eventDetails = document.querySelector(".event-details") as HTMLElement;
+      expect(within(eventDetails).getByText("TypeError")).toBeInTheDocument();
+    });
+
+    it("search and filter operate on the replay's current event window", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+
+      // Only the first 3 events (corr-1) have happened at position 3.
+      fireEvent.change(screen.getByLabelText("Seek"), { target: { value: "3" } });
+      await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(1));
+
+      const eventList = document.querySelector(".event-list") as HTMLElement;
+      expect(within(eventList).queryByText("exception.captured")).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Filter by kind"), {
+        target: { value: "sql.query" },
+      });
+      expect(within(eventList).getByText("sql.query")).toBeInTheDocument();
+      expect(within(eventList).queryByText("message 1")).not.toBeInTheDocument();
+    });
+
+    it("clearing the request selection when replay seeks before it existed leaves no stale reference", async () => {
+      mockRecordingFetch(buildReplayEvents());
+      render(<App />);
+      await screen.findByText("message 1");
+      await seekToEnd();
+
+      const requestRows = document.querySelectorAll(".request-list .request-row__button");
+      fireEvent.click(requestRows[1] as HTMLElement);
+      expect((document.querySelector(".request-inspector") as HTMLElement).textContent).toContain(
+        "corr-2",
+      );
+
+      // Seek back to before corr-2's first event (position 4).
+      fireEvent.change(screen.getByLabelText("Seek"), { target: { value: "3" } });
+      await waitFor(() => expect(document.querySelectorAll(".request-row")).toHaveLength(1));
+
+      expect(screen.getByText(/select a request to inspect it/i)).toBeInTheDocument();
+    });
   });
 });

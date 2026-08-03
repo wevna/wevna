@@ -2,6 +2,7 @@ import "./App.css";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
 import { findTimelineEntry } from "./find-timeline-entry.ts";
+import { ReplayControls } from "./ReplayControls.tsx";
 import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
 import { SearchControls } from "./SearchControls.tsx";
@@ -9,16 +10,15 @@ import { TimelineControls } from "./TimelineControls.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useEventSource } from "./use-event-source.ts";
 import { useRequestSelection } from "./use-request-selection.ts";
-import { useRequests } from "./use-requests.ts";
 import { useSelection } from "./use-selection.ts";
 import { useTimeline } from "./use-timeline.ts";
 
-// TODO: Replace with the real dashboard (session list, replay controls)
-// once those exist. For now this proves events — live or from an opened
-// recording (see use-event-source.ts) — reach the UI and can be
-// inspected, paused, and searched, regardless of which one it is.
+// TODO: Replace with the real dashboard (session list) once it exists.
+// For now this proves events — live, from a fully-loaded recording, or
+// from an in-progress replay (see use-event-source.ts) — reach the UI and
+// can be inspected, paused, and searched, regardless of which one it is.
 function App() {
-  const { events, sessionMode } = useEventSource();
+  const { events, requests, clearRequests, sessionMode, replay } = useEventSource();
   const { selectedId, select } = useSelection();
   // Selection resolves against the full live list, not the
   // paused/cleared/filtered view, so it survives all three — the details
@@ -28,18 +28,18 @@ function App() {
   const { visibleEvents, paused, liveCount, pause, resume, clear } = useTimeline(events);
   const { query, kind, availableKinds, filteredEvents, setQuery, setKind } =
     useEventFilter(visibleEvents);
-  // Requests are assembled from the full, raw event list — independent of
-  // pause/filter/search, exactly like EventStore itself. Those are
-  // presentation concerns layered on top of the raw pipeline, not part of
-  // what a request "is".
-  const { requests, clear: clearRequestsStore } = useRequests(events);
   const { selectedRequestId, selectRequest, clearRequestSelection } = useRequestSelection();
-  // Resolves against the live requests list every render, same as
+  // Resolves against the current requests list every render, same as
   // selectedEvent above — a request whose model object hasn't changed
   // (see request-store.ts) is the same reference, so this doesn't defeat
   // RequestList's/RequestInspector's memoization, and a still-executing
-  // selected request's inspector view updates automatically as its model
-  // object changes.
+  // (or, during replay, still-advancing) selected request's inspector view
+  // updates automatically as its model object changes. If replay seeks to
+  // a position before the selected request existed, it simply disappears
+  // from `requests` and this resolves to undefined — RequestInspector
+  // already renders its placeholder for that case, so a stale selection
+  // clears itself with no extra code, and reappears the same way if
+  // replay moves forward past it again.
   const selectedRequest = requests.find((request) => request.id === selectedRequestId);
   // Looked up across every request, not just selectedRequest — an event
   // can be selected (from the raw list, or a different request's own
@@ -47,11 +47,12 @@ function App() {
   // in the inspector.
   const selectedTimelineEntry = findTimelineEntry(requests, selectedId);
 
-  // Clearing the request list removes whatever was selected too — leaving
-  // a stale id selected here would be harmless (selectedRequest would just
-  // resolve to undefined) but pointless to keep around.
-  function clearRequests(): void {
-    clearRequestsStore();
+  // Only meaningful in live mode — see use-event-source.ts. Clearing the
+  // request list removes whatever was selected too — leaving a stale id
+  // selected here would be harmless (selectedRequest would just resolve
+  // to undefined) but pointless to keep around.
+  function handleClearRequests(): void {
+    clearRequests?.();
     clearRequestSelection();
   }
 
@@ -70,6 +71,19 @@ function App() {
             ? ` · ${sessionMode.metadata.eventCount} events`
             : ""}
         </p>
+      ) : null}
+
+      {/* Only present once the recording's events have loaded (see
+          use-event-source.ts) — never in live mode, which has no fixed
+          end to play toward or seek within. */}
+      {replay ? (
+        <ReplayControls
+          position={replay.position}
+          totalEvents={replay.totalEvents}
+          state={replay.state}
+          speed={replay.speed}
+          controls={replay.controls}
+        />
       ) : null}
 
       <TimelineControls
@@ -98,9 +112,11 @@ function App() {
       <section className="requests-section">
         <div className="requests-section__header">
           <h2 className="requests-section__title">Requests</h2>
-          <button type="button" onClick={clearRequests}>
-            Clear requests
-          </button>
+          {clearRequests ? (
+            <button type="button" onClick={handleClearRequests}>
+              Clear requests
+            </button>
+          ) : null}
         </div>
         <div className="requests-section__layout">
           <RequestList
