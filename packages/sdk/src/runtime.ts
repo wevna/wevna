@@ -14,6 +14,7 @@ import { HttpInstrumentation } from "./http-instrumentation.js";
 import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
 import { RedisInstrumentation, type RedisSendCommandLike } from "./redis-instrumentation.js";
 import { createSession, stopSession } from "./session.js";
+import { SessionRecorder } from "./session-recorder.js";
 
 // Runtime is the single owner of Wevna's application lifecycle. As Wevna
 // grows, it's where the server, transport, instrumentation, session
@@ -66,6 +67,11 @@ export class Runtime {
       this.publish(event);
     }
   });
+  // Independent EventBus subscriber, wired up only when startRecording()
+  // is called — see session-recorder.ts for why it's never coupled to the
+  // WebSocket transport. Recording is entirely opt-in: a developer who
+  // never calls startRecording() sees no behavioural change at all.
+  readonly #sessionRecorder = new SessionRecorder();
 
   get state(): RuntimeState {
     return this.#state;
@@ -93,6 +99,13 @@ export class Runtime {
   // Internal-only: the dashboard server's own bound URL, once running.
   get url(): string | undefined {
     return this.#server?.url;
+  }
+
+  // Whether a session recording is currently active. Exposed publicly (see
+  // index.ts) as the one piece of recording status a developer might want
+  // to check — there is no dashboard surface for this milestone.
+  get isRecording(): boolean {
+    return this.#sessionRecorder.isRecording;
   }
 
   // Internal-only: the single place protocol envelopes get constructed.
@@ -158,6 +171,26 @@ export class Runtime {
     this.#redisInstrumentation.instrument(client);
   }
 
+  // Starts recording the live protocol stream to filePath as it's
+  // published — see session-recorder.ts. Requires a running session (the
+  // recording's header needs one to describe), unlike instrumentPg/
+  // instrumentRedis which can be called at any point in Runtime's
+  // lifecycle; matches publish()'s own "cannot do this before a session
+  // exists" guard for the same reason. Safe to call while already
+  // recording (a no-op — see SessionRecorder.start()).
+  async startRecording(filePath: string): Promise<void> {
+    if (!this.#session) {
+      throw new Error("Cannot start recording before Runtime has started a session.");
+    }
+    await this.#sessionRecorder.start(this.#eventBus, this.#session, filePath);
+  }
+
+  // Safe to call even when not recording. Resolves once the recording file
+  // is fully flushed and closed.
+  async stopRecording(): Promise<void> {
+    await this.#sessionRecorder.stop();
+  }
+
   async start(options?: StartServerOptions): Promise<void> {
     if (this.#state === "running") {
       return;
@@ -217,6 +250,12 @@ export class Runtime {
     this.#consoleInstrumentation.stop();
     this.#httpInstrumentation.stop();
     this.#exceptionInstrumentation.stop();
+    // Finalizes (footer + flush + close) any recording still in progress,
+    // so stopping Wevna mid-recording never leaves a file without its
+    // footer for no reason — a no-op if nothing was recording. Placed
+    // after instrumentation stops, same as everything else here, so the
+    // recording never includes Wevna's own shutdown log line below.
+    await this.#sessionRecorder.stop();
 
     console.log("Stopping Wevna...");
 

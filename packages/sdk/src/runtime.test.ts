@@ -1,9 +1,20 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import type { CapturedEvent } from "@wevna/protocol";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { CapturedEvent, RecordingLine } from "@wevna/protocol";
 import { PROTOCOL_VERSION } from "@wevna/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Runtime } from "./runtime.js";
+
+async function readRecordingLines(filePath: string): Promise<RecordingLine[]> {
+  const contents = await readFile(filePath, "utf8");
+  return contents
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as RecordingLine);
+}
 
 function makeCapturedEvent(kind = "test"): CapturedEvent {
   return { id: "event-1", kind, occurredAt: Date.now(), attributes: {} };
@@ -13,9 +24,12 @@ function makeCapturedEvent(kind = "test"): CapturedEvent {
 // "finish" (see http-instrumentation.ts), so a client's fetch() can
 // resolve fractionally before the server has actually finished publishing
 // — polls instead of assuming a fixed delay is always enough.
-async function waitUntil(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitUntil(
+  condition: () => boolean | Promise<boolean>,
+  timeoutMs = 2000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (!condition()) {
+  while (!(await condition())) {
     if (Date.now() > deadline) {
       throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
     }
@@ -639,5 +653,225 @@ describe("Runtime exception instrumentation", () => {
 
     process.off("uncaughtException", safetyListener);
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("Runtime session recording", () => {
+  let runtime: Runtime | undefined;
+  let dir: string | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+    runtime = undefined;
+    if (dir) {
+      await rm(dir, { recursive: true, force: true });
+      dir = undefined;
+    }
+  });
+
+  async function makeFilePath(name = "session.jsonl"): Promise<string> {
+    dir = await mkdtemp(join(tmpdir(), "wevna-runtime-recording-test-"));
+    return join(dir, name);
+  }
+
+  it("throws when starting a recording before Runtime has started a session", async () => {
+    runtime = new Runtime();
+    const filePath = await makeFilePath();
+
+    await expect(runtime.startRecording(filePath)).rejects.toThrow();
+  });
+
+  it("is not recording by default", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+
+    expect(runtime.isRecording).toBe(false);
+  });
+
+  it("reports isRecording true once a recording has started", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+
+    await runtime.startRecording(filePath);
+
+    expect(runtime.isRecording).toBe(true);
+  });
+
+  it("reports isRecording false again after stopRecording()", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+
+    await runtime.stopRecording();
+
+    expect(runtime.isRecording).toBe(false);
+  });
+
+  it("records real published events, in order, to the file", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+
+    runtime.publish(makeCapturedEvent("console.log"));
+    runtime.publish(makeCapturedEvent("sql.query"));
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const eventLines = lines.filter((line) => line.type === "event");
+    expect(
+      eventLines.map((line) => (line.type === "event" ? line.envelope.payload.kind : null)),
+    ).toEqual(["console.log", "sql.query"]);
+  });
+
+  it("records a real HTTP request end to end", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+
+    const appServer = http.createServer((_req, res) => res.end("ok"));
+    await new Promise<void>((resolve) => appServer.listen(0, resolve));
+    const port = (appServer.address() as AddressInfo).port;
+
+    await fetch(`http://localhost:${port}/widgets`);
+    await waitUntil(async () => {
+      const lines = await readRecordingLines(filePath);
+      return lines.some(
+        (line) => line.type === "event" && line.envelope.payload.kind === "http.request",
+      );
+    });
+    await new Promise((resolve) => appServer.close(resolve));
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const httpLine = lines.find(
+      (line) => line.type === "event" && line.envelope.payload.kind === "http.request",
+    );
+    expect(httpLine?.type === "event" && httpLine.envelope.payload.attributes.url).toBe("/widgets");
+  });
+
+  it("preserves correlation on recorded events the same way live events already do", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+
+    const appServer = http.createServer((_req, res) => {
+      runtime?.publish(makeCapturedEvent("console.log"));
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => appServer.listen(0, resolve));
+    const port = (appServer.address() as AddressInfo).port;
+
+    await fetch(`http://localhost:${port}/checkout`);
+    await waitUntil(async () => {
+      const lines = await readRecordingLines(filePath);
+      return (
+        lines.filter((line) => line.type === "event" && line.envelope.payload.correlation).length >=
+        2
+      );
+    });
+    await new Promise((resolve) => appServer.close(resolve));
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const correlationIds = lines
+      .filter((line) => line.type === "event")
+      .map((line) => (line.type === "event" ? line.envelope.payload.correlation?.id : undefined));
+    expect(correlationIds[0]).toBeDefined();
+    expect(new Set(correlationIds).size).toBe(1);
+  });
+
+  it("never mixes up event order between concurrent HTTP requests while recording", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+
+    const appServer = http.createServer(async (_req, res) => {
+      runtime?.publish(makeCapturedEvent("console.log"));
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
+      runtime?.publish(makeCapturedEvent("console.log"));
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => appServer.listen(0, resolve));
+    const port = (appServer.address() as AddressInfo).port;
+
+    await Promise.all([
+      fetch(`http://localhost:${port}/a`),
+      fetch(`http://localhost:${port}/b`),
+      fetch(`http://localhost:${port}/c`),
+    ]);
+    // 3 requests x (2 console.log + 1 http.request) = 9 events.
+    await waitUntil(async () => {
+      const lines = await readRecordingLines(filePath);
+      return lines.filter((line) => line.type === "event").length >= 9;
+    });
+    await new Promise((resolve) => appServer.close(resolve));
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const eventLines = lines.filter((line) => line.type === "event");
+    expect(eventLines).toHaveLength(9);
+
+    const byCorrelation = new Map<string, number>();
+    for (const line of eventLines) {
+      if (line.type !== "event") {
+        continue;
+      }
+      const correlationId = line.envelope.payload.correlation?.id;
+      expect(correlationId).toBeDefined();
+      byCorrelation.set(
+        correlationId as string,
+        (byCorrelation.get(correlationId as string) ?? 0) + 1,
+      );
+    }
+    expect(byCorrelation.size).toBe(3);
+    for (const count of byCorrelation.values()) {
+      expect(count).toBe(3);
+    }
+  });
+
+  it("finalizes the recording (writes the footer) when Runtime itself is stopped mid-recording", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+    runtime.publish(makeCapturedEvent("console.log"));
+
+    await runtime.stop();
+    runtime = undefined;
+
+    const lines = await readRecordingLines(filePath);
+    expect(lines.at(-1)?.type).toBe("footer");
+  });
+
+  it("does not create a recording file or change behaviour when recording is never started", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.publish(makeCapturedEvent("console.log"));
+
+    expect(runtime.isRecording).toBe(false);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("does not interfere with live event bus subscribers while recording", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const filePath = await makeFilePath();
+    await runtime.startRecording(filePath);
+    const liveListener = vi.fn();
+    runtime.eventBus.subscribe(liveListener);
+
+    runtime.publish(makeCapturedEvent("console.log"));
+    await runtime.stopRecording();
+
+    expect(liveListener).toHaveBeenCalledOnce();
   });
 });
