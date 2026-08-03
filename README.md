@@ -105,6 +105,9 @@ What's actually implemented and running, today:
 - ✅ **Performance intelligence** — deterministic per-request analysis
   (longest operation, SQL/Redis time, event counts) and insights like
   "Slow Request" or "Multiple Database Calls", with the numbers behind them
+- ✅ **Execution graph** — a request's events as a structured, ordered graph
+  (currently shown as a simple sequential flow in the Request Inspector),
+  reusable outside the dashboard for whatever renders it next
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -151,9 +154,11 @@ Nothing leaves your machine.
 - ✔ Request Inspector
 - ✔ Exception capture & inspector
 - ✔ Performance intelligence
+- ✔ Execution graph model
 
 **Next**
 
+- Graph visualization (the model exists; a real renderer doesn't yet)
 - Replay
 - More instrumentation targets (BullMQ, Prisma, MongoDB)
 
@@ -168,7 +173,7 @@ the only one you install; everything else supports it:
 | `packages/protocol`    | The shared event/envelope types every other package agrees on |
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
-| `packages/intelligence`| Deterministic request performance analysis — no React, no Fastify, reusable outside the dashboard |
+| `packages/intelligence`| Deterministic request performance analysis and execution graph modeling — no React, no Fastify, reusable outside the dashboard |
 | `packages/shared`      | Reserved for cross-cutting utilities; currently a placeholder |
 
 ## Contributing / running locally

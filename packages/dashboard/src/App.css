@@ -447,6 +447,54 @@ body {
   opacity: 0.8;
 }
 
+.execution-graph {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.execution-graph__empty {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.execution-graph__node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.execution-graph__node-kind {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid currentColor;
+  border-left: 3px solid currentColor;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+}
+
+.execution-graph__node[data-kind-category="http"] .execution-graph__node-kind {
+  border-left-color: var(--wf-color-http);
+}
+
+.execution-graph__node[data-kind-category="sql"] .execution-graph__node-kind {
+  border-left-color: var(--wf-color-sql);
+}
+
+.execution-graph__node[data-kind-category="redis"] .execution-graph__node-kind {
+  border-left-color: var(--wf-color-redis);
+}
+
+.execution-graph__node[data-kind-category="exception"] .execution-graph__node-kind {
+  border-left-color: var(--wf-color-exception);
+}
+
+.execution-graph__connector {
+  padding: 0.125rem 0;
+  opacity: 0.5;
+  font-size: 0.75rem;
+}
+
 .waterfall {
   list-style: none;
   margin: 0.5rem 0 0;

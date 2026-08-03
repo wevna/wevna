@@ -1,4 +1,5 @@
 import { EventList } from "./EventList.tsx";
+import { ExecutionGraphSection } from "./ExecutionGraphSection.tsx";
 import { PerformanceSection } from "./PerformanceSection.tsx";
 import { formatEventCount, formatRequestDuration } from "./request-format.ts";
 import type { RequestModel } from "./request-store.ts";
@@ -54,6 +55,9 @@ export function RequestInspector({
 
       <h3 className="request-inspector__section-heading">Performance</h3>
       <PerformanceSection request={request} />
+
+      <h3 className="request-inspector__section-heading">Execution Graph</h3>
+      <ExecutionGraphSection request={request} />
     </div>
   );
 }
