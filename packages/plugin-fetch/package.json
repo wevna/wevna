@@ -1,8 +1,7 @@
 {
   "name": "@wevna/plugin-fetch",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Wevna plugin capturing outgoing HTTP requests made with global fetch.",
+  "version": "1.0.0",
+  "description": "Wevna plugin capturing outgoing HTTP requests made with the global fetch.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +12,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.d.ts.map"
   ],
   "scripts": {
     "build": "tsup && tsc --build",
@@ -23,7 +25,7 @@
     "lint": "biome check ."
   },
   "peerDependencies": {
-    "wevna": "workspace:*"
+    "wevna": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
@@ -31,5 +33,31 @@
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "wevna": "workspace:*"
+  },
+  "license": "MIT",
+  "author": "Boluwatife Ajayi",
+  "keywords": [
+    "wevna",
+    "wevna-plugin",
+    "fetch",
+    "http",
+    "observability",
+    "debugging"
+  ],
+  "homepage": "https://github.com/wevna/wevna#readme",
+  "bugs": {
+    "url": "https://github.com/wevna/wevna/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevna/wevna.git",
+    "directory": "packages/plugin-fetch"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

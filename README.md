@@ -6,9 +6,10 @@ Wevna watches your Node.js backend run — every HTTP request, SQL query,
 Redis command, and `console.log` — and streams it live to a dashboard in
 your browser, correlated back into the request it belongs to.
 
-> **Status:** pre-release, under active development. The core is working
-> and self-hosted — this README describes what actually runs today, not a
-> roadmap dressed up as a feature list. APIs may still change before 1.0.
+> **Status:** 1.0. This README describes what actually runs today, not a
+> roadmap dressed up as a feature list. See [STABILITY.md](STABILITY.md) for
+> exactly what is covered by semver, what the frozen protocol and plugin api
+> guarantee, and what is deliberately *not* guaranteed.
 
 ## Why
 
@@ -348,12 +349,11 @@ the only one you install; everything else supports it:
 | Package               | What it is                                      |
 | ---------------------- | ------------------------------------------------ |
 | `packages/sdk`         | The `wevna` package — public API, Runtime, instrumentation |
-| `packages/protocol`    | The shared event/envelope types every other package agrees on |
+| `packages/protocol`    | The shared event/envelope types every other package agrees on. Published as `@wevna/protocol` for plugin authors and anything reading a recording file |
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
 | `packages/intelligence`| Deterministic runtime interpretation — request assembly, timelines, replay snapshots, performance analysis, execution graph modeling. No React, no Fastify, reusable outside the dashboard |
 | `packages/plugin-fetch`| Official plugin: outgoing HTTP (`fetch`) capture. Lives outside the SDK on purpose — it is written against nothing but the published plugin api |
-| `packages/shared`      | Reserved for cross-cutting utilities; currently a placeholder |
 
 ## Contributing / running locally
 
@@ -367,6 +367,26 @@ pnpm test
 
 Requires Node 22+ and pnpm. See [examples/](examples/) for integration
 patterns with specific frameworks.
+
+Releases are cut by pushing a version tag (`v1.0.0`); CI runs the full
+build/check/test/lint gate and publishes the three public packages with npm
+provenance. Publishing from a laptop cannot produce a provenance attestation,
+which is why it goes through CI — drop `publishConfig.provenance` if you'd
+rather run `pnpm release` locally.
+
+## Stability
+
+`PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen at `1` for the 1.x
+line. Three published packages — `wevna`, `@wevna/protocol`,
+`@wevna/plugin-fetch` — everything else is internal and bundled.
+
+Wevna guarantees it never changes what your code does and never throws into
+your code path. It does *not* claim plugins are sandboxed, that URL redaction
+is exhaustive, or that graph nesting implies causality. All of that is spelled
+out in [STABILITY.md](STABILITY.md), along with what a major bump means for
+each contract.
+
+Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

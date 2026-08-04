@@ -1,8 +1,8 @@
-import type { StartServerOptions } from "@wevna/server";
 import type { PgQueryable } from "./pg-instrumentation.js";
 import type { PluginDescriptor, WevnaPlugin } from "./plugin.js";
 import type { RedisSendCommandLike } from "./redis-instrumentation.js";
 import { Runtime } from "./runtime.js";
+import type { WevnaStartOptions } from "./start-options.js";
 
 // A single shared Runtime instance is intentional: Wevna mirrors tools like
 // Prisma Studio and Storybook, where one local dev server is started per
@@ -11,7 +11,7 @@ import { Runtime } from "./runtime.js";
 const runtime = new Runtime();
 
 export const wevna = {
-  start(options?: StartServerOptions): Promise<void> {
+  start(options?: WevnaStartOptions): Promise<void> {
     return runtime.start(options);
   },
   stop(): Promise<void> {
@@ -119,3 +119,4 @@ export type {
   SessionMetadata,
 } from "./session-loader.js";
 export { SessionLoader } from "./session-loader.js";
+export type { WevnaStartOptions } from "./start-options.js";

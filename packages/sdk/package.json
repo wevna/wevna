@@ -1,8 +1,7 @@
 {
   "name": "wevna",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Local-first runtime understanding tool for backend developers.",
+  "version": "1.0.0",
+  "description": "Local-first runtime dashboard for Node.js backends: watch HTTP, SQL, Redis and console activity live, correlated per request.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -15,7 +14,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.d.ts.map"
   ],
   "scripts": {
     "build": "tsup && tsc --build && node ../../scripts/copy-dashboard-assets.mjs dist/dashboard",
@@ -27,6 +29,7 @@
   "dependencies": {
     "@fastify/static": "^10.1.2",
     "@fastify/websocket": "^11.3.0",
+    "@wevna/protocol": "workspace:^",
     "fastify": "^5.10.0",
     "fastify-plugin": "^6.0.0"
   },
@@ -35,7 +38,6 @@
     "@types/node": "^26.1.2",
     "@types/pg": "^8.20.0",
     "@wevna/dashboard": "workspace:*",
-    "@wevna/protocol": "workspace:*",
     "@wevna/server": "workspace:*",
     "express": "^5.2.1",
     "ioredis": "^5.11.1",
@@ -43,5 +45,38 @@
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "license": "MIT",
+  "author": "Boluwatife Ajayi",
+  "keywords": [
+    "observability",
+    "debugging",
+    "devtools",
+    "nodejs",
+    "backend",
+    "dashboard",
+    "instrumentation",
+    "local-first",
+    "postgres",
+    "redis",
+    "express",
+    "fastify",
+    "nestjs"
+  ],
+  "homepage": "https://github.com/wevna/wevna#readme",
+  "bugs": {
+    "url": "https://github.com/wevna/wevna/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevna/wevna.git",
+    "directory": "packages/sdk"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

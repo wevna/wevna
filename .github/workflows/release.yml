@@ -1,0 +1,53 @@
+name: Release
+
+# Publishes on a pushed version tag (v1.0.0, v1.0.1, ...) rather than on
+# every push to main, so cutting a release is a deliberate act and not a
+# side effect of merging.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance: the published packages set
+      # publishConfig.provenance, which needs an OIDC token to attest that
+      # the tarball was built from this commit in this workflow. Publishing
+      # from a laptop cannot produce that attestation — which is the reason
+      # this workflow exists rather than a local `pnpm release`.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The full gate, not just a build: a release must not be the one path
+      # that skips the checks every pull request has to pass.
+      - name: Verify
+        run: pnpm turbo run build check test lint
+
+      # pnpm, not npm: the published packages depend on @wevna/protocol via
+      # `workspace:^`, and only pnpm rewrites that to a real semver range at
+      # pack time. `-r` publishes every non-private package, which is exactly
+      # the three public ones — the internal packages are marked private
+      # precisely so this needs no list to keep in sync.
+      - name: Publish
+        run: pnpm publish -r --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

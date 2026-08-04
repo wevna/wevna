@@ -1,8 +1,14 @@
-import { type StartServerOptions, startServer } from "@wevna/server";
+import { startServer } from "@wevna/server";
 import type { SessionLoaderError, SessionMetadata } from "./session-loader.js";
 import { SessionLoader } from "./session-loader.js";
+import type { WevnaStartOptions } from "./start-options.js";
 
-export type OpenRecordingOptions = Omit<StartServerOptions, "eventSource" | "session">;
+// The same three options wevna.start() takes — see start-options.ts. Was
+// Omit<StartServerOptions, "eventSource" | "session">, which subtracted the
+// two internal fields but still referenced the internal package in the
+// published type declarations, and would have silently re-widened Wevna's
+// public API the next time a server option was added.
+export type OpenRecordingOptions = WevnaStartOptions;
 
 export interface OpenedRecording {
   url: string;
@@ -40,7 +46,12 @@ export async function openRecording(
   }
 
   const server = await startServer({
-    ...options,
+    // Listed explicitly rather than spread, for the same reason
+    // Runtime#performStart does: a new server option must never become part
+    // of this function's public contract just by existing.
+    port: options.port,
+    host: options.host,
+    dashboardDir: options.dashboardDir,
     session: {
       getMetadata: () => loader.metadata ?? opened.metadata,
       async *getEvents() {

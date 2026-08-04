@@ -15,7 +15,8 @@
     "check": "turbo run check",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "release": "pnpm publish -r --access public"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
