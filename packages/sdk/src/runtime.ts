@@ -12,6 +12,8 @@ import { EventBus } from "./event-bus.js";
 import { ExceptionInstrumentation } from "./exception-instrumentation.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
 import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
+import type { PluginDescriptor, WevnaPlugin } from "./plugin.js";
+import { PluginManager } from "./plugin-manager.js";
 import { RedisInstrumentation, type RedisSendCommandLike } from "./redis-instrumentation.js";
 import { createSession, stopSession } from "./session.js";
 import { SessionRecorder } from "./session-recorder.js";
@@ -72,6 +74,25 @@ export class Runtime {
   // WebSocket transport. Recording is entirely opt-in: a developer who
   // never calls startRecording() sees no behavioural change at all.
   readonly #sessionRecorder = new SessionRecorder();
+  // Third-party event producers. Given the same narrow host surface every
+  // built-in producer effectively has (publish + correlation), rather than a
+  // reference to Runtime itself — so what plugins depend on is a documented
+  // contract, not whatever happens to be public on this class.
+  //
+  // publish() is lifecycle-guarded here for the same reason
+  // instrumentPg/instrumentRedis are: a plugin can be registered before
+  // start() or observe an operation after stop(), and neither must throw
+  // inside the developer's own code path.
+  readonly #pluginManager = new PluginManager({
+    publish: (event) => {
+      if (this.isRunning) {
+        this.publish(event);
+      }
+    },
+    currentCorrelation: () => correlationContext.currentCorrelation(),
+    startCorrelation: (fn) => correlationContext.startCorrelation(fn),
+    runWithCorrelation: (correlation, fn) => correlationContext.runWithCorrelation(correlation, fn),
+  });
 
   get state(): RuntimeState {
     return this.#state;
@@ -158,6 +179,30 @@ export class Runtime {
     return correlationContext.runWithCorrelation(correlation, fn);
   }
 
+  // Registers a plugin. Safe at any point in the lifecycle: before start()
+  // the plugin is set up when the runtime starts, after it the plugin is set
+  // up immediately. Never throws — an unusable plugin (wrong api version,
+  // duplicate name, failing setup) is recorded as failed and reported via
+  // `plugins` rather than breaking the application's startup.
+  use(plugin: WevnaPlugin): void {
+    this.#pluginManager.register(plugin);
+  }
+
+  // Every registered plugin and what became of it. The answer to "is my
+  // plugin actually running, and if not, why" without needing to reproduce
+  // an event.
+  get plugins(): readonly PluginDescriptor[] {
+    return this.#pluginManager.descriptors;
+  }
+
+  // Resolves once no plugin setup is still in flight. use() is deliberately
+  // synchronous — startup code calls it without awaiting — so this is how a
+  // caller that genuinely needs plugins live (a test, or code that wants to
+  // assert on `plugins`) waits for them.
+  pluginsSettled(): Promise<void> {
+    return this.#pluginManager.settled();
+  }
+
   // Wraps a pg Pool or Client's query() to publish sql.query events. Safe
   // to call at any point in Runtime's lifecycle, and safe to call more
   // than once with the same instance (a no-op past the first call).
@@ -224,17 +269,22 @@ export class Runtime {
     this.#state = "running";
     console.log(`Wevna running at ${this.#server.url}`);
 
-    // Future subsystems (storage, plugins) start here, after Runtime's own
-    // startup logging, so its own log lines are never captured as
-    // instrumented events. The WebSocket transport is not one of them: it
-    // lives entirely inside the server, which subscribes to #eventBus
-    // itself (passed in above) — Runtime stays unaware of WebSockets.
+    // Future subsystems (storage) start here, after Runtime's own startup
+    // logging, so its own log lines are never captured as instrumented
+    // events. The WebSocket transport is not one of them: it lives entirely
+    // inside the server, which subscribes to #eventBus itself (passed in
+    // above) — Runtime stays unaware of WebSockets.
     this.#consoleInstrumentation.start();
     // The dashboard's own server is excluded so its asset/health/WS-upgrade
     // traffic never shows up as a captured event — only the developer's
     // own HTTP servers are observed.
     this.#httpInstrumentation.start({ ignoreServers: [this.#server.app.server] });
     this.#exceptionInstrumentation.start();
+    // Plugins start last, so a plugin's own setup can rely on every
+    // built-in producer already being live — and so a plugin that logs
+    // during setup produces captured events like any other application
+    // code would, rather than silently vanishing.
+    await this.#pluginManager.startAll();
   }
 
   async stop(): Promise<void> {
@@ -246,7 +296,10 @@ export class Runtime {
 
     // Future subsystems stop here, before Runtime's own shutdown logging
     // (reverse of the startup order above), so its own log lines are never
-    // captured as instrumented events.
+    // captured as instrumented events. Plugins first, mirroring the startup
+    // order: they were set up last, so they are unwound first, while the
+    // built-in producers they may have relied on are still live.
+    await this.#pluginManager.stopAll();
     this.#consoleInstrumentation.stop();
     this.#httpInstrumentation.stop();
     this.#exceptionInstrumentation.stop();

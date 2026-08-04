@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CapturedEvent, RecordingLine } from "@wevna/protocol";
 import { PROTOCOL_VERSION } from "@wevna/protocol";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PLUGIN_API_VERSION, type WevnaPlugin } from "./plugin.js";
 import { Runtime } from "./runtime.js";
 
 async function readRecordingLines(filePath: string): Promise<RecordingLine[]> {
@@ -873,5 +874,219 @@ describe("Runtime session recording", () => {
     await runtime.stopRecording();
 
     expect(liveListener).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Runtime plugins", () => {
+  let runtime: Runtime | undefined;
+
+  beforeEach(() => {
+    // Plugin diagnostics go to console.warn/console.error — silenced here,
+    // and restored afterwards so counts never leak between tests.
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    await runtime?.stop();
+    vi.restoreAllMocks();
+  });
+
+  function makePlugin(overrides: Partial<WevnaPlugin> = {}): WevnaPlugin {
+    return {
+      name: "example",
+      version: "1.0.0",
+      apiVersion: PLUGIN_API_VERSION,
+      setup: () => undefined,
+      ...overrides,
+    };
+  }
+
+  it("sets a plugin registered before start() up when the runtime starts", async () => {
+    runtime = new Runtime();
+    const setup = vi.fn();
+    runtime.use(makePlugin({ setup }));
+
+    expect(runtime.plugins[0]?.status).toBe("registered");
+    expect(setup).not.toHaveBeenCalled();
+
+    await runtime.start({ port: 0 });
+
+    expect(setup).toHaveBeenCalledOnce();
+    expect(runtime.plugins[0]?.status).toBe("active");
+  });
+
+  it("sets a plugin registered after start() up immediately", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+
+    runtime.use(makePlugin());
+    await runtime.pluginsSettled();
+
+    expect(runtime.plugins[0]?.status).toBe("active");
+  });
+
+  it("publishes a plugin's events through the runtime, stamped with its source", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.use(
+      makePlugin({
+        name: "acme",
+        eventKinds: ["acme.thing"],
+        setup: (context) => {
+          context.publish({ kind: "acme.thing", attributes: { detail: 42 } });
+        },
+      }),
+    );
+    await runtime.pluginsSettled();
+
+    expect(listener).toHaveBeenCalledOnce();
+    const payload = listener.mock.calls[0]?.[0].payload as CapturedEvent;
+    expect(payload.kind).toBe("acme.thing");
+    expect(payload.attributes).toEqual({ detail: 42 });
+    expect(payload.source).toBe("acme");
+    expect(listener.mock.calls[0]?.[0].sequence).toBe(1);
+  });
+
+  it("attaches the ambient correlation to a plugin's events, like any built-in producer", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    let publish: (() => void) | undefined;
+    runtime.use(
+      makePlugin({
+        setup: (context) => {
+          publish = () => context.publish({ kind: "queue.job", attributes: {} });
+        },
+      }),
+    );
+    await runtime.pluginsSettled();
+
+    runtime.startCorrelation(() => publish?.());
+
+    const payload = listener.mock.calls[0]?.[0].payload as CapturedEvent;
+    expect(typeof payload.correlation?.id).toBe("string");
+  });
+
+  it("lets a plugin open its own correlation scope, so a job's events group like a request's", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.use(
+      makePlugin({
+        setup: (context) => {
+          context.startCorrelation(() => {
+            context.publish({ kind: "queue.job.start", attributes: {} });
+            context.publish({ kind: "queue.job.end", attributes: {} });
+          });
+        },
+      }),
+    );
+    await runtime.pluginsSettled();
+
+    const correlations = listener.mock.calls.map(
+      (call) => (call[0].payload as CapturedEvent).correlation?.id,
+    );
+    expect(correlations[0]).toBeDefined();
+    expect(correlations[0]).toBe(correlations[1]);
+  });
+
+  it("drops a plugin's events published before start and after stop, without throwing", async () => {
+    runtime = new Runtime();
+    let publish: (() => void) | undefined;
+    runtime.use(
+      makePlugin({
+        setup: (context) => {
+          publish = () => context.publish({ kind: "acme.thing", attributes: {} });
+        },
+      }),
+    );
+
+    await runtime.start({ port: 0 });
+    await runtime.pluginsSettled();
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+    await runtime.stop();
+    runtime = undefined;
+
+    expect(() => publish?.()).not.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("tears a plugin down when the runtime stops", async () => {
+    runtime = new Runtime();
+    const teardown = vi.fn();
+    runtime.use(makePlugin({ setup: () => teardown }));
+    await runtime.start({ port: 0 });
+
+    await runtime.stop();
+    runtime = undefined;
+
+    expect(teardown).toHaveBeenCalledOnce();
+  });
+
+  it("still starts the runtime when a plugin's setup throws", async () => {
+    runtime = new Runtime();
+    runtime.use(
+      makePlugin({
+        setup: () => {
+          throw new Error("plugin exploded");
+        },
+      }),
+    );
+
+    await expect(runtime.start({ port: 0 })).resolves.toBeUndefined();
+
+    expect(runtime.isRunning).toBe(true);
+    expect(runtime.plugins[0]?.status).toBe("failed");
+    expect(runtime.plugins[0]?.error).toBe("plugin exploded");
+  });
+
+  it("keeps built-in instrumentation working alongside a failed plugin", async () => {
+    runtime = new Runtime();
+    runtime.use(
+      makePlugin({
+        setup: () => {
+          throw new Error("plugin exploded");
+        },
+      }),
+    );
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+    await queryable.query();
+
+    expect(listener.mock.calls[0]?.[0].payload.kind).toBe("sql.query");
+  });
+
+  it("reports a plugin built for a different api version instead of throwing", async () => {
+    runtime = new Runtime();
+
+    expect(() => runtime?.use(makePlugin({ apiVersion: 999 }))).not.toThrow();
+
+    expect(runtime.plugins[0]?.status).toBe("failed");
+    expect(runtime.plugins[0]?.error).toContain("999");
+  });
+
+  it("does not capture Wevna's own plugin diagnostics as console.log events", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    runtime.use(makePlugin({ apiVersion: 999 }));
+    await runtime.pluginsSettled();
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

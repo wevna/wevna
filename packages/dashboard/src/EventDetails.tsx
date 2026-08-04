@@ -19,7 +19,7 @@ export function EventDetails({ event, relativeOffsetMs }: EventDetailsProps) {
     return <p className="event-details__empty">Select an event to see its details.</p>;
   }
 
-  const { id, kind, occurredAt, attributes, correlation } = event.payload;
+  const { id, kind, occurredAt, attributes, correlation, source } = event.payload;
 
   return (
     <div className="event-details">
@@ -28,6 +28,17 @@ export function EventDetails({ event, relativeOffsetMs }: EventDetailsProps) {
         <dd>{id}</dd>
         <dt>Kind</dt>
         <dd>{kind}</dd>
+        {/* Only present for plugin-produced events — a built-in producer
+            omits it entirely, so its absence means "Wevna itself". Shown
+            because "which plugin emitted this" is the first question when a
+            third-party event looks wrong, and two plugins may legitimately
+            emit the same kind. */}
+        {source ? (
+          <>
+            <dt>Source Plugin</dt>
+            <dd>{source}</dd>
+          </>
+        ) : null}
         <dt>Occurred At</dt>
         <dd>{new Date(occurredAt).toLocaleString()}</dd>
         {relativeOffsetMs !== undefined ? (
