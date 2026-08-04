@@ -1,44 +1,12 @@
+import { buildRequestModel, compareEvents, type RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
-import { buildTimeline, type TimelineEntry } from "./timeline.ts";
-
-export type RequestStatus = "pending" | "complete";
-
-export interface RequestModel {
-  // Currently always equal to correlationId — kept as its own field since
-  // a request and the correlation that assembled it are conceptually
-  // different things, even though nothing distinguishes them yet.
-  id: string;
-  correlationId: string;
-  method: string | undefined;
-  route: string | undefined;
-  statusCode: number | undefined;
-  startedAt: number;
-  endedAt: number | undefined;
-  durationMs: number | undefined;
-  status: RequestStatus;
-  // The same Envelope objects EventStore already holds — never copied —
-  // in chronological order.
-  events: readonly Envelope<CapturedEvent>[];
-  // events expressed relative to startedAt — see timeline.ts. Purely
-  // derived from `events` and `startedAt`; carries no information they
-  // don't already have.
-  timeline: readonly TimelineEntry[];
-}
 
 export type RequestStoreListener = () => void;
 
-// Chronological, not arrival order: an event's occurredAt is set
-// server-side when Runtime.publish() processed it, so this stays correct
-// even if events reach the dashboard out of order over the WebSocket.
-// occurredAt can collide (two events in the same millisecond), so sequence
-// — strictly increasing per session — breaks the tie deterministically.
-function compareEvents(a: Envelope<CapturedEvent>, b: Envelope<CapturedEvent>): number {
-  if (a.payload.occurredAt !== b.payload.occurredAt) {
-    return a.payload.occurredAt - b.payload.occurredAt;
-  }
-  return a.sequence - b.sequence;
-}
-
+// Keeps one correlation's events in the chronological order compareEvents
+// defines. Live events usually arrive already in order, so the scan from
+// the end normally stops immediately; it only walks backwards for the
+// out-of-order arrivals a WebSocket can genuinely deliver.
 function insertSorted(
   events: readonly Envelope<CapturedEvent>[],
   event: Envelope<CapturedEvent>,
@@ -54,68 +22,6 @@ function insertSorted(
   return [...events.slice(0, index), event, ...events.slice(index)];
 }
 
-// http.request is the one event kind carrying method/url/route/statusCode
-// (see http-instrumentation.ts / *-enrichment.ts) and, since
-// HttpInstrumentation publishes it once the response finishes, is also
-// what marks a request complete. Everything else about a request
-// (console.log, sql.query, redis.command, ...) only ever contributes
-// itself to the events list.
-function findHttpRequestEvent(
-  events: readonly Envelope<CapturedEvent>[],
-): Envelope<CapturedEvent> | undefined {
-  return events.find((event) => event.payload.kind === "http.request");
-}
-
-// Exported so replay's SnapshotEngine can reconstruct the exact same
-// RequestModel shape from an arbitrary event slice, instead of
-// reimplementing this grouping logic a second time — see
-// snapshot-engine.ts. RequestStore itself only ever calls this with one
-// correlation's events at a time, incrementally; SnapshotEngine calls it
-// the same way, just from a different starting point.
-export function buildRequestModel(
-  correlationId: string,
-  events: readonly Envelope<CapturedEvent>[],
-): RequestModel {
-  const startedAt = events.reduce(
-    (min, event) => Math.min(min, event.payload.occurredAt),
-    Number.POSITIVE_INFINITY,
-  );
-  const httpEvent = findHttpRequestEvent(events);
-  const attributes = httpEvent?.payload.attributes;
-
-  const method = typeof attributes?.method === "string" ? attributes.method : undefined;
-  const url = typeof attributes?.url === "string" ? attributes.url : undefined;
-  const route = typeof attributes?.route === "string" ? attributes.route : url;
-  const statusCode = typeof attributes?.statusCode === "number" ? attributes.statusCode : undefined;
-  const endedAt = httpEvent?.payload.occurredAt;
-
-  // The attribute is already an accurately measured duration (see
-  // HttpInstrumentation) — prefer it over recomputing from timestamps,
-  // which stays correct even if an earlier-occurring event happens to
-  // arrive after the http.request event itself.
-  const attributeDurationMs = attributes?.durationMs;
-  const durationMs =
-    typeof attributeDurationMs === "number"
-      ? attributeDurationMs
-      : endedAt !== undefined
-        ? endedAt - startedAt
-        : undefined;
-
-  return {
-    id: correlationId,
-    correlationId,
-    method,
-    route,
-    statusCode,
-    startedAt,
-    endedAt,
-    durationMs,
-    status: httpEvent ? "complete" : "pending",
-    events,
-    timeline: buildTimeline(events, startedAt),
-  };
-}
-
 // Derives a request-oriented view over EventStore's raw events, grouping
 // everything sharing a correlation id into one RequestModel. EventStore
 // remains the single source of truth for events themselves; this store
@@ -123,6 +29,12 @@ export function buildRequestModel(
 // EventStore already holds, and rebuilds only the one RequestModel whose
 // correlation an incoming event belongs to — every other request's model
 // is untouched.
+//
+// What a request *is* — buildRequestModel, and the chronological order it
+// assumes — belongs to @wevna/intelligence, not here: this store owns only
+// *when* a model is rebuilt and who gets told about it. That split is what
+// lets replay's SnapshotEngine produce byte-identical requests from a
+// recording without touching any dashboard code.
 //
 // getRequests()'s array is rebuilt lazily, on next read after a change,
 // rather than on every addEvent — a burst of events (the common case: one

@@ -1,6 +1,6 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
-import { buildTimeline, getRelativeOffset } from "./timeline.ts";
+import { buildTimeline, getRelativeOffset } from "./request-timeline.js";
 
 function makeEvent(overrides: {
   kind?: string;

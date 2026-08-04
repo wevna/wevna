@@ -1,6 +1,5 @@
-import { buildExecutionGraph } from "@wevna/intelligence";
+import { buildExecutionGraph, type RequestModel } from "@wevna/intelligence";
 import { useMemo } from "react";
-import type { RequestModel } from "./request-store.ts";
 
 export interface ExecutionGraphSectionProps {
   request: RequestModel;

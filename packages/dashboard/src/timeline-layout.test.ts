@@ -1,6 +1,6 @@
+import type { TimelineEntry } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
-import type { TimelineEntry } from "./timeline.ts";
 import { computeTimelineAxisTicks, computeTimelineLayout } from "./timeline-layout.ts";
 
 function makeEntry(overrides: {

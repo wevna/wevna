@@ -1,5 +1,4 @@
-import type { RequestModel } from "./request-store.ts";
-import type { TimelineEntry } from "./timeline.ts";
+import type { RequestModel, TimelineEntry } from "@wevna/intelligence";
 
 // Scans every request's own timeline for the entry belonging to a given
 // event id — not scoped to whichever request happens to be selected in the

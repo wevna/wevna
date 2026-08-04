@@ -1,6 +1,6 @@
+import type { RequestModel } from "@wevna/intelligence";
 import { memo } from "react";
 import { formatEventCount, formatRequestDuration } from "./request-format.ts";
-import type { RequestModel } from "./request-store.ts";
 
 export interface RequestListProps {
   requests: readonly RequestModel[];

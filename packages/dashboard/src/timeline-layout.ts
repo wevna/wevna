@@ -1,4 +1,4 @@
-import type { TimelineEntry } from "./timeline.ts";
+import type { TimelineEntry } from "@wevna/intelligence";
 
 export interface TimelineLayoutEntry {
   // Reference to the underlying entry (and, through it, the event) — never

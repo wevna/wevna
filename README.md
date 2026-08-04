@@ -207,11 +207,21 @@ React-free modules sit between the file and the dashboard: the Replay
 Engine tracks *when* — position, playback state, speed, preserving
 recorded relative timing — purely as a timer-driven state machine over the
 loaded event list, and the Snapshot Engine turns a replay position into
-*what the dashboard should show* (the request list at that point in time),
+*what should be shown* (the request list at that point in time),
 using periodic checkpoints so seeking around a large recording stays fast
 without rebuilding everything from scratch on every scrub. Neither engine
 knows the other exists, and the dashboard consumes both through the same
 single event-source hook it already used for live vs. offline mode.
+
+Where a piece of logic lives follows one rule: the dashboard owns
+presentation and UI state, and `packages/intelligence` owns everything
+that is true about a request regardless of who is looking at it. So
+assembling raw events into a request, deriving its timeline, and
+reconstructing state at a replay position all live in `intelligence`,
+while the stores that decide *when* to rebuild a model and who to notify
+stay in the dashboard. That split is what keeps a future CLI, or a test
+that asserts over a recording, from having to import React to find out
+what a request was.
 
 ## Roadmap
 
@@ -250,7 +260,7 @@ the only one you install; everything else supports it:
 | `packages/protocol`    | The shared event/envelope types every other package agrees on |
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
-| `packages/intelligence`| Deterministic request performance analysis and execution graph modeling — no React, no Fastify, reusable outside the dashboard |
+| `packages/intelligence`| Deterministic runtime interpretation — request assembly, timelines, replay snapshots, performance analysis, execution graph modeling. No React, no Fastify, reusable outside the dashboard |
 | `packages/shared`      | Reserved for cross-cutting utilities; currently a placeholder |
 
 ## Contributing / running locally

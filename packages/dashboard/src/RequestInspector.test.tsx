@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { RequestInspector } from "./RequestInspector.tsx";
-import type { RequestModel } from "./request-store.ts";
 
 function makeEvent(overrides: {
   id: string;

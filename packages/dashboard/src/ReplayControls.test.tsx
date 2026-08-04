@@ -162,4 +162,52 @@ describe("ReplayControls", () => {
     const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
     expect(options).toEqual(["0.25x", "0.5x", "1x", "2x", "4x", "8x"]);
   });
+
+  describe("finished state", () => {
+    it("announces the end of the recording once playback finishes on its own", () => {
+      render(
+        <ReplayControls
+          position={5}
+          totalEvents={5}
+          state="finished"
+          speed={1}
+          controls={makeControls()}
+        />,
+      );
+
+      expect(screen.getByRole("status")).toHaveTextContent("End of recording");
+    });
+
+    it("stays silent when the developer merely paused on the last event", () => {
+      render(
+        <ReplayControls
+          position={5}
+          totalEvents={5}
+          state="paused"
+          speed={1}
+          controls={makeControls()}
+        />,
+      );
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("still offers Restart, and no Play, at the end of a finished replay", () => {
+      const controls = makeControls();
+      render(
+        <ReplayControls
+          position={5}
+          totalEvents={5}
+          state="finished"
+          speed={1}
+          controls={controls}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+      expect(controls.restart).toHaveBeenCalledOnce();
+    });
+  });
 });

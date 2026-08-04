@@ -1,6 +1,6 @@
+import type { RequestModel } from "@wevna/intelligence";
 import { useMemo } from "react";
 import { getEventKindCategory } from "./event-kind-category.ts";
-import type { RequestModel } from "./request-store.ts";
 import { TimelineAxis } from "./TimelineAxis.tsx";
 import { computeTimelineLayout } from "./timeline-layout.ts";
 

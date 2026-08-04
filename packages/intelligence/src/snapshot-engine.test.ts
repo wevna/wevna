@@ -1,6 +1,6 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
-import { SnapshotEngine } from "./snapshot-engine.ts";
+import { SnapshotEngine } from "./snapshot-engine.js";
 
 let sequenceCounter = 0;
 
@@ -102,7 +102,7 @@ describe("SnapshotEngine", () => {
       expect(engine.getSnapshot(2).requests[0]?.statusCode).toBe(201);
     });
 
-    it("matches exactly what RequestStore itself would produce for the same prefix (via buildRequestModel)", () => {
+    it("builds the same request model buildRequestModel produces for the same prefix", () => {
       const engine = new SnapshotEngine();
       const events = [
         makeEvent({ correlationId: "a", occurredAt: 1, kind: "console.log" }),
