@@ -83,6 +83,70 @@ wevna.instrumentRedis(redis);
 Everything you already do with `pool`/`redis` keeps working exactly the
 same — Wevna only observes.
 
+### Writing a plugin
+
+Anything Wevna doesn't instrument itself can be added as a plugin, without
+touching Wevna's core:
+
+```ts
+import { PLUGIN_API_VERSION, wevna, type WevnaPlugin } from "wevna";
+
+const myPlugin: WevnaPlugin = {
+  name: "wevna-plugin-acme",
+  version: "1.0.0",
+  apiVersion: PLUGIN_API_VERSION,
+  // Optional, declarative — lets tooling answer "what can this runtime
+  // produce" before a single event has been produced.
+  eventKinds: ["acme.call"],
+
+  setup(context) {
+    const original = acmeClient.call;
+    acmeClient.call = async (...args) => {
+      const startedAt = performance.now();
+      try {
+        return await original.apply(acmeClient, args);
+      } finally {
+        context.publish({
+          kind: "acme.call",
+          attributes: { durationMs: performance.now() - startedAt },
+        });
+      }
+    };
+    // Optional: undo it when Wevna stops.
+    return () => {
+      acmeClient.call = original;
+    };
+  },
+};
+
+wevna.use(myPlugin);
+await wevna.start();
+```
+
+`context.publish()` stamps the event id, timestamp, source plugin, and the
+active request correlation for you, so a plugin's events land in the
+waterfall, performance insights, execution graph, and replay exactly like a
+built-in producer's — no dashboard changes required.
+
+`wevna.use()` works before or after `start()`, and **never throws**: a plugin
+Wevna can't use (wrong `apiVersion`, duplicate name, a `setup()` that
+throws) is quarantined and reported through `wevna.plugins` rather than
+breaking your application's startup.
+
+```ts
+console.table(wevna.plugins);
+// name                 version  apiVersion  status   error
+// wevna-plugin-acme    1.0.0    1           active
+```
+
+A note on what that protection is and isn't: plugins run **in your process,
+with full access to it**, because instrumentation works by wrapping your
+actual client objects — a sandbox would put a boundary between a plugin and
+the very things it exists to observe. What Wevna guarantees is *fault*
+isolation: a plugin's failures stay the plugin's own and never reach your
+application. Plugins are code you install and trust, exactly like any other
+dependency.
+
 ### Recording a session
 
 Optionally, record the live event stream to a portable file on disk:
@@ -168,6 +232,10 @@ What's actually implemented and running, today:
   graph, and exception details all reconstructed live at whatever
   position you're viewing — deterministically, and fast enough to seek
   around a recording with tens of thousands of events
+- ✅ **Plugin SDK** — teach Wevna about anything it doesn't instrument
+  itself, with a versioned plugin api, a lifecycle tied to the runtime's,
+  declarative capability discovery via `wevna.plugins`, and fault isolation
+  so a failing plugin can never take down the application it's observing
 - ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
   entirely client-side
 
@@ -241,6 +309,7 @@ what a request was.
 - ✔ Execution graph model
 - ✔ Session recording
 - ✔ Session loading (offline inspection)
+- ✔ Plugin SDK (versioned api, lifecycle, capability discovery, fault isolation)
 - ✔ Replay engine & time travel (play/pause/restart/step/seek/speed, with
   deterministic dashboard state reconstruction at any position)
 

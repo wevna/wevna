@@ -20,6 +20,18 @@ export interface CapturedEvent {
   occurredAt: number;
   attributes: Record<string, unknown>;
   correlation?: Correlation;
+  // Which plugin produced this event, by plugin name. Omitted entirely
+  // (not present as a key) for Wevna's own built-in producers, so every
+  // event recorded before this field existed stays byte-identical and every
+  // consumer that doesn't know about it is unaffected.
+  //
+  // Provenance matters once events can come from third-party code: "which
+  // plugin emitted this" is the first question when an event looks wrong,
+  // and it cannot be recovered after the fact from `kind` alone, since two
+  // plugins may legitimately emit the same kind. Added now, deliberately,
+  // rather than after the protocol is frozen for v1 — an optional field is
+  // free to add today and impossible to add later.
+  source?: string;
 }
 
 export type SessionStatus = "running" | "stopped";

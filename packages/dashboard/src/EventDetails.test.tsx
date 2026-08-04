@@ -107,3 +107,47 @@ describe("EventDetails", () => {
     });
   });
 });
+
+describe("EventDetails source provenance", () => {
+  it("shows the source plugin for a plugin-produced event", () => {
+    render(
+      <EventDetails
+        event={{
+          version: 1,
+          sessionId: "s",
+          sequence: 1,
+          payload: {
+            id: "e1",
+            kind: "mongodb.query",
+            occurredAt: Date.now(),
+            attributes: {},
+            source: "@wevna/plugin-mongodb",
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Source Plugin")).toBeInTheDocument();
+    expect(screen.getByText("@wevna/plugin-mongodb")).toBeInTheDocument();
+  });
+
+  it("omits the row entirely for a built-in producer's event", () => {
+    render(
+      <EventDetails
+        event={{
+          version: 1,
+          sessionId: "s",
+          sequence: 1,
+          payload: {
+            id: "e1",
+            kind: "sql.query",
+            occurredAt: Date.now(),
+            attributes: {},
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("Source Plugin")).not.toBeInTheDocument();
+  });
+});
