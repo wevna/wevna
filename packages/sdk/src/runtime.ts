@@ -5,7 +5,7 @@ import {
   PROTOCOL_VERSION,
   type Session,
 } from "@wevna/protocol";
-import { type StartedServer, type StartServerOptions, startServer } from "@wevna/server";
+import { type StartedServer, startServer } from "@wevna/server";
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import * as correlationContext from "./correlation-context.js";
 import { EventBus } from "./event-bus.js";
@@ -19,6 +19,7 @@ import type { RedisSendCommandLike } from "./redis-instrumentation.js";
 import { createRedisPlugin } from "./redis-plugin.js";
 import { createSession, stopSession } from "./session.js";
 import { SessionRecorder } from "./session-recorder.js";
+import type { WevnaStartOptions } from "./start-options.js";
 
 // Runtime is the single owner of Wevna's application lifecycle. As Wevna
 // grows, it's where the server, transport, instrumentation, session
@@ -241,7 +242,7 @@ export class Runtime {
     await this.#sessionRecorder.stop();
   }
 
-  async start(options?: StartServerOptions): Promise<void> {
+  async start(options?: WevnaStartOptions): Promise<void> {
     if (this.#state === "running") {
       return;
     }
@@ -256,7 +257,7 @@ export class Runtime {
     }
   }
 
-  async #performStart(options?: StartServerOptions): Promise<void> {
+  async #performStart(options?: WevnaStartOptions): Promise<void> {
     this.#state = "starting";
     console.log("Starting Wevna...");
 
@@ -264,7 +265,16 @@ export class Runtime {
     this.#sequence = 0;
 
     try {
-      this.#server = await startServer({ ...options, eventSource: this.#eventBus });
+      // eventSource is supplied here and is deliberately not something a
+      // caller can override — see start-options.ts. Fields are listed
+      // explicitly rather than spread, so a new server option can never
+      // become part of Wevna's public API just by existing.
+      this.#server = await startServer({
+        port: options?.port,
+        host: options?.host,
+        dashboardDir: options?.dashboardDir,
+        eventSource: this.#eventBus,
+      });
     } catch (error) {
       this.#state = "stopped";
       this.#session = undefined;

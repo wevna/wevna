@@ -5,9 +5,6 @@
       "path": "packages/protocol"
     },
     {
-      "path": "packages/shared"
-    },
-    {
       "path": "packages/intelligence"
     },
     {

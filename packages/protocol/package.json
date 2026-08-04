@@ -1,8 +1,7 @@
 {
   "name": "@wevna/protocol",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Shared protocol and event model definitions for Wevna.",
+  "version": "1.0.0",
+  "description": "Wevna's runtime event protocol and recording file format: the shapes every Wevna producer and consumer agrees on.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +12,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.d.ts.map"
   ],
   "scripts": {
     "build": "tsup && tsc --build",
@@ -27,5 +29,30 @@
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "license": "MIT",
+  "author": "Boluwatife Ajayi",
+  "keywords": [
+    "wevna",
+    "protocol",
+    "observability",
+    "events",
+    "recording"
+  ],
+  "homepage": "https://github.com/wevna/wevna#readme",
+  "bugs": {
+    "url": "https://github.com/wevna/wevna/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevna/wevna.git",
+    "directory": "packages/protocol"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
