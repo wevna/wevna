@@ -136,8 +136,17 @@ breaking your application's startup.
 ```ts
 console.table(wevna.plugins);
 // name                 version  apiVersion  status   error
+// wevna:pg             1.0.0    1           active
+// wevna:redis          1.0.0    1           active
 // wevna-plugin-acme    1.0.0    1           active
 ```
+
+Wevna's own PostgreSQL and Redis instrumentation are in that list because
+they genuinely are plugins — `instrumentPg()`/`instrumentRedis()` are
+convenience wrappers over the same public api your plugin uses. A plugin
+system whose own built-ins bypass it is how extension points rot: if the
+shipped instrumentation can't be written against the documented surface, a
+community plugin won't manage it either.
 
 A note on what that protection is and isn't: plugins run **in your process,
 with full access to it**, because instrumentation works by wrapping your

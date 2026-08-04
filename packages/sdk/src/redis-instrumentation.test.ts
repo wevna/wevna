@@ -1,6 +1,6 @@
-import type { CapturedEvent } from "@wevna/protocol";
 import { Command } from "ioredis";
 import { describe, expect, it, vi } from "vitest";
+import type { PluginEvent } from "./plugin.js";
 import type { RedisCommandLike, RedisSendCommandLike } from "./redis-instrumentation.js";
 import { RedisInstrumentation } from "./redis-instrumentation.js";
 
@@ -26,7 +26,7 @@ describe("RedisInstrumentation", () => {
   it("publishes a redis.command event with the command name and duration once it settles", async () => {
     const { command, resolve } = makeCommand("get");
     const client = makeClient(() => undefined);
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new RedisInstrumentation(publish).instrument(client);
 
     client.sendCommand(command);
@@ -45,7 +45,7 @@ describe("RedisInstrumentation", () => {
     const { command, resolve } = makeCommand("set");
     (command as { args?: unknown }).args = ["password", "s3cr3t-value"];
     const client = makeClient(() => undefined);
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new RedisInstrumentation(publish).instrument(client);
 
     client.sendCommand(command);
@@ -61,7 +61,7 @@ describe("RedisInstrumentation", () => {
   it("still publishes an event when the command rejects", async () => {
     const { command, reject } = makeCommand("get");
     const client = makeClient(() => undefined);
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new RedisInstrumentation(publish).instrument(client);
 
     client.sendCommand(command);
@@ -87,7 +87,7 @@ describe("RedisInstrumentation", () => {
       callCount += 1;
       return undefined;
     });
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     const instrumentation = new RedisInstrumentation(publish);
     instrumentation.instrument(client);
     instrumentation.instrument(client);
@@ -104,7 +104,7 @@ describe("RedisInstrumentation", () => {
 
   it("does not throw and does not publish for a command with no promise", () => {
     const client = makeClient(() => undefined);
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new RedisInstrumentation(publish).instrument(client);
 
     expect(() => client.sendCommand({ name: "subscribe" })).not.toThrow();

@@ -1,8 +1,8 @@
-import type { CapturedEvent } from "@wevna/protocol";
 import { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import type { PgQueryable } from "./pg-instrumentation.js";
 import { PgInstrumentation } from "./pg-instrumentation.js";
+import type { PluginEvent } from "./plugin.js";
 
 function makeQueryable(implementation: (...args: unknown[]) => unknown): PgQueryable {
   return { query: implementation };
@@ -11,7 +11,7 @@ function makeQueryable(implementation: (...args: unknown[]) => unknown): PgQuery
 describe("PgInstrumentation", () => {
   it("publishes a sql.query event with the query text and duration on success", async () => {
     const queryable = makeQueryable(async () => ({ rows: [{ id: 1 }], rowCount: 1 }));
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     await queryable.query("SELECT * FROM users WHERE id = $1", [42]);
@@ -26,7 +26,7 @@ describe("PgInstrumentation", () => {
 
   it("never includes query parameter values in the published event", async () => {
     const queryable = makeQueryable(async () => ({ rows: [], rowCount: 0 }));
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     await queryable.query("SELECT * FROM users WHERE email = $1", ["secret@example.com"]);
@@ -37,7 +37,7 @@ describe("PgInstrumentation", () => {
 
   it("reads the query text from a QueryConfig-style object argument", async () => {
     const queryable = makeQueryable(async () => ({ rowCount: 0 }));
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     await queryable.query({ text: "SELECT 1", values: [] });
@@ -47,7 +47,7 @@ describe("PgInstrumentation", () => {
 
   it("omits rows when the result has no rowCount", async () => {
     const queryable = makeQueryable(async () => ({}));
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     await queryable.query("BEGIN");
@@ -59,7 +59,7 @@ describe("PgInstrumentation", () => {
     const queryable = makeQueryable(async () => {
       throw new Error("connection terminated");
     });
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     await expect(queryable.query("SELECT 1")).rejects.toThrow("connection terminated");
@@ -84,7 +84,7 @@ describe("PgInstrumentation", () => {
       (cb as () => void)();
       return undefined;
     });
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     new PgInstrumentation(publish).instrument(queryable);
 
     queryable.query("SELECT 1", callback);
@@ -99,7 +99,7 @@ describe("PgInstrumentation", () => {
       callCount += 1;
       return { rowCount: 0 };
     });
-    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const publish = vi.fn<(event: PluginEvent) => void>();
     const instrumentation = new PgInstrumentation(publish);
     instrumentation.instrument(queryable);
     instrumentation.instrument(queryable);
