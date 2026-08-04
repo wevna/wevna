@@ -501,3 +501,78 @@ describe("RequestStore", () => {
     });
   });
 });
+
+// Capping requests is what makes the event cap real: a RequestModel holds
+// references to its own events, so evicting from the event list alone would
+// keep every correlated event alive as long as a request still pointed at it.
+describe("RequestStore retention", () => {
+  it("keeps every request while under the cap", () => {
+    const store = new RequestStore(5);
+
+    for (let index = 1; index <= 5; index += 1) {
+      store.addEvent(makeEvent({ correlationId: `corr-${index}` }));
+    }
+
+    expect(store.getRequests()).toHaveLength(5);
+  });
+
+  it("evicts the oldest requests once the cap is exceeded", () => {
+    const store = new RequestStore(3);
+
+    for (let index = 1; index <= 6; index += 1) {
+      store.addEvent(makeEvent({ correlationId: `corr-${index}` }));
+    }
+
+    expect(store.getRequests().map((request) => request.correlationId)).toEqual([
+      "corr-4",
+      "corr-5",
+      "corr-6",
+    ]);
+    expect(store.getRequest("corr-1")).toBeUndefined();
+  });
+
+  it("ages a request by when it started, not when it was last touched", () => {
+    const store = new RequestStore(2);
+    store.addEvent(makeEvent({ correlationId: "first" }));
+    store.addEvent(makeEvent({ correlationId: "second" }));
+
+    // A further event on the oldest request must not renew its lease — a
+    // long-lived request would otherwise pin history indefinitely.
+    store.addEvent(makeEvent({ correlationId: "first", kind: "sql.query" }));
+    store.addEvent(makeEvent({ correlationId: "third" }));
+
+    expect(store.getRequest("first")).toBeUndefined();
+    expect(store.getRequest("third")).toBeDefined();
+  });
+
+  it("never exceeds the cap however many requests arrive", () => {
+    const store = new RequestStore(10);
+
+    for (let index = 1; index <= 500; index += 1) {
+      store.addEvent(makeEvent({ correlationId: `corr-${index}` }));
+    }
+
+    expect(store.getRequests()).toHaveLength(10);
+  });
+
+  it("treats a nonsensical cap as at least one", () => {
+    const store = new RequestStore(0);
+
+    store.addEvent(makeEvent({ correlationId: "only" }));
+
+    expect(store.getRequests()).toHaveLength(1);
+  });
+
+  it("releases the evicted request's event references", () => {
+    const store = new RequestStore(1);
+    const first = makeEvent({ correlationId: "first" });
+    store.addEvent(first);
+
+    store.addEvent(makeEvent({ correlationId: "second" }));
+
+    // Nothing in the store still points at the evicted request's events,
+    // which is the entire reason this cap exists.
+    const retained = store.getRequests().flatMap((request) => request.events);
+    expect(retained).not.toContain(first);
+  });
+});

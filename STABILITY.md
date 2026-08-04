@@ -104,6 +104,16 @@ it would be worse: `ExceptionInstrumentation` registers process-level
 `uncaughtException` / `unhandledRejection` listeners, which affects Node's
 default crash behaviour. See `exception-instrumentation.ts`.
 
+## Memory and retention
+
+The live dashboard keeps a **bounded** amount of history: the most recent
+10,000 events and 1,000 requests, oldest evicted first. A local-first tool has
+no server-side retention to fall back on, so the bound lives in the dashboard.
+
+Both numbers are internal and may change in a minor release. If you need
+history beyond them, record the session — that is what recordings are for, and
+a recording is not subject to either cap.
+
 ## What is deliberately not guaranteed
 
 - **Plugins are not sandboxed.** They run in your process with full access to
