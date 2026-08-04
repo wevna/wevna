@@ -1,8 +1,11 @@
-import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import type { CapturedEvent } from "@wevna/protocol";
+import type { PluginEvent } from "./plugin.js";
 
-export type PublishCapturedEvent = (event: CapturedEvent) => void;
+// Emits PluginEvent, not CapturedEvent: this producer reaches the runtime
+// through the plugin api (see pg-plugin.ts), which stamps the event id and
+// timestamp. Nothing here mints an id or reads a clock for bookkeeping
+// anymore — only the durations it actually measures.
+export type PublishPluginEvent = (event: PluginEvent) => void;
 
 // Structural, not pg.Pool/pg.Client: only the one method this needs to
 // wrap, so a real Pool or Client instance satisfies it without wevna
@@ -49,10 +52,10 @@ function extractRowCount(result: unknown): number | undefined {
 // property of how pg is meant to be used, not something this
 // instrumentation itself enforces or verifies.
 export class PgInstrumentation {
-  readonly #publish: PublishCapturedEvent;
+  readonly #publish: PublishPluginEvent;
   #wrapped = new WeakSet<PgQueryable>();
 
-  constructor(publish: PublishCapturedEvent) {
+  constructor(publish: PublishPluginEvent) {
     this.#publish = publish;
   }
 
@@ -80,9 +83,7 @@ export class PgInstrumentation {
         (value) => {
           const rows = extractRowCount(value);
           publish({
-            id: randomUUID(),
             kind: "sql.query",
-            occurredAt: Date.now(),
             attributes: {
               query: queryText,
               durationMs: performance.now() - startedAt,
@@ -93,9 +94,7 @@ export class PgInstrumentation {
         },
         (error: unknown) => {
           publish({
-            id: randomUUID(),
             kind: "sql.query",
-            occurredAt: Date.now(),
             attributes: { query: queryText, durationMs: performance.now() - startedAt },
           });
           throw error;
