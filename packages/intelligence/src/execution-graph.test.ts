@@ -192,8 +192,9 @@ describe("buildExecutionGraph", () => {
         ]),
       );
 
-      expect(graph.edges).toHaveLength(3);
-      expect(graph.edges.every((e) => e.type === "sequential")).toBe(true);
+      // Filtered by type: the graph also carries parent-child edges now,
+      // so a bare edges.length would conflate the two relations.
+      expect(graph.edges.filter((e) => e.type === "sequential")).toHaveLength(3);
     });
 
     it("connects each edge to the correct consecutive node ids", () => {
@@ -205,7 +206,7 @@ describe("buildExecutionGraph", () => {
         ]),
       );
 
-      expect(graph.edges).toEqual([
+      expect(graph.edges.filter((e) => e.type === "sequential")).toEqual([
         { type: "sequential", from: "event-1", to: "event-2", metadata: {} },
         { type: "sequential", from: "event-2", to: "event-3", metadata: {} },
       ]);
@@ -260,5 +261,185 @@ describe("buildExecutionGraph", () => {
 
       expect(JSON.parse(JSON.stringify(entry))).toEqual(before);
     });
+  });
+});
+
+// The dependency DAG. Nesting is derived from timing alone via interval
+// containment — Wevna observes when operations started and finished, never
+// who called whom — so these tests pin exactly what that can and cannot
+// claim.
+describe("buildExecutionGraph nesting", () => {
+  // A realistic request: http.request spans the whole thing and, like every
+  // timed producer, is published when it *finishes*, so its offset is the
+  // end and its span runs backward by durationMs.
+  function request() {
+    return makeRequest([
+      makeEntry({ kind: "sql.query", relativeOffsetMs: 12, durationMs: 8, sequence: 1 }),
+      makeEntry({ kind: "console.log", relativeOffsetMs: 15, sequence: 2 }),
+      makeEntry({ kind: "redis.command", relativeOffsetMs: 22, durationMs: 3, sequence: 3 }),
+      makeEntry({ kind: "http.request", relativeOffsetMs: 30, durationMs: 30, sequence: 4 }),
+    ]);
+  }
+
+  it("computes a span that ends at relativeOffsetMs and runs backward by durationMs", () => {
+    const graph = buildExecutionGraph(request());
+    const sql = graph.nodes.find((node) => node.kind === "sql.query");
+
+    // Published at +12ms having taken 8ms, so it ran from +4ms to +12ms.
+    expect(sql?.startedAtMs).toBe(4);
+    expect(sql?.relativeOffsetMs).toBe(12);
+  });
+
+  it("treats a zero-duration event as a point in time, not as having no span", () => {
+    const graph = buildExecutionGraph(request());
+    const log = graph.nodes.find((node) => node.kind === "console.log");
+
+    expect(log?.startedAtMs).toBe(15);
+  });
+
+  it("makes http.request the single root, since its span covers the request", () => {
+    const graph = buildExecutionGraph(request());
+
+    expect(graph.rootIds).toHaveLength(1);
+    expect(graph.nodes.find((node) => node.id === graph.rootIds[0])?.kind).toBe("http.request");
+  });
+
+  it("nests every operation that ran inside the request under it", () => {
+    const graph = buildExecutionGraph(request());
+    const http = graph.nodes.find((node) => node.kind === "http.request");
+
+    for (const kind of ["sql.query", "console.log", "redis.command"]) {
+      const node = graph.nodes.find((n) => n.kind === kind);
+      expect(node?.parentId).toBe(http?.id);
+      expect(node?.depth).toBe(1);
+    }
+    expect(graph.maxDepth).toBe(1);
+  });
+
+  it("nests an operation inside another operation's window, not just the request's", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([
+        // A redis lookup that happened while the query was still running.
+        makeEntry({ kind: "redis.command", relativeOffsetMs: 10, durationMs: 2, sequence: 1 }),
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 12, durationMs: 8, sequence: 2 }),
+        makeEntry({ kind: "http.request", relativeOffsetMs: 30, durationMs: 30, sequence: 3 }),
+      ]),
+    );
+
+    const sql = graph.nodes.find((node) => node.kind === "sql.query");
+    const redis = graph.nodes.find((node) => node.kind === "redis.command");
+
+    expect(redis?.parentId).toBe(sql?.id);
+    expect(redis?.depth).toBe(2);
+    expect(graph.maxDepth).toBe(2);
+  });
+
+  it("attaches a console.log to the operation it was logged during", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([
+        makeEntry({ kind: "console.log", relativeOffsetMs: 8, sequence: 1 }),
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 12, durationMs: 8, sequence: 2 }),
+        makeEntry({ kind: "http.request", relativeOffsetMs: 30, durationMs: 30, sequence: 3 }),
+      ]),
+    );
+
+    const sql = graph.nodes.find((node) => node.kind === "sql.query");
+    // Logged at +8ms, inside the query's +4ms..+12ms window.
+    expect(graph.nodes.find((node) => node.kind === "console.log")?.parentId).toBe(sql?.id);
+  });
+
+  it("keeps sibling operations flat rather than chaining them", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 5, durationMs: 2, sequence: 1 }),
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 9, durationMs: 2, sequence: 2 }),
+        makeEntry({ kind: "http.request", relativeOffsetMs: 20, durationMs: 20, sequence: 3 }),
+      ]),
+    );
+
+    expect(graph.nodes.filter((node) => node.kind === "sql.query").map((n) => n.depth)).toEqual([
+      1, 1,
+    ]);
+  });
+
+  it("treats identical spans as siblings, never nesting one inside the other", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 10, durationMs: 5, sequence: 1 }),
+        makeEntry({ kind: "redis.command", relativeOffsetMs: 10, durationMs: 5, sequence: 2 }),
+      ]),
+    );
+
+    // Mutual containment would otherwise make whichever the sort visited
+    // first adopt the other as a child.
+    expect(graph.nodes.map((node) => node.depth)).toEqual([0, 0]);
+    expect(graph.nodes.map((node) => node.parentId)).toEqual([undefined, undefined]);
+    expect(graph.rootIds).toHaveLength(2);
+  });
+
+  it("leaves an operation that overlaps without containing as a sibling", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([
+        // 0..10 and 5..15 overlap, but neither contains the other.
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 10, durationMs: 10, sequence: 1 }),
+        makeEntry({ kind: "redis.command", relativeOffsetMs: 15, durationMs: 10, sequence: 2 }),
+      ]),
+    );
+
+    expect(graph.nodes.map((node) => node.parentId)).toEqual([undefined, undefined]);
+  });
+
+  it("gives every event with no container a root slot, including a pending request", () => {
+    // No http.request yet — the request is still in flight, so there is no
+    // single container and each operation stands alone.
+    const graph = buildExecutionGraph(
+      makeRequest([
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 5, durationMs: 2, sequence: 1 }),
+        makeEntry({ kind: "console.log", relativeOffsetMs: 7, sequence: 2 }),
+      ]),
+    );
+
+    expect(graph.rootIds).toHaveLength(2);
+    expect(graph.maxDepth).toBe(0);
+  });
+});
+
+describe("buildExecutionGraph edges", () => {
+  function nested() {
+    return buildExecutionGraph(
+      makeRequest([
+        makeEntry({ kind: "sql.query", relativeOffsetMs: 12, durationMs: 8, sequence: 1 }),
+        makeEntry({ kind: "http.request", relativeOffsetMs: 30, durationMs: 30, sequence: 2 }),
+      ]),
+    );
+  }
+
+  it("keeps the sequential chain intact alongside the nesting", () => {
+    const sequential = nested().edges.filter((edge) => edge.type === "sequential");
+
+    // "What happened next" is still a real, independently useful relation.
+    expect(sequential).toHaveLength(1);
+  });
+
+  it("emits one parent-child edge per nested node, pointing parent to child", () => {
+    const graph = nested();
+    const parentChild = graph.edges.filter((edge) => edge.type === "parent-child");
+    const sql = graph.nodes.find((node) => node.kind === "sql.query");
+    const http = graph.nodes.find((node) => node.kind === "http.request");
+
+    expect(parentChild).toHaveLength(1);
+    expect(parentChild[0]).toMatchObject({ from: http?.id, to: sql?.id });
+  });
+
+  it("emits no parent-child edge for a root", () => {
+    const graph = buildExecutionGraph(
+      makeRequest([makeEntry({ kind: "console.log", relativeOffsetMs: 1, sequence: 1 })]),
+    );
+
+    expect(graph.edges.filter((edge) => edge.type === "parent-child")).toEqual([]);
+  });
+
+  it("is deterministic across repeated builds of the same request", () => {
+    expect(nested()).toEqual(nested());
   });
 });

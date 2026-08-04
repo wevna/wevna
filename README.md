@@ -226,9 +226,9 @@ What's actually implemented and running, today:
 - ✅ **Performance intelligence** — deterministic per-request analysis
   (longest operation, SQL/Redis time, event counts) and insights like
   "Slow Request" or "Multiple Database Calls", with the numbers behind them
-- ✅ **Execution graph** — a request's events as a structured, ordered graph
-  (currently shown as a simple sequential flow in the Request Inspector),
-  reusable outside the dashboard for whatever renders it next
+- ✅ **Execution graph** — a request's events as a real dependency DAG,
+  nested by what ran *inside* what, rendered flame-chart style in the Request
+  Inspector with each row's bar proportional to when it ran and for how long
 - ✅ **Session recording** — optionally record the live protocol stream to
   a portable JSON Lines file on disk, without changing anything about the
   live dashboard while it's on
@@ -319,6 +319,7 @@ what a request was.
 - ✔ Exception capture & inspector
 - ✔ Performance intelligence
 - ✔ Execution graph model
+- ✔ Execution graph renderer (dependency DAG, nested + proportional)
 - ✔ Session recording
 - ✔ Session loading (offline inspection)
 - ✔ Plugin SDK (versioned api, lifecycle, capability discovery, fault isolation)
@@ -328,8 +329,9 @@ what a request was.
 
 **Next**
 
-- Graph visualization (the model exists; a real renderer doesn't yet)
 - More official plugins (MongoDB, Prisma, BullMQ)
+- Deeper runtime intelligence (critical path, bottleneck attribution, N+1
+  query detection)
 
 ## Packages
 

@@ -5,8 +5,9 @@ import { categorizeEvent, type EventCategory } from "./event-category.js";
 // One node per captured event, in the order it occurred — never
 // aggregated, deduplicated, or invented. A node is what a timeline entry
 // looks like from the graph's point of view: same event reference,
-// duration, and offset, plus the two things a graph specifically needs
-// (a stable id to be an edge endpoint, and its position in the sequence).
+// duration, and offset, plus what a graph specifically needs (a stable id
+// to be an edge endpoint, its position in the sequence, and where it sits
+// in the nesting).
 export interface ExecutionGraphNode {
   // The underlying event's own id — already unique and stable, so reused
   // directly rather than minting a second identifier for the same thing.
@@ -19,16 +20,37 @@ export interface ExecutionGraphNode {
   sequence: number;
   relativeOffsetMs: number;
   durationMs: number | undefined;
+  // Milliseconds since the request started at which this operation *began*.
+  //
+  // Not the same as relativeOffsetMs: every timed producer publishes once
+  // its operation finishes, so relativeOffsetMs is an end time (see
+  // timeline-layout.ts in the dashboard, which has always had to account
+  // for this when positioning waterfall bars). A span is therefore
+  // [startedAtMs, relativeOffsetMs], and precomputing the start here means
+  // nesting and rendering can't each rediscover — or forget — that.
+  startedAtMs: number;
+  // The innermost operation whose span fully contains this one, or
+  // undefined for a node at the top level. `http.request` is normally the
+  // only root, since its span covers the whole request.
+  parentId: string | undefined;
+  // How many ancestors this node has. 0 for a root. Redundant with walking
+  // parentId, but a renderer needs it per-row to indent without traversing
+  // upward for every node it draws.
+  depth: number;
   // Direct reference, never a copy — mirrors AnalyzableTimelineEntry.
   event: Envelope<CapturedEvent>;
 }
 
-// "sequential" is the only relationship this PR derives — a later phase
-// can add "parallel" | "parent-child" | "async-branch" etc. without
-// touching ExecutionGraphNode or this field's existing values; a consumer
-// that only understands "sequential" can keep ignoring edge types it
-// doesn't recognize.
-export type ExecutionGraphEdgeType = "sequential";
+// "sequential" answers "what happened next"; "parent-child" answers "what
+// happened inside". Both are real, independently useful relations over the
+// same nodes — Chrome DevTools shows the first as a network waterfall and
+// the second as a flame chart — so the graph carries both rather than
+// forcing a consumer to pick one interpretation. A renderer filters by
+// `type`, which is what this field has always been for.
+//
+// Still open for "parallel" | "async-branch" etc. later, without touching
+// ExecutionGraphNode or either existing value's meaning.
+export type ExecutionGraphEdgeType = "sequential" | "parent-child";
 
 export interface ExecutionGraphEdge {
   type: ExecutionGraphEdgeType;
@@ -50,21 +72,99 @@ export interface ExecutionGraph {
   // layout still has each node's original position.
   nodes: readonly ExecutionGraphNode[];
   edges: readonly ExecutionGraphEdge[];
+  // Ids of nodes with no parent, in chronological order. Derivable by
+  // filtering nodes, but a renderer needs the entry points before it can
+  // draw anything, and asking for them explicitly keeps "where does the
+  // tree start" from being every consumer's first puzzle.
+  rootIds: readonly string[];
+  // The deepest nesting level present, i.e. max(depth). 0 for a flat graph
+  // or an empty one — lets a renderer size its indentation budget once
+  // instead of measuring every row.
+  maxDepth: number;
   // Same rationale as ExecutionGraphEdge.metadata, at the graph's own
-  // level — e.g. future layout hints for a real renderer.
+  // level — e.g. future layout hints.
   metadata: Record<string, unknown>;
 }
 
-// Raw Events → Request Model → Execution Graph Model → (future) Graph
-// Renderer — the same layered shape as timeline-layout.ts in the
-// dashboard package, one level up: this derives a structural model from
-// an already-assembled request, and renders nothing itself.
+interface Span {
+  index: number;
+  start: number;
+  end: number;
+}
+
+// Strict containment: `outer` must enclose `inner` *and* be genuinely
+// longer. Without the duration comparison, two operations sharing identical
+// start and end times would each "contain" the other, and whichever the
+// sort happened to visit first would silently adopt the other as a child.
+// Equal spans are siblings — the honest answer when timing alone cannot
+// distinguish them.
+function contains(outer: Span, inner: Span): boolean {
+  return (
+    outer.start <= inner.start &&
+    inner.end <= outer.end &&
+    outer.end - outer.start > inner.end - inner.start
+  );
+}
+
+// Derives each node's parent from timing alone, using interval nesting —
+// the same containment technique a flame graph uses, and the only
+// information actually available: Wevna observes when operations started
+// and finished, not who called whom. An operation that ran entirely inside
+// another's window is reported as nested; nothing is inferred beyond that.
+//
+// Deliberately not guessing at causality. A SQL query running inside the
+// request's window is genuinely "during the request", which is what the
+// nesting claims; it does not claim the request *caused* it, because
+// nothing observed here could establish that.
+function assignParents(nodes: ExecutionGraphNode[]): void {
+  const spans: Span[] = nodes.map((node, index) => ({
+    index,
+    start: node.startedAtMs,
+    end: node.relativeOffsetMs,
+  }));
+
+  // Outermost-first at any shared start time, so a container is always
+  // visited before what it contains. The sequence tie-break keeps the
+  // result deterministic for spans that are identical in both bounds.
+  const ordered = [...spans].sort((a, b) => {
+    if (a.start !== b.start) {
+      return a.start - b.start;
+    }
+    if (a.end !== b.end) {
+      return b.end - a.end;
+    }
+    return a.index - b.index;
+  });
+
+  const stack: Span[] = [];
+  for (const span of ordered) {
+    while (stack.length > 0) {
+      const top = stack[stack.length - 1];
+      if (top && contains(top, span)) {
+        break;
+      }
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1];
+    const node = nodes[span.index];
+    if (node) {
+      node.parentId = parent ? nodes[parent.index]?.id : undefined;
+      node.depth = stack.length;
+    }
+    stack.push(span);
+  }
+}
+
+// Raw Events → Request Model → Execution Graph Model → Graph Renderer —
+// the same layered shape as timeline-layout.ts in the dashboard, one level
+// up: this derives a structural model from an already-assembled request,
+// and renders nothing itself.
 //
 // Pure and deterministic: request.timeline is already chronologically
-// ordered (see RequestStore), so a single forward pass over it — one node
-// per entry, one "sequential" edge between each consecutive pair — is
-// enough to produce the same graph every time for the same request, with
-// no event ever invented, merged, or dropped.
+// ordered (see request-model.ts), and the nesting pass sorts by a total
+// order with an index tie-break, so the same request always produces the
+// same graph — with no event invented, merged, or dropped.
 export function buildExecutionGraph(request: AnalyzableRequest): ExecutionGraph {
   const nodes: ExecutionGraphNode[] = [];
   const edges: ExecutionGraphEdge[] = [];
@@ -83,6 +183,13 @@ export function buildExecutionGraph(request: AnalyzableRequest): ExecutionGraph 
       sequence: index,
       relativeOffsetMs: entry.relativeOffsetMs,
       durationMs: entry.durationMs,
+      // An event with no measured duration is a point in time, so its span
+      // is zero-width rather than absent — that way it nests by *where* it
+      // happened, which is exactly what makes a console.log land inside the
+      // query it was logged during.
+      startedAtMs: entry.relativeOffsetMs - (entry.durationMs ?? 0),
+      parentId: undefined,
+      depth: 0,
       event: entry.event,
     };
     nodes.push(node);
@@ -93,5 +200,19 @@ export function buildExecutionGraph(request: AnalyzableRequest): ExecutionGraph 
     previous = node;
   }
 
-  return { nodes, edges, metadata: {} };
+  assignParents(nodes);
+
+  for (const node of nodes) {
+    if (node.parentId !== undefined) {
+      edges.push({ type: "parent-child", from: node.parentId, to: node.id, metadata: {} });
+    }
+  }
+
+  return {
+    nodes,
+    edges,
+    rootIds: nodes.filter((node) => node.parentId === undefined).map((node) => node.id),
+    maxDepth: nodes.reduce((max, node) => Math.max(max, node.depth), 0),
+    metadata: {},
+  };
 }
