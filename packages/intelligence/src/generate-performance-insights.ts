@@ -1,4 +1,6 @@
+import type { TimeAttribution } from "./attribute-time.js";
 import type { RequestPerformanceMetrics } from "./compute-performance-metrics.js";
+import type { RepeatedOperation } from "./detect-repetition.js";
 import { DEFAULT_PERFORMANCE_THRESHOLDS, type PerformanceThresholds } from "./thresholds.js";
 
 export type PerformanceInsightType =
@@ -6,7 +8,35 @@ export type PerformanceInsightType =
   | "long-sql-execution"
   | "multiple-database-calls"
   | "multiple-redis-operations"
+  | "repeated-operation"
+  | "dominant-category"
   | "exception-occurred";
+
+// Analysis that needs the request's own events rather than aggregate
+// metrics. Optional so the existing metrics-only call sites keep working and
+// simply produce no insight of these kinds — a caller that has not computed
+// repetition should get silence, not a wrong answer.
+export interface InsightContext {
+  repeatedOperations?: readonly RepeatedOperation[];
+  timeAttribution?: readonly TimeAttribution[];
+}
+
+// Human-readable names for the categories a dominant-category insight can
+// name. Kept here rather than on EventCategory itself: the category is a
+// classification, and how it is worded to a developer is presentation.
+const CATEGORY_LABELS: Readonly<Record<string, string>> = {
+  sql: "PostgreSQL",
+  redis: "Redis",
+  httpClient: "outgoing HTTP calls",
+  http: "HTTP",
+  console: "console output",
+  exception: "exception handling",
+  other: "uncategorized operations",
+};
+
+function labelFor(category: string): string {
+  return CATEGORY_LABELS[category] ?? category;
+}
 
 export interface PerformanceInsight {
   type: PerformanceInsightType;
@@ -27,6 +57,7 @@ function round(ms: number): number {
 export function generatePerformanceInsights(
   metrics: RequestPerformanceMetrics,
   thresholds: PerformanceThresholds = DEFAULT_PERFORMANCE_THRESHOLDS,
+  context: InsightContext = {},
 ): readonly PerformanceInsight[] {
   const insights: PerformanceInsight[] = [];
 
@@ -62,6 +93,33 @@ export function generatePerformanceInsights(
       type: "multiple-redis-operations",
       title: "Multiple Redis Operations",
       message: `${metrics.redisCommandCount} Redis operations were executed, exceeding the threshold of ${thresholds.multipleRedisOperationsCount}.`,
+    });
+  }
+
+  // Ordered after the raw counts and before exceptions: a repeated query
+  // explains a high query count, so it reads as the reason for the insight
+  // above it.
+  for (const repeated of context.repeatedOperations ?? []) {
+    if (repeated.count < thresholds.repeatedOperationCount) {
+      continue;
+    }
+    const what = repeated.kind === "sql.query" ? "query" : "command";
+    insights.push({
+      type: "repeated-operation",
+      title: repeated.kind === "sql.query" ? "Repeated Query" : "Repeated Redis Command",
+      // States the shape and the count, and stops there — a repeated query is
+      // often an N+1 and sometimes entirely correct. The developer looking at
+      // their own code is better placed to tell which.
+      message: `The same ${what} ran ${repeated.count} times, taking ${round(repeated.totalDurationMs)}ms in total: ${repeated.signature}`,
+    });
+  }
+
+  const dominant = context.timeAttribution?.[0];
+  if (dominant !== undefined && dominant.sharePercent > thresholds.dominantCategorySharePercent) {
+    insights.push({
+      type: "dominant-category",
+      title: "Where The Time Went",
+      message: `${dominant.sharePercent}% of this request (${round(dominant.totalDurationMs)}ms) was spent on ${labelFor(dominant.category)}.`,
     });
   }
 

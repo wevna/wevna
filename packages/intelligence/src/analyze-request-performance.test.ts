@@ -57,6 +57,8 @@ describe("analyzeRequestPerformance", () => {
       longSqlQueryMs: 100,
       multipleDatabaseCallsCount: 5,
       multipleRedisOperationsCount: 5,
+      repeatedOperationCount: 3,
+      dominantCategorySharePercent: 60,
     };
 
     const analysis = analyzeRequestPerformance(request, strict);

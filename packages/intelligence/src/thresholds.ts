@@ -20,6 +20,18 @@ export interface PerformanceThresholds {
   multipleDatabaseCallsCount: number;
   // Same idea as multipleDatabaseCallsCount, for Redis commands.
   multipleRedisOperationsCount: number;
+  // The same operation repeated at least this many times in one request is
+  // flagged. 3, not 2: a pair of identical queries is common and usually
+  // deliberate (a check then a write), while three or more is where a loop
+  // becomes the likelier explanation. Distinct from
+  // multipleDatabaseCallsCount, which counts queries regardless of whether
+  // they were the same one — "5 queries ran" and "the same query ran 5
+  // times" are different claims.
+  repeatedOperationCount: number;
+  // One category accounting for more than this share of the request's own
+  // duration is called out as where the time went. 60%: high enough that it
+  // is genuinely dominant rather than merely the largest of several.
+  dominantCategorySharePercent: number;
 }
 
 export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
@@ -27,4 +39,6 @@ export const DEFAULT_PERFORMANCE_THRESHOLDS: PerformanceThresholds = {
   longSqlQueryMs: 100,
   multipleDatabaseCallsCount: 5,
   multipleRedisOperationsCount: 5,
+  repeatedOperationCount: 3,
+  dominantCategorySharePercent: 60,
 };

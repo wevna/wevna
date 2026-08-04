@@ -694,12 +694,13 @@ describe("App", () => {
       );
 
       expect(document.querySelector(".execution-graph")).not.toBeNull();
-      // Depth-first, and not everything is necessarily inside the request:
-      // http.request's span is its own measured duration ending at its
-      // publish time, so an event correlated just before the server started
-      // measuring falls outside it and stands as its own root. The graph
-      // reports that rather than forcing a parent it cannot observe.
-      expect(graphKinds()).toEqual(["console.log", "http.request", "sql.query"]);
+      // Asserted as a set, not a sequence. This fixture's offsets come from
+      // real elapsed time, so whether the console.log falls inside
+      // http.request's measured span — and therefore where depth-first
+      // ordering puts it — varies between runs. Exact nesting is pinned in
+      // ExecutionGraphSection.test.tsx against fixed offsets; what matters
+      // here is that the graph is wired in and renders every event once.
+      expect(graphKinds().sort()).toEqual(["console.log", "http.request", "sql.query"]);
     });
 
     it("updates the graph automatically as new events arrive for the selected request", () => {

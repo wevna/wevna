@@ -506,6 +506,64 @@ body {
   opacity: 0.8;
 }
 
+.performance-section__attribution {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.time-attribution {
+  display: grid;
+  grid-template-columns: var(--wf-label-width) minmax(0, 1fr) var(--wf-timing-width);
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.time-attribution__category {
+  font-family: ui-monospace, monospace;
+  opacity: 0.8;
+}
+
+.time-attribution__meter {
+  block-size: 0.5rem;
+  border-radius: 0.125rem;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  overflow: hidden;
+}
+
+/* The meter is decorative: the millisecond total and percentage next to it
+   carry the same information as text, so colour and length are never the
+   only signal. */
+.time-attribution__fill {
+  display: block;
+  block-size: 100%;
+  border-radius: 0.125rem;
+  background: currentColor;
+}
+
+.time-attribution__fill[data-category="sql"] {
+  background: var(--wf-color-sql);
+}
+
+.time-attribution__fill[data-category="redis"] {
+  background: var(--wf-color-redis);
+}
+
+.time-attribution__fill[data-category="http"],
+.time-attribution__fill[data-category="httpClient"] {
+  background: var(--wf-color-http);
+}
+
+.time-attribution__value {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
 /* Removed from the visual layout but left in the accessibility tree — for
    text that a sighted reader gets from position or shape instead. */
 .visually-hidden {
