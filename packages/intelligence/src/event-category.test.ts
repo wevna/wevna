@@ -30,3 +30,22 @@ describe("categorizeEvent", () => {
     expect(categorizeEvent("sql.query")).toBe(categorizeEvent("sql.query"));
   });
 });
+
+// Outgoing HTTP must never land in the same bucket as the incoming request:
+// http.request's duration contains the whole request, while an http.client
+// call is one operation inside it, so summing them would make the http
+// total exceed the request's own duration.
+describe("categorizeEvent outgoing HTTP", () => {
+  it("classifies http.client separately from http.request", () => {
+    expect(categorizeEvent("http.client")).toBe("httpClient");
+    expect(categorizeEvent("http.request")).toBe("http");
+  });
+
+  it("classifies future http.client.* kinds as outgoing too", () => {
+    expect(categorizeEvent("http.client.retry")).toBe("httpClient");
+  });
+
+  it("does not mistake another http kind for an outgoing call", () => {
+    expect(categorizeEvent("http.upgrade")).toBe("http");
+  });
+});
