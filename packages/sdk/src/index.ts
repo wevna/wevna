@@ -1,5 +1,6 @@
 import type { StartServerOptions } from "@wevna/server";
 import type { PgQueryable } from "./pg-instrumentation.js";
+import type { PluginDescriptor, WevnaPlugin } from "./plugin.js";
 import type { RedisSendCommandLike } from "./redis-instrumentation.js";
 import { Runtime } from "./runtime.js";
 
@@ -26,6 +27,24 @@ export const wevna = {
   },
   instrumentRedis(client: RedisSendCommandLike): void {
     runtime.instrumentRedis(client);
+  },
+  // Registers a plugin — the supported way to teach Wevna about anything it
+  // doesn't instrument itself (see plugin.ts). Call it anywhere in startup,
+  // before or after start(). Never throws: a plugin Wevna can't use is
+  // reported through `wevna.plugins` rather than breaking your app.
+  use(plugin: WevnaPlugin): void {
+    runtime.use(plugin);
+  },
+  // Every registered plugin and its status — the answer to "is my plugin
+  // actually running, and if not, why".
+  get plugins(): readonly PluginDescriptor[] {
+    return runtime.plugins;
+  },
+  // Resolves once no plugin setup is still in flight. use() is synchronous
+  // by design, so this exists for code that genuinely needs to wait for
+  // plugins to be live before continuing.
+  pluginsSettled(): Promise<void> {
+    return runtime.pluginsSettled();
   },
   // Records the live protocol stream to filePath, in order, as it's
   // published — see session-recorder.ts. Entirely opt-in: a session that
@@ -75,6 +94,21 @@ export type {
 // events through the same dashboard the live path uses; nothing controls
 // playback timing.
 export { openRecording } from "./open-recording.js";
+// The plugin authoring surface. Everything a plugin needs to be written
+// against lives here and nowhere else — a plugin that only imports these
+// types keeps working across any Wevna release that doesn't bump
+// PLUGIN_API_VERSION.
+export {
+  PLUGIN_API_VERSION,
+  type PluginContext,
+  type PluginDescriptor,
+  type PluginEvent,
+  type PluginLogger,
+  type PluginSetupResult,
+  type PluginStatus,
+  type PluginTeardown,
+  type WevnaPlugin,
+} from "./plugin.js";
 export type {
   OpenSessionResult,
   ReadEventResult,
