@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import type { RequestModel, TimelineEntry } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PerformanceSection } from "./PerformanceSection.tsx";
 
 function makeTimelineEntry(overrides: {
@@ -9,6 +9,9 @@ function makeTimelineEntry(overrides: {
   relativeOffsetMs: number;
   durationMs?: number;
   sequence?: number;
+  // Repetition detection reads the query text off the event, so a fixture
+  // needs to be able to set it.
+  attributes?: Record<string, unknown>;
 }): TimelineEntry {
   const sequence = overrides.sequence ?? 1;
   const event: Envelope<CapturedEvent> = {
@@ -19,7 +22,7 @@ function makeTimelineEntry(overrides: {
       id: `event-${sequence}`,
       kind: overrides.kind,
       occurredAt: overrides.relativeOffsetMs,
-      attributes: {},
+      attributes: overrides.attributes ?? {},
     },
   };
   return {
@@ -233,5 +236,152 @@ describe("PerformanceSection", () => {
       expect(screen.getByText("1200.0ms")).toBeInTheDocument();
       expect(screen.getByText("Slow Request")).toBeInTheDocument();
     });
+  });
+});
+
+// The runtime-intelligence additions: repetition detection and time
+// attribution, plus the key collision several insights of one type can cause.
+describe("PerformanceSection runtime intelligence", () => {
+  function sqlEntry(query: string, offset: number, durationMs: number) {
+    return makeTimelineEntry({
+      kind: "sql.query",
+      relativeOffsetMs: offset,
+      durationMs,
+      sequence: offset,
+      attributes: { query },
+    });
+  }
+
+  it("shows where a request's time went, per category", () => {
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [
+            makeTimelineEntry({
+              kind: "http.request",
+              relativeOffsetMs: 100,
+              durationMs: 100,
+              sequence: 1,
+            }),
+            sqlEntry("SELECT 1 FROM u", 60, 60),
+          ],
+        })}
+      />,
+    );
+
+    expect(document.querySelector(".performance-section__attribution")).not.toBeNull();
+    expect(screen.getByText("sql")).toBeInTheDocument();
+    expect(screen.getByText("60ms · 60%")).toBeInTheDocument();
+  });
+
+  it("excludes the request container from attribution", () => {
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [
+            makeTimelineEntry({
+              kind: "http.request",
+              relativeOffsetMs: 100,
+              durationMs: 100,
+              sequence: 1,
+            }),
+          ],
+        })}
+      />,
+    );
+
+    // Attributing the request's own duration to "http" would say nothing.
+    expect(document.querySelector(".performance-section__attribution")).toBeNull();
+  });
+
+  it("calls out a dominant category as an insight", () => {
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [
+            makeTimelineEntry({
+              kind: "http.request",
+              relativeOffsetMs: 100,
+              durationMs: 100,
+              sequence: 1,
+            }),
+            sqlEntry("SELECT 1 FROM u", 80, 80),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Where The Time Went")).toBeInTheDocument();
+    expect(
+      screen.getByText(/80% of this request \(80ms\) was spent on PostgreSQL/),
+    ).toBeInTheDocument();
+  });
+
+  it("reports the same query run repeatedly, with its shape and total time", () => {
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [
+            sqlEntry("SELECT * FROM users WHERE id = 1", 10, 3),
+            sqlEntry("SELECT * FROM users WHERE id = 2", 20, 3),
+            sqlEntry("SELECT * FROM users WHERE id = 3", 30, 4),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Repeated Query")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /The same query ran 3 times, taking 10ms in total: select \* from users where id = \?/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders several repeated-operation insights without a duplicate React key", () => {
+    // key={insight.type} collided once more than one insight of a type could
+    // fire; a duplicate key surfaces here as a console error.
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args) => {
+      errors.push(args);
+    });
+
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [
+            sqlEntry("SELECT a FROM users WHERE id = 1", 10, 1),
+            sqlEntry("SELECT a FROM users WHERE id = 2", 12, 1),
+            sqlEntry("SELECT a FROM users WHERE id = 3", 14, 1),
+            sqlEntry("SELECT b FROM orders WHERE id = 1", 20, 1),
+            sqlEntry("SELECT b FROM orders WHERE id = 2", 22, 1),
+            sqlEntry("SELECT b FROM orders WHERE id = 3", 24, 1),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getAllByText("Repeated Query")).toHaveLength(2);
+    expect(errors).toEqual([]);
+    spy.mockRestore();
+  });
+
+  it("does not flag a query that ran only twice", () => {
+    render(
+      <PerformanceSection
+        request={makeRequest({
+          durationMs: 100,
+          timeline: [sqlEntry("SELECT 1 FROM u", 10, 1), sqlEntry("SELECT 2 FROM u", 20, 1)],
+        })}
+      />,
+    );
+
+    // A pair of identical queries is common and usually deliberate.
+    expect(screen.queryByText("Repeated Query")).not.toBeInTheDocument();
   });
 });

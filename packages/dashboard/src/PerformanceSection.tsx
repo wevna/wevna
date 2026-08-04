@@ -18,7 +18,10 @@ function formatMs(ms: number): string {
 // output into markup — it never derives a metric or evaluates a threshold
 // itself; all of that lives in @wevna/intelligence.
 export function PerformanceSection({ request }: PerformanceSectionProps) {
-  const { metrics, insights } = useMemo(() => analyzeRequestPerformance(request), [request]);
+  const { metrics, insights, timeAttribution } = useMemo(
+    () => analyzeRequestPerformance(request),
+    [request],
+  );
 
   return (
     <div className="performance-section">
@@ -45,10 +48,40 @@ export function PerformanceSection({ request }: PerformanceSectionProps) {
         <dd>{metrics.exceptionCount}</dd>
       </dl>
 
+      {/* Shown whenever there is anything to attribute, not only when one
+          category was dominant enough to earn an insight — "where did the
+          time go" is worth answering even when the answer is "spread
+          evenly". Shares can sum past 100% for concurrent work; see
+          attributeRequestTime for why that is reported rather than
+          normalized away. */}
+      {timeAttribution.length > 0 ? (
+        <ul className="performance-section__attribution">
+          {timeAttribution.map((attribution) => (
+            <li key={attribution.category} className="time-attribution">
+              <span className="time-attribution__category">{attribution.category}</span>
+              <span className="time-attribution__meter" aria-hidden="true">
+                <span
+                  className="time-attribution__fill"
+                  data-category={attribution.category}
+                  style={{ inlineSize: `${Math.min(100, attribution.sharePercent)}%` }}
+                />
+              </span>
+              <span className="time-attribution__value">
+                {formatMs(attribution.totalDurationMs)}
+                {attribution.sharePercent > 0 ? ` · ${attribution.sharePercent}%` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {insights.length > 0 ? (
         <ul className="performance-section__insights">
           {insights.map((insight) => (
-            <li key={insight.type} className="performance-insight">
+            /* Keyed on type *and* message: several repeated-operation
+               insights can fire for one request, one per repeated query
+               shape, so the type alone is no longer unique. */
+            <li key={`${insight.type}:${insight.message}`} className="performance-insight">
               <span className="performance-insight__title">{insight.title}</span>
               <span className="performance-insight__message">{insight.message}</span>
             </li>

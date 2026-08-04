@@ -9,11 +9,16 @@ describe("DEFAULT_PERFORMANCE_THRESHOLDS", () => {
     }
   });
 
-  it("defines exactly the four centralized thresholds", () => {
+  // Deliberately exhaustive: the point of this file is that every number
+  // deciding whether an insight fires lives here, so a new literal appearing
+  // in an analyzer instead should fail here first.
+  it("defines exactly the centralized thresholds and no others", () => {
     expect(Object.keys(DEFAULT_PERFORMANCE_THRESHOLDS).sort()).toEqual([
+      "dominantCategorySharePercent",
       "longSqlQueryMs",
       "multipleDatabaseCallsCount",
       "multipleRedisOperationsCount",
+      "repeatedOperationCount",
       "slowRequestMs",
     ]);
   });

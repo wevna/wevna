@@ -226,6 +226,11 @@ What's actually implemented and running, today:
 - ✅ **Performance intelligence** — deterministic per-request analysis
   (longest operation, SQL/Redis time, event counts) and insights like
   "Slow Request" or "Multiple Database Calls", with the numbers behind them
+- ✅ **Where the time went** — per-category time attribution, so a request's
+  duration comes with "601ms of it was PostgreSQL" instead of just a number
+- ✅ **Repeated-operation detection** — the same query shape run N times in
+  one request, normalized so interpolated literals still group together: the
+  observable signature of an N+1
 - ✅ **Execution graph** — a request's events as a real dependency DAG,
   nested by what ran *inside* what, rendered flame-chart style in the Request
   Inspector with each row's bar proportional to when it ran and for how long
@@ -320,6 +325,7 @@ what a request was.
 - ✔ Performance intelligence
 - ✔ Execution graph model
 - ✔ Execution graph renderer (dependency DAG, nested + proportional)
+- ✔ Time attribution & repeated-operation detection
 - ✔ Session recording
 - ✔ Session loading (offline inspection)
 - ✔ Plugin SDK (versioned api, lifecycle, capability discovery, fault isolation)
@@ -330,8 +336,9 @@ what a request was.
 **Next**
 
 - More official plugins (MongoDB, Prisma, BullMQ)
-- Deeper runtime intelligence (critical path, bottleneck attribution, N+1
-  query detection)
+- Cross-request views (slow endpoint ranking, global statistics)
+- Dashboard polish (dark theme, keyboard shortcuts, command palette,
+  virtualized event list)
 
 ## Packages
 

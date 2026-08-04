@@ -1,8 +1,10 @@
 import type { AnalyzableRequest } from "./analyzable-request.js";
+import { attributeRequestTime, type TimeAttribution } from "./attribute-time.js";
 import {
   computeRequestPerformanceMetrics,
   type RequestPerformanceMetrics,
 } from "./compute-performance-metrics.js";
+import { detectRepeatedOperations, type RepeatedOperation } from "./detect-repetition.js";
 import {
   generatePerformanceInsights,
   type PerformanceInsight,
@@ -12,6 +14,11 @@ import { DEFAULT_PERFORMANCE_THRESHOLDS, type PerformanceThresholds } from "./th
 export interface RequestPerformanceAnalysis {
   metrics: RequestPerformanceMetrics;
   insights: readonly PerformanceInsight[];
+  // Exposed alongside the insights, not only folded into them: a consumer
+  // may want to show the full breakdown of where a request's time went even
+  // when no single category was dominant enough to earn an insight.
+  timeAttribution: readonly TimeAttribution[];
+  repeatedOperations: readonly RepeatedOperation[];
 }
 
 // The one public entry point this package expects dashboard (and future,
@@ -25,6 +32,11 @@ export function analyzeRequestPerformance(
   thresholds: PerformanceThresholds = DEFAULT_PERFORMANCE_THRESHOLDS,
 ): RequestPerformanceAnalysis {
   const metrics = computeRequestPerformanceMetrics(request);
-  const insights = generatePerformanceInsights(metrics, thresholds);
-  return { metrics, insights };
+  const timeAttribution = attributeRequestTime(request);
+  const repeatedOperations = detectRepeatedOperations(request, thresholds.repeatedOperationCount);
+  const insights = generatePerformanceInsights(metrics, thresholds, {
+    repeatedOperations,
+    timeAttribution,
+  });
+  return { metrics, insights, timeAttribution, repeatedOperations };
 }

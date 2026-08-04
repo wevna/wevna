@@ -22,12 +22,18 @@ export {
   analyzeRequestPerformance,
   type RequestPerformanceAnalysis,
 } from "./analyze-request-performance.js";
+export { attributeRequestTime, type TimeAttribution } from "./attribute-time.js";
 export {
   type CategoryBreakdown,
   computeRequestPerformanceMetrics,
   type RequestPerformanceMetrics,
   type SlowestOperation,
 } from "./compute-performance-metrics.js";
+export {
+  detectRepeatedOperations,
+  normalizeSqlShape,
+  type RepeatedOperation,
+} from "./detect-repetition.js";
 export { categorizeEvent, type EventCategory } from "./event-category.js";
 export {
   buildExecutionGraph,
@@ -38,6 +44,7 @@ export {
 } from "./execution-graph.js";
 export {
   generatePerformanceInsights,
+  type InsightContext,
   type PerformanceInsight,
   type PerformanceInsightType,
 } from "./generate-performance-insights.js";
