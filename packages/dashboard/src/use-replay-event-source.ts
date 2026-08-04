@@ -1,7 +1,8 @@
+import type { RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { PlaybackState } from "./replay-engine.ts";
 import { type ReplayControls, ReplayEventSource } from "./replay-event-source.ts";
-import type { RequestModel } from "./request-store.ts";
 
 export interface UseReplayEventSourceResult {
   events: readonly Envelope<CapturedEvent>[];
@@ -9,7 +10,7 @@ export interface UseReplayEventSourceResult {
   position: number;
   totalEvents: number;
   timestamp: number | undefined;
-  state: "playing" | "paused";
+  state: PlaybackState;
   speed: number;
   controls: ReplayControls;
 }

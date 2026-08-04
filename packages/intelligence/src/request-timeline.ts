@@ -1,16 +1,17 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 
 export interface TimelineEntry {
-  // Reference, not a copy — the same Envelope object RequestStore (and
-  // EventStore beneath it) already holds.
+  // Reference, not a copy — the same Envelope object whichever store fed
+  // this timeline already holds (EventStore/RequestStore in the dashboard,
+  // SnapshotEngine's own working map during replay).
   event: Envelope<CapturedEvent>;
   kind: string;
   sequence: number;
   timestamp: number;
   // Milliseconds since the request started — see getRelativeOffset(). Can
   // be negative for a request still missing its true earliest event (see
-  // RequestStore: startedAt is the minimum occurredAt seen *so far*, and
-  // updates if an still-earlier event arrives later).
+  // request-model.ts: startedAt is the minimum occurredAt seen *so far*,
+  // and updates if a still-earlier event arrives later).
   relativeOffsetMs: number;
   // This entry's own measured duration, when its event represents a timed
   // operation (http.request, sql.query, redis.command all carry a
@@ -33,11 +34,13 @@ function extractDurationMs(event: Envelope<CapturedEvent>): number | undefined {
 }
 
 // Derives a request's timeline from its events. Assumes `events` is
-// already in chronological order — RequestStore maintains that invariant
-// (see insertSorted in request-store.ts) — so this stays a single O(k)
-// pass over that one request's own events, not a sort, and never touches
-// any other request. Never mutates or copies an event: each entry only
-// wraps a reference to it alongside derived, read-only fields.
+// already in chronological order — `compareEvents` in request-model.ts is
+// the single definition of that order, and every caller maintains the
+// invariant with it (RequestStore's insertSorted for live arrival,
+// SnapshotEngine's append for an already-sorted recording) — so this stays
+// a single O(k) pass over that one request's own events, not a sort, and
+// never touches any other request. Never mutates or copies an event: each
+// entry only wraps a reference to it alongside derived, read-only fields.
 export function buildTimeline(
   events: readonly Envelope<CapturedEvent>[],
   startedAt: number,

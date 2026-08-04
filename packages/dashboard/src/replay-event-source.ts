@@ -1,7 +1,6 @@
+import { type RequestModel, SnapshotEngine } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { type PlaybackState, ReplayEngine } from "./replay-engine.ts";
-import type { RequestModel } from "./request-store.ts";
-import { SnapshotEngine } from "./snapshot-engine.ts";
 
 export interface ReplaySourceSnapshot {
   events: readonly Envelope<CapturedEvent>[];

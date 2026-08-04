@@ -1,6 +1,19 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 
-export type PlaybackState = "playing" | "paused";
+// "paused" and "finished" are both not-advancing, but they mean different
+// things and a UI legitimately wants to tell them apart: "paused" is
+// stopped because something asked it to stop (pause, seek, step), while
+// "finished" is playback that ran to the end of the recording on its own.
+// A position at the end is not enough to distinguish them — a freshly
+// opened recording also starts fully played (see load()) without ever
+// having played anything.
+//
+// Deliberately modelled as a third state rather than an onFinished
+// callback: this engine already has exactly one way to tell anyone
+// anything (subscribe + getSnapshot), and a second, parallel notification
+// channel would be one more thing for every consumer to wire up, forget to
+// unsubscribe from, and keep consistent with the snapshot it contradicts.
+export type PlaybackState = "playing" | "paused" | "finished";
 
 export interface ReplaySnapshot {
   // How many of the loaded recording's events have "happened" so far —
@@ -21,7 +34,8 @@ export type ReplayEngineListener = () => void;
 // already-loaded, chronologically ordered recording. It knows nothing
 // about requests, dashboard stores, or React — it only ever answers "how
 // many events have played, and are we currently advancing." See
-// snapshot-engine.ts for turning a position into dashboard state, and
+// SnapshotEngine in @wevna/intelligence for turning a position into
+// observable state, and
 // replay-event-source.ts for where the two are composed.
 export class ReplayEngine {
   #events: readonly Envelope<CapturedEvent>[] = [];
@@ -54,6 +68,10 @@ export class ReplayEngine {
   // a change to what a freshly opened recording shows. Safe to call more
   // than once; cancels any playback already in progress for whatever was
   // loaded before.
+  //
+  // Starts "paused" rather than "finished" even though the position is at
+  // the end: nothing has played, so nothing has finished. "finished" is
+  // reserved for a playback that actually ran out.
   load(events: readonly Envelope<CapturedEvent>[]): void {
     this.#cancelTimer();
     this.#events = events;
@@ -72,6 +90,10 @@ export class ReplayEngine {
     this.#notify();
   }
 
+  // Only a running playback can be paused. Calling this on an already
+  // finished replay would otherwise rewrite "reached the end on its own"
+  // into "the user stopped it", losing exactly the distinction
+  // PlaybackState exists to preserve.
   pause(): void {
     if (this.#state !== "playing") {
       return;
@@ -94,6 +116,11 @@ export class ReplayEngine {
     this.#notify();
   }
 
+  // Stepping onto the last event leaves the state "paused", not
+  // "finished": the user drove it there one event at a time, which is the
+  // "stopped deliberately" case. `position === totalEvents` is what tells a
+  // UI it cannot step further; "finished" specifically means playback ran
+  // out on its own.
   stepForward(): void {
     this.#cancelTimer();
     this.#state = "paused";
@@ -155,7 +182,7 @@ export class ReplayEngine {
   #scheduleNext(): void {
     const nextEvent = this.#events[this.#position];
     if (!nextEvent) {
-      this.#state = "paused";
+      this.#state = "finished";
       return;
     }
     const previousEvent = this.#position > 0 ? this.#events[this.#position - 1] : undefined;
@@ -167,7 +194,7 @@ export class ReplayEngine {
         this.#timer = undefined;
         this.#position += 1;
         if (this.#position >= this.#events.length) {
-          this.#state = "paused";
+          this.#state = "finished";
         }
         this.#notify();
         if (this.#state === "playing") {

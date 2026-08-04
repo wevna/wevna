@@ -1,8 +1,8 @@
+import type { RequestModel } from "@wevna/intelligence";
 import { EventList } from "./EventList.tsx";
 import { ExecutionGraphSection } from "./ExecutionGraphSection.tsx";
 import { PerformanceSection } from "./PerformanceSection.tsx";
 import { formatEventCount, formatRequestDuration } from "./request-format.ts";
-import type { RequestModel } from "./request-store.ts";
 import { WaterfallTimeline } from "./WaterfallTimeline.tsx";
 
 export interface RequestInspectorProps {

@@ -1,7 +1,6 @@
-import { analyzeRequestPerformance } from "@wevna/intelligence";
+import { analyzeRequestPerformance, type RequestModel } from "@wevna/intelligence";
 import { useMemo } from "react";
 import { formatRequestDuration } from "./request-format.ts";
-import type { RequestModel } from "./request-store.ts";
 
 export interface PerformanceSectionProps {
   request: RequestModel;

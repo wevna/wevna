@@ -1,6 +1,7 @@
+import type { RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import type { PlaybackState } from "./replay-engine.ts";
 import type { ReplayControls } from "./replay-event-source.ts";
-import type { RequestModel } from "./request-store.ts";
 import { useLiveEvents } from "./use-live-events.ts";
 import { useRecordingEvents } from "./use-recording-events.ts";
 import { useReplayEventSource } from "./use-replay-event-source.ts";
@@ -11,7 +12,7 @@ export interface ReplayInfo {
   position: number;
   totalEvents: number;
   timestamp: number | undefined;
-  state: "playing" | "paused";
+  state: PlaybackState;
   speed: number;
   controls: ReplayControls;
 }
@@ -20,7 +21,8 @@ export interface EventSourceResult {
   events: readonly Envelope<CapturedEvent>[];
   requests: readonly RequestModel[];
   // undefined in recording mode: a replay's request list is entirely
-  // derived from its current position (see snapshot-engine.ts) — there is
+  // derived from its current position (see SnapshotEngine in
+  // @wevna/intelligence) — there is
   // nothing meaningful to "clear" that seeking wouldn't just recompute
   // right back. Only live mode's requests are independent, removable
   // state.

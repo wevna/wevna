@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { RequestModel } from "@wevna/intelligence";
 import { describe, expect, it, vi } from "vitest";
 import { RequestList } from "./RequestList.tsx";
-import type { RequestModel } from "./request-store.ts";
 
 function makeRequest(overrides: Partial<RequestModel> = {}): RequestModel {
   return {

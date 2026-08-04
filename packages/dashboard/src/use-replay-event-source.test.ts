@@ -80,7 +80,7 @@ describe("useReplayEventSource", () => {
       vi.advanceTimersByTime(10);
     });
     expect(result.current.position).toBe(3);
-    expect(result.current.state).toBe("paused");
+    expect(result.current.state).toBe("finished");
   });
 
   it("controls.seek updates events/requests synchronously", () => {

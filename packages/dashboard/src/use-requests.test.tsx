@@ -1,8 +1,8 @@
 import { act, render } from "@testing-library/react";
+import type { RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import type { RequestModel } from "./request-store.ts";
 import { useRequests } from "./use-requests.ts";
 
 function makeEvent(

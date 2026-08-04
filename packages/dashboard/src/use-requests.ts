@@ -1,6 +1,7 @@
+import type { RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { type RequestModel, RequestStore } from "./request-store.ts";
+import { RequestStore } from "./request-store.ts";
 
 export interface UseRequestsResult {
   requests: readonly RequestModel[];

@@ -1,8 +1,7 @@
+import type { RequestModel, TimelineEntry } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it } from "vitest";
 import { findTimelineEntry } from "./find-timeline-entry.ts";
-import type { RequestModel } from "./request-store.ts";
-import type { TimelineEntry } from "./timeline.ts";
 
 function makeTimelineEntry(eventId: string, relativeOffsetMs: number): TimelineEntry {
   const event: Envelope<CapturedEvent> = {

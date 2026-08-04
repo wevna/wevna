@@ -1,7 +1,12 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
-import { buildRequestModel, type RequestModel } from "./request-store.ts";
+import { buildRequestModel, type RequestModel } from "./request-model.js";
 
-export interface DashboardSnapshot {
+// Deliberately not named for the dashboard: this package must stay free of
+// any assumption that a UI is what consumes it. A snapshot is "what was
+// true at this point in the recording" — a dashboard renders it, but a CLI
+// or a regression test asserting over a replayed session consumes exactly
+// the same thing.
+export interface RuntimeSnapshot {
   events: readonly Envelope<CapturedEvent>[];
   requests: readonly RequestModel[];
 }
@@ -23,10 +28,11 @@ function checkpointInterval(totalEvents: number): number {
 }
 
 // Events are always applied in the same chronological order the whole
-// recording is already sorted in (see SessionLoader / RequestStore's own
-// compareEvents), so a plain append preserves each correlation's order
-// without needing RequestStore's insertSorted — a correlation's own
-// events are always a subsequence of that global order.
+// recording is already sorted in (see SessionLoader, and compareEvents in
+// request-model.ts for the definition of that order), so a plain append
+// preserves each correlation's order without needing RequestStore's
+// insertSorted — a correlation's own events are always a subsequence of
+// that global order.
 function applyEvent(requestsById: Map<string, RequestModel>, event: Envelope<CapturedEvent>): void {
   const correlationId = event.payload.correlation?.id;
   if (!correlationId) {
@@ -61,13 +67,13 @@ function buildCheckpoints(events: readonly Envelope<CapturedEvent>[]): readonly 
   return checkpoints;
 }
 
-// Reconstructs dashboard state — currently the event list and the
+// Reconstructs observable state — currently the event list and the
 // derived request list — at any position in an already-loaded recording.
-// Everything else the dashboard shows (performance insights, the
-// execution graph, exception details) is computed from a RequestModel's
-// own timeline by @wevna/intelligence, purely and on demand, so there is
-// nothing further to reconstruct here: producing a correct, deterministic
-// `requests` array is the whole job.
+// Everything else built on top (performance insights, the execution graph,
+// exception details) is computed from a RequestModel's own timeline by
+// this same package, purely and on demand, so there is nothing further to
+// reconstruct here: producing a correct, deterministic `requests` array is
+// the whole job.
 //
 // Deliberately not a full snapshot per event: for a recording with N
 // events, that would make every seek cost O(N) to rebuild every request
@@ -83,7 +89,7 @@ export class SnapshotEngine {
   #events: readonly Envelope<CapturedEvent>[] = [];
   #checkpoints: readonly Checkpoint[] = [{ index: 0, requestsById: new Map() }];
   #lastPosition: number | undefined;
-  #lastSnapshot: DashboardSnapshot | undefined;
+  #lastSnapshot: RuntimeSnapshot | undefined;
 
   // (Re)initializes the engine with a freshly loaded recording, rebuilding
   // its checkpoints. Safe to call more than once.
@@ -97,7 +103,7 @@ export class SnapshotEngine {
   // Deterministic: the same position always yields an equal — and, while
   // nothing else has changed, reference-equal, see the cache below —
   // snapshot, regardless of how many times or in what order it's called.
-  getSnapshot(position: number): DashboardSnapshot {
+  getSnapshot(position: number): RuntimeSnapshot {
     const clamped = Math.max(0, Math.min(Math.trunc(position), this.#events.length));
     if (clamped === this.#lastPosition && this.#lastSnapshot) {
       return this.#lastSnapshot;
@@ -112,7 +118,7 @@ export class SnapshotEngine {
       }
     }
 
-    const snapshot: DashboardSnapshot = {
+    const snapshot: RuntimeSnapshot = {
       events: this.#events.slice(0, clamped),
       requests: Array.from(requestsById.values()),
     };

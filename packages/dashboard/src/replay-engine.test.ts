@@ -92,7 +92,7 @@ describe("ReplayEngine", () => {
 
       vi.advanceTimersByTime(75);
       expect(engine.getSnapshot().position).toBe(4);
-      expect(engine.getSnapshot().state).toBe("paused");
+      expect(engine.getSnapshot().state).toBe("finished");
     });
 
     it("pause stops advancing and cancels the pending timer", () => {
@@ -341,7 +341,7 @@ describe("ReplayEngine", () => {
   });
 
   describe("end-of-recording behaviour", () => {
-    it("auto-pauses exactly at the last event, without overshooting", () => {
+    it("stops exactly at the last event, without overshooting", () => {
       const engine = new ReplayEngine();
       engine.load(TIMED_EVENTS);
       engine.restart();
@@ -349,7 +349,7 @@ describe("ReplayEngine", () => {
       vi.advanceTimersByTime(1_000_000);
 
       expect(engine.getSnapshot().position).toBe(4);
-      expect(engine.getSnapshot().state).toBe("paused");
+      expect(engine.getSnapshot().state).toBe("finished");
     });
 
     it("play() does nothing further once at the end", () => {
@@ -362,7 +362,7 @@ describe("ReplayEngine", () => {
       vi.advanceTimersByTime(1_000_000);
 
       expect(engine.getSnapshot().position).toBe(4);
-      expect(engine.getSnapshot().state).toBe("paused");
+      expect(engine.getSnapshot().state).toBe("finished");
     });
 
     it("seeking back from the end and playing again reaches the end once more", () => {
@@ -376,7 +376,103 @@ describe("ReplayEngine", () => {
       vi.advanceTimersByTime(1_000_000);
 
       expect(engine.getSnapshot().position).toBe(4);
+      expect(engine.getSnapshot().state).toBe("finished");
+    });
+  });
+
+  // The distinction a UI needs: both of these end up at position ===
+  // totalEvents and neither is advancing, so position alone cannot tell
+  // "the recording ran out" from "the developer stopped here".
+  describe("finished vs paused", () => {
+    it("is paused, not finished, on a freshly loaded recording despite being fully played", () => {
+      const engine = new ReplayEngine();
+
+      engine.load(TIMED_EVENTS);
+
+      expect(engine.getSnapshot().position).toBe(4);
       expect(engine.getSnapshot().state).toBe("paused");
+    });
+
+    it("is paused, not finished, when the user steps onto the last event", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.seek(3);
+
+      engine.stepForward();
+
+      expect(engine.getSnapshot().position).toBe(4);
+      expect(engine.getSnapshot().state).toBe("paused");
+    });
+
+    it("is paused, not finished, when the user seeks to the end", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.restart();
+
+      engine.seek(TIMED_EVENTS.length);
+
+      expect(engine.getSnapshot().state).toBe("paused");
+    });
+
+    it("is paused, not finished, when the user pauses mid-playback", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.restart();
+      vi.advanceTimersByTime(14);
+
+      engine.pause();
+
+      expect(engine.getSnapshot().state).toBe("paused");
+    });
+
+    it("does not let pause() overwrite a finished replay", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.restart();
+      vi.advanceTimersByTime(1_000_000);
+
+      engine.pause();
+
+      expect(engine.getSnapshot().state).toBe("finished");
+    });
+
+    it("leaves finished as soon as playback is restarted", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.restart();
+      vi.advanceTimersByTime(1_000_000);
+      expect(engine.getSnapshot().state).toBe("finished");
+
+      engine.restart();
+
+      expect(engine.getSnapshot().state).toBe("playing");
+    });
+
+    it("leaves finished as soon as the user steps back", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.restart();
+      vi.advanceTimersByTime(1_000_000);
+
+      engine.stepBackward();
+
+      expect(engine.getSnapshot().state).toBe("paused");
+    });
+
+    it("notifies subscribers when playback finishes on its own", () => {
+      const engine = new ReplayEngine();
+      engine.load(TIMED_EVENTS);
+      engine.seek(TIMED_EVENTS.length - 1);
+      const listener = vi.fn();
+      engine.subscribe(listener);
+
+      engine.play();
+      vi.advanceTimersByTime(1_000_000);
+
+      expect(engine.getSnapshot().state).toBe("finished");
+      // No separate onFinished channel: reaching the end is just another
+      // state change on the one subscription consumers already have.
+      expect(listener).toHaveBeenCalled();
     });
   });
 

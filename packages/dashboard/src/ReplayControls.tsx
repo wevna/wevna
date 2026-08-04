@@ -1,3 +1,4 @@
+import type { PlaybackState } from "./replay-engine.ts";
 import type { ReplayControls as ReplayControlsApi } from "./replay-event-source.ts";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
@@ -5,7 +6,7 @@ const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
 export interface ReplayControlsProps {
   position: number;
   totalEvents: number;
-  state: "playing" | "paused";
+  state: PlaybackState;
   speed: number;
   controls: ReplayControlsApi;
 }
@@ -55,6 +56,15 @@ export function ReplayControls({
       <span className="replay-controls__position">
         {position} / {totalEvents} events
       </span>
+      {/* The one place the paused/finished distinction is user-visible: a
+          replay that ran to the end says so, while a replay the developer
+          paused on the last event stays silent. Both have position ===
+          totalEvents, so only the state can tell them apart. */}
+      {state === "finished" ? (
+        <span className="replay-controls__finished" role="status">
+          End of recording
+        </span>
+      ) : null}
       <label className="replay-controls__speed">
         Speed
         <select

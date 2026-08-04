@@ -74,6 +74,17 @@ body {
   white-space: nowrap;
 }
 
+.replay-controls__finished {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
 .replay-controls__speed {
   display: flex;
   align-items: center;
