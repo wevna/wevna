@@ -14,8 +14,10 @@
   "files": [
     "dist",
     "README.md",
+    "LICENSE",
     "!dist/**/*.test.d.ts",
-    "!dist/**/*.test.d.ts.map"
+    "!dist/**/*.test.d.ts.map",
+    "!dist/tsconfig.tsbuildinfo"
   ],
   "scripts": {
     "build": "tsup && tsc --build",
@@ -41,6 +43,8 @@
     "wevna-plugin",
     "fetch",
     "http",
+    "http-client",
+    "typescript",
     "observability",
     "debugging"
   ],
