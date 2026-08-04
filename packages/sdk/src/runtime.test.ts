@@ -902,18 +902,25 @@ describe("Runtime plugins", () => {
     };
   }
 
+  // Looked up by name, never by index: the built-in pg/redis producers are
+  // themselves registered plugins (see pg-plugin.ts), so they occupy the
+  // first entries of `plugins`.
+  function describePlugin(name = "example") {
+    return runtime?.plugins.find((plugin) => plugin.name === name);
+  }
+
   it("sets a plugin registered before start() up when the runtime starts", async () => {
     runtime = new Runtime();
     const setup = vi.fn();
     runtime.use(makePlugin({ setup }));
 
-    expect(runtime.plugins[0]?.status).toBe("registered");
+    expect(describePlugin()?.status).toBe("registered");
     expect(setup).not.toHaveBeenCalled();
 
     await runtime.start({ port: 0 });
 
     expect(setup).toHaveBeenCalledOnce();
-    expect(runtime.plugins[0]?.status).toBe("active");
+    expect(describePlugin()?.status).toBe("active");
   });
 
   it("sets a plugin registered after start() up immediately", async () => {
@@ -923,7 +930,7 @@ describe("Runtime plugins", () => {
     runtime.use(makePlugin());
     await runtime.pluginsSettled();
 
-    expect(runtime.plugins[0]?.status).toBe("active");
+    expect(describePlugin()?.status).toBe("active");
   });
 
   it("publishes a plugin's events through the runtime, stamped with its source", async () => {
@@ -1045,8 +1052,8 @@ describe("Runtime plugins", () => {
     await expect(runtime.start({ port: 0 })).resolves.toBeUndefined();
 
     expect(runtime.isRunning).toBe(true);
-    expect(runtime.plugins[0]?.status).toBe("failed");
-    expect(runtime.plugins[0]?.error).toBe("plugin exploded");
+    expect(describePlugin()?.status).toBe("failed");
+    expect(describePlugin()?.error).toBe("plugin exploded");
   });
 
   it("keeps built-in instrumentation working alongside a failed plugin", async () => {
@@ -1074,8 +1081,8 @@ describe("Runtime plugins", () => {
 
     expect(() => runtime?.use(makePlugin({ apiVersion: 999 }))).not.toThrow();
 
-    expect(runtime.plugins[0]?.status).toBe("failed");
-    expect(runtime.plugins[0]?.error).toContain("999");
+    expect(describePlugin()?.status).toBe("failed");
+    expect(describePlugin()?.error).toContain("999");
   });
 
   it("does not capture Wevna's own plugin diagnostics as console.log events", async () => {
@@ -1088,5 +1095,123 @@ describe("Runtime plugins", () => {
     await runtime.pluginsSettled();
 
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+// The built-in pg/redis producers are themselves plugins, so the plugin api
+// is exercised by its own first consumers rather than only by third parties.
+// If these regress, the extension points have drifted from what a community
+// plugin can actually reach.
+describe("Runtime built-in producers as plugins", () => {
+  let runtime: Runtime | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+  });
+
+  it("registers the pg and redis producers as plugins before anything starts", () => {
+    runtime = new Runtime();
+
+    expect(runtime.plugins.map((plugin) => plugin.name)).toEqual(["wevna:pg", "wevna:redis"]);
+    expect(runtime.plugins.map((plugin) => plugin.status)).toEqual(["registered", "registered"]);
+  });
+
+  it("declares the event kinds each built-in can produce", () => {
+    runtime = new Runtime();
+
+    expect(runtime.plugins.find((p) => p.name === "wevna:pg")?.eventKinds).toEqual(["sql.query"]);
+    expect(runtime.plugins.find((p) => p.name === "wevna:redis")?.eventKinds).toEqual([
+      "redis.command",
+    ]);
+  });
+
+  it("activates both once the runtime starts", async () => {
+    runtime = new Runtime();
+
+    await runtime.start({ port: 0 });
+
+    expect(runtime.plugins.map((plugin) => plugin.status)).toEqual(["active", "active"]);
+  });
+
+  it("stamps sql.query events with the pg plugin as their source", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const queryable = { query: async () => ({ rowCount: 3 }) };
+    runtime.instrumentPg(queryable);
+    await queryable.query();
+
+    const payload = listener.mock.calls[0]?.[0].payload as CapturedEvent;
+    expect(payload.kind).toBe("sql.query");
+    expect(payload.source).toBe("wevna:pg");
+    // Still stamped with everything Runtime always stamped — the id now comes
+    // from context.publish() rather than the instrumentation itself.
+    expect(typeof payload.id).toBe("string");
+    expect(typeof payload.occurredAt).toBe("number");
+    expect(payload.attributes.rows).toBe(3);
+  });
+
+  it("stamps redis.command events with the redis plugin as their source", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const client = { sendCommand: (_command: unknown) => undefined };
+    runtime.instrumentRedis(client);
+    const command = { name: "get", promise: Promise.resolve("value") };
+    client.sendCommand(command);
+    await command.promise;
+    await Promise.resolve();
+
+    const payload = listener.mock.calls[0]?.[0].payload as CapturedEvent;
+    expect(payload.kind).toBe("redis.command");
+    expect(payload.source).toBe("wevna:redis");
+  });
+
+  it("still correlates a built-in producer's events to the active request", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+    await runtime.startCorrelation(async () => {
+      await queryable.query();
+    });
+
+    const payload = listener.mock.calls[0]?.[0].payload as CapturedEvent;
+    expect(typeof payload.correlation?.id).toBe("string");
+  });
+
+  it("goes quiet, without throwing, once the runtime has stopped", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+    await runtime.stop();
+    const listener = vi.fn();
+    runtime.eventBus.subscribe(listener);
+    runtime = undefined;
+
+    await expect(queryable.query()).resolves.toEqual({ rowCount: 1 });
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("keeps an instrumented client working across a stop/start cycle", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+    const queryable = { query: async () => ({ rowCount: 1 }) };
+    runtime.instrumentPg(queryable);
+
+    await runtime.stop();
+
+    // The query() wrapper is deliberately left installed rather than
+    // unwrapped, so a pool that outlives one Runtime is not silently
+    // un-instrumented — the wrapper simply publishes nothing while stopped.
+    await expect(queryable.query()).resolves.toEqual({ rowCount: 1 });
   });
 });

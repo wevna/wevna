@@ -11,10 +11,12 @@ import * as correlationContext from "./correlation-context.js";
 import { EventBus } from "./event-bus.js";
 import { ExceptionInstrumentation } from "./exception-instrumentation.js";
 import { HttpInstrumentation } from "./http-instrumentation.js";
-import { PgInstrumentation, type PgQueryable } from "./pg-instrumentation.js";
+import type { PgQueryable } from "./pg-instrumentation.js";
+import { createPgPlugin } from "./pg-plugin.js";
 import type { PluginDescriptor, WevnaPlugin } from "./plugin.js";
 import { PluginManager } from "./plugin-manager.js";
-import { RedisInstrumentation, type RedisSendCommandLike } from "./redis-instrumentation.js";
+import type { RedisSendCommandLike } from "./redis-instrumentation.js";
+import { createRedisPlugin } from "./redis-plugin.js";
 import { createSession, stopSession } from "./session.js";
 import { SessionRecorder } from "./session-recorder.js";
 
@@ -55,20 +57,15 @@ export class Runtime {
   // Unlike console/HTTP, these can't be auto-installed: there's no global
   // "every pg.Pool" or "every ioredis client" hook to patch, so a developer
   // must hand us their own instance via instrumentPg()/instrumentRedis().
-  // That means they can be called before Runtime has ever started (or
-  // after it's stopped), so their publish callback guards on isRunning
-  // instead of calling this.publish() directly — a real query or command
-  // must never throw just because Wevna isn't running.
-  readonly #pgInstrumentation = new PgInstrumentation((event) => {
-    if (this.isRunning) {
-      this.publish(event);
-    }
-  });
-  readonly #redisInstrumentation = new RedisInstrumentation((event) => {
-    if (this.isRunning) {
-      this.publish(event);
-    }
-  });
+  //
+  // Both now reach the event stream through the public plugin api rather
+  // than calling this.publish() directly — see pg-plugin.ts for why the
+  // shipped instrumentation deliberately eats its own dog food. Registered
+  // in the constructor so they are set up by startAll() in the same pass as
+  // any developer-registered plugin, with no special-casing anywhere in
+  // PluginManager.
+  readonly #pgPlugin = createPgPlugin();
+  readonly #redisPlugin = createRedisPlugin();
   // Independent EventBus subscriber, wired up only when startRecording()
   // is called — see session-recorder.ts for why it's never coupled to the
   // WebSocket transport. Recording is entirely opt-in: a developer who
@@ -93,6 +90,14 @@ export class Runtime {
     startCorrelation: (fn) => correlationContext.startCorrelation(fn),
     runWithCorrelation: (correlation, fn) => correlationContext.runWithCorrelation(correlation, fn),
   });
+
+  constructor() {
+    // The built-in producers are registered first, so they always appear
+    // ahead of developer-registered plugins in `plugins` and are torn down
+    // after them.
+    this.#pluginManager.register(this.#pgPlugin);
+    this.#pluginManager.register(this.#redisPlugin);
+  }
 
   get state(): RuntimeState {
     return this.#state;
@@ -207,13 +212,13 @@ export class Runtime {
   // to call at any point in Runtime's lifecycle, and safe to call more
   // than once with the same instance (a no-op past the first call).
   instrumentPg(queryable: PgQueryable): void {
-    this.#pgInstrumentation.instrument(queryable);
+    this.#pgPlugin.instrument(queryable);
   }
 
   // Wraps an ioredis client's sendCommand() to publish redis.command
   // events. Same safety guarantees as instrumentPg().
   instrumentRedis(client: RedisSendCommandLike): void {
-    this.#redisInstrumentation.instrument(client);
+    this.#redisPlugin.instrument(client);
   }
 
   // Starts recording the live protocol stream to filePath as it's

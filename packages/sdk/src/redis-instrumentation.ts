@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import type { CapturedEvent } from "@wevna/protocol";
+import type { PluginEvent } from "./plugin.js";
 
-export type PublishCapturedEvent = (event: CapturedEvent) => void;
+// Emits PluginEvent, not CapturedEvent — see pg-instrumentation.ts for why.
+export type PublishPluginEvent = (event: PluginEvent) => void;
 
 // Structural, not ioredis's Command class: only the two fields this needs
 // to read. Every ioredis convenience method (get, set, expire, ...)
@@ -29,10 +29,10 @@ export interface RedisSendCommandLike {
 // unlike parameterized SQL, so there's no safe subset of args to keep;
 // the full payload is never captured, per spec.
 export class RedisInstrumentation {
-  readonly #publish: PublishCapturedEvent;
+  readonly #publish: PublishPluginEvent;
   #wrapped = new WeakSet<RedisSendCommandLike>();
 
-  constructor(publish: PublishCapturedEvent) {
+  constructor(publish: PublishPluginEvent) {
     this.#publish = publish;
   }
 
@@ -52,9 +52,7 @@ export class RedisInstrumentation {
       if (command?.promise && typeof command.promise.then === "function") {
         const report = (): void => {
           publish({
-            id: randomUUID(),
             kind: "redis.command",
-            occurredAt: Date.now(),
             attributes: { command: commandName, durationMs: performance.now() - startedAt },
           });
         };

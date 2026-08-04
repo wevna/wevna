@@ -28,11 +28,13 @@ export function EventDetails({ event, relativeOffsetMs }: EventDetailsProps) {
         <dd>{id}</dd>
         <dt>Kind</dt>
         <dd>{kind}</dd>
-        {/* Only present for plugin-produced events — a built-in producer
-            omits it entirely, so its absence means "Wevna itself". Shown
-            because "which plugin emitted this" is the first question when a
-            third-party event looks wrong, and two plugins may legitimately
-            emit the same kind. */}
+        {/* Present for any plugin-produced event, which now includes the
+            built-in pg/redis producers (they are registered plugins named
+            wevna:pg / wevna:redis). Absent for the always-on producers that
+            have no plugin to attribute to — console, HTTP, exceptions.
+            Shown because "which plugin emitted this" is the first question
+            when an event looks wrong, and two plugins may legitimately emit
+            the same kind. */}
         {source ? (
           <>
             <dt>Source Plugin</dt>
