@@ -1,10 +1,23 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/protocol" },
-    { "path": "packages/shared" },
-    { "path": "packages/intelligence" },
-    { "path": "packages/sdk" },
-    { "path": "packages/server" }
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/shared"
+    },
+    {
+      "path": "packages/intelligence"
+    },
+    {
+      "path": "packages/sdk"
+    },
+    {
+      "path": "packages/server"
+    },
+    {
+      "path": "packages/plugin-fetch"
+    }
   ]
 }

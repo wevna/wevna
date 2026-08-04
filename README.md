@@ -241,6 +241,9 @@ What's actually implemented and running, today:
   graph, and exception details all reconstructed live at whatever
   position you're viewing — deterministically, and fast enough to seek
   around a recording with tens of thousands of events
+- ✅ **Outgoing HTTP** (`@wevna/plugin-fetch`) — every `fetch()` your app
+  makes, correlated to the request that triggered it, with credentials
+  stripped from recorded URLs
 - ✅ **Plugin SDK** — teach Wevna about anything it doesn't instrument
   itself, with a versioned plugin api, a lifecycle tied to the runtime's,
   declarative capability discovery via `wevna.plugins`, and fault isolation
@@ -319,13 +322,14 @@ what a request was.
 - ✔ Session recording
 - ✔ Session loading (offline inspection)
 - ✔ Plugin SDK (versioned api, lifecycle, capability discovery, fault isolation)
+- ✔ Official plugin: outgoing HTTP via `fetch`
 - ✔ Replay engine & time travel (play/pause/restart/step/seek/speed, with
   deterministic dashboard state reconstruction at any position)
 
 **Next**
 
 - Graph visualization (the model exists; a real renderer doesn't yet)
-- More instrumentation targets (BullMQ, Prisma, MongoDB)
+- More official plugins (MongoDB, Prisma, BullMQ)
 
 ## Packages
 
@@ -339,6 +343,7 @@ the only one you install; everything else supports it:
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
 | `packages/intelligence`| Deterministic runtime interpretation — request assembly, timelines, replay snapshots, performance analysis, execution graph modeling. No React, no Fastify, reusable outside the dashboard |
+| `packages/plugin-fetch`| Official plugin: outgoing HTTP (`fetch`) capture. Lives outside the SDK on purpose — it is written against nothing but the published plugin api |
 | `packages/shared`      | Reserved for cross-cutting utilities; currently a placeholder |
 
 ## Contributing / running locally
