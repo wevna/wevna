@@ -1,12 +1,27 @@
 # @wevna/plugin-fetch
 
-Captures **outgoing** HTTP requests made with the global `fetch`, as
-`http.client` events correlated to the incoming request that triggered them.
+The official [Wevna](https://github.com/wevna/wevna) plugin for outgoing
+HTTP instrumentation: captures requests made with the global `fetch` as
+`http.client` events, correlated to the incoming request that triggered
+them.
 
 Incoming requests were already the most valuable thing Wevna captured.
 Outgoing ones are the other half of the same question: a request that spends
 400ms waiting on a third-party API looks identical to a slow handler until
 you can see the call.
+
+## When you need this
+
+Install it if your app makes outgoing `fetch()` calls (to a third-party
+API, a webhook, another internal service) that you want to see in Wevna's
+waterfall alongside the incoming request that triggered them. It requires
+the `wevna` SDK — this plugin does nothing on its own.
+
+## Install
+
+```bash
+npm install @wevna/plugin-fetch
+```
 
 ## Usage
 
@@ -82,3 +97,8 @@ puts a token in a path segment will still record it.
   un-instrument whatever installed it.
 - If the environment has no global `fetch`, the plugin warns once and does
   nothing rather than failing to load.
+
+## Learn more
+
+See the [main Wevna repository](https://github.com/wevna/wevna) for the
+SDK, dashboard, and everything else this plugin's events feed into.

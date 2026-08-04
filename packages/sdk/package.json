@@ -16,11 +16,13 @@
   "files": [
     "dist",
     "README.md",
+    "LICENSE",
     "!dist/**/*.test.d.ts",
-    "!dist/**/*.test.d.ts.map"
+    "!dist/**/*.test.d.ts.map",
+    "!dist/tsconfig.tsbuildinfo"
   ],
   "scripts": {
-    "build": "tsup && tsc --build && node ../../scripts/copy-dashboard-assets.mjs dist/dashboard",
+    "build": "tsup && tsc --build && node ../../scripts/copy-dashboard-assets.mjs dist/dashboard && node ../../scripts/copy-root-readme.mjs",
     "dev": "tsup --watch",
     "check": "tsc --build",
     "test": "vitest run",
@@ -53,6 +55,8 @@
     "debugging",
     "devtools",
     "nodejs",
+    "typescript",
+    "runtime",
     "backend",
     "dashboard",
     "instrumentation",
