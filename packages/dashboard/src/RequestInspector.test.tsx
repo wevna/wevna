@@ -310,7 +310,7 @@ describe("RequestInspector", () => {
 
       const graphNodes = document
         .querySelector(".execution-graph")
-        ?.querySelectorAll(".execution-graph__node");
+        ?.querySelectorAll(".execution-graph__row");
       expect(graphNodes).toHaveLength(1);
     });
   });

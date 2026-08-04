@@ -151,6 +151,15 @@ function mockRecordingFetch(events: Envelope<CapturedEvent>[]): void {
   );
 }
 
+// The execution graph renders nested rows with a duration column and hidden
+// parent references, so its content is read from the kind labels themselves
+// rather than from whole-row text.
+function graphKinds(): (string | null)[] {
+  return Array.from(document.querySelectorAll(".execution-graph__kind")).map(
+    (label) => label.textContent,
+  );
+}
+
 describe("App", () => {
   const OriginalWebSocket = globalThis.WebSocket;
 
@@ -684,14 +693,13 @@ describe("App", () => {
           ?.querySelector(".request-row__button") as HTMLElement,
       );
 
-      const graph = document.querySelector(".execution-graph") as HTMLElement;
-      expect(graph).not.toBeNull();
-      const nodes = within(graph).getAllByRole("listitem");
-      expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
-        "console.log",
-        "sql.query",
-        "http.request",
-      ]);
+      expect(document.querySelector(".execution-graph")).not.toBeNull();
+      // Depth-first, and not everything is necessarily inside the request:
+      // http.request's span is its own measured duration ending at its
+      // publish time, so an event correlated just before the server started
+      // measuring falls outside it and stands as its own root. The graph
+      // reports that rather than forcing a parent it cannot observe.
+      expect(graphKinds()).toEqual(["console.log", "http.request", "sql.query"]);
     });
 
     it("updates the graph automatically as new events arrive for the selected request", () => {
@@ -703,11 +711,11 @@ describe("App", () => {
           ?.querySelector(".request-row__button") as HTMLElement,
       );
       expect(document.querySelector(".request-inspector")).not.toBeNull();
-      expect(document.querySelectorAll(".execution-graph__node")).toHaveLength(1);
+      expect(document.querySelectorAll(".execution-graph__row")).toHaveLength(1);
 
       receiveHttpEvent(2, "corr-1", 10);
 
-      expect(document.querySelectorAll(".execution-graph__node")).toHaveLength(2);
+      expect(document.querySelectorAll(".execution-graph__row")).toHaveLength(2);
     });
 
     it("includes an exception node for a request that captured one", () => {
@@ -722,7 +730,7 @@ describe("App", () => {
       );
 
       expect(
-        document.querySelector('.execution-graph__node[data-kind-category="exception"]'),
+        document.querySelector('.execution-graph__row[data-kind-category="exception"]'),
       ).not.toBeNull();
     });
 
@@ -888,15 +896,11 @@ describe("Offline session viewing", () => {
     await screen.findByText("message 1");
     await selectFirstRequest();
 
-    const graph = document.querySelector(".execution-graph") as HTMLElement;
-    expect(graph).not.toBeNull();
-    const nodes = within(graph).getAllByRole("listitem");
-    expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
-      "console.log",
-      "sql.query",
-      "redis.command",
-      "http.request",
-    ]);
+    expect(document.querySelector(".execution-graph")).not.toBeNull();
+    // Depth-first from the request container: the query and redis call ran
+    // inside it, and this recording's console.log falls inside the redis
+    // call's window, so it is emitted last rather than first.
+    expect(graphKinds()).toEqual(["http.request", "sql.query", "redis.command", "console.log"]);
   });
 
   it("does not register a live event listener that duplicates recorded events", async () => {
@@ -1118,13 +1122,7 @@ describe("Replay", () => {
 
       fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
 
-      const graph = document.querySelector(".execution-graph") as HTMLElement;
-      const nodes = within(graph).getAllByRole("listitem");
-      expect(nodes.map((n) => n.textContent?.replace("↓", ""))).toEqual([
-        "console.log",
-        "sql.query",
-        "http.request",
-      ]);
+      expect(graphKinds()).toEqual(["http.request", "console.log", "sql.query"]);
     });
 
     it("exception inspection works for a request reconstructed via replay", async () => {
