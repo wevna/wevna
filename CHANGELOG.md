@@ -59,6 +59,15 @@ at `1` for the 1.x line.
 - A React duplicate-key warning in the performance panel once more than one
   insight of a type could fire.
 - Test declaration files are no longer included in published tarballs.
+- **Unbounded dashboard memory growth.** Both the event and request stores grew
+  for as long as the dashboard stayed open. They now retain the most recent
+  10,000 events and 1,000 requests, oldest evicted first. Requests are capped
+  too because a request holds references to its own events, so capping the
+  event list alone would not have released them.
+- **Quadratic event ingestion.** Every append copied the entire event history,
+  making a session O(n²) — the dashboard got slower exactly when traffic picked
+  up. Appends are now amortized O(1), with the immutable snapshot React needs
+  rebuilt once per read after a change instead of once per event.
 
 ### Removed
 

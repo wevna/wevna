@@ -1,5 +1,6 @@
 import { buildRequestModel, compareEvents, type RequestModel } from "@wevna/intelligence";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
+import { MAX_LIVE_REQUESTS } from "./retention.ts";
 
 export type RequestStoreListener = () => void;
 
@@ -40,10 +41,22 @@ function insertSorted(
 // rather than on every addEvent — a burst of events (the common case: one
 // HTTP request producing several) invalidates the cache once and pays the
 // O(request count) rebuild cost once, not per event.
+//
+// Bounded, oldest-first — see retention.ts. This is what actually releases
+// memory: a RequestModel holds references to its own events, so capping the
+// event list alone would keep every correlated event alive as long as a
+// request still pointed at it.
 export class RequestStore {
   #requestsById = new Map<string, RequestModel>();
   #snapshot: readonly RequestModel[] | undefined;
   #listeners = new Set<RequestStoreListener>();
+  readonly #maxRequests: number;
+
+  // Injectable only so tests can drive eviction cheaply; production always
+  // uses the default.
+  constructor(maxRequests: number = MAX_LIVE_REQUESTS) {
+    this.#maxRequests = Math.max(1, maxRequests);
+  }
 
   getRequests = (): readonly RequestModel[] => {
     if (!this.#snapshot) {
@@ -68,6 +81,7 @@ export class RequestStore {
     const existing = this.#requestsById.get(correlationId);
     const events = insertSorted(existing?.events ?? [], event);
     this.#requestsById.set(correlationId, buildRequestModel(correlationId, events));
+    this.#evictOldest();
 
     this.#invalidate();
   }
@@ -103,6 +117,20 @@ export class RequestStore {
       this.#listeners.delete(listener);
     };
   };
+
+  // Map iteration order is insertion order, so the first key is the
+  // oldest-seen correlation. An existing request receiving another event does
+  // not move in that order, which is what we want: age is when a request
+  // started, not when it was last touched.
+  #evictOldest(): void {
+    while (this.#requestsById.size > this.#maxRequests) {
+      const oldest = this.#requestsById.keys().next();
+      if (oldest.done) {
+        return;
+      }
+      this.#requestsById.delete(oldest.value);
+    }
+  }
 
   #invalidate(): void {
     this.#snapshot = undefined;
