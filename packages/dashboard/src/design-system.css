@@ -1,0 +1,449 @@
+/* Modernist — design-system tokens and primitive component classes for the
+   Wevna dashboard. Ported from the project's Modernist reference sheet:
+   flat, architectural, near-mono red on a warm neutral ground, a visible
+   modular grid, zero corner radius, strong 2px rules. Archivo is loaded as
+   a local variable-font import in main.tsx (no CDN — the dashboard is
+   local-first) rather than the reference's Google Fonts @import.
+
+   Light is the base :root. Dark is layered on in two ways so both an
+   explicit user choice (data-theme, set by use-theme.ts) and the OS
+   preference are honoured, with the explicit choice always winning. */
+
+:root {
+  color-scheme: light;
+
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-accent-2: #e15b47;
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff2ef;
+  --color-accent-200: #ffe0d9;
+  --color-accent-300: #ffc4b8;
+  --color-accent-400: #ff9783;
+  --color-accent-500: #ff563c;
+  --color-accent-600: #dd2b0f;
+  --color-accent-700: #ae1800;
+  --color-accent-800: #7c1405;
+  --color-accent-900: #4d170e;
+
+  --color-accent-2-100: #fff2ef;
+  --color-accent-2-200: #ffe0da;
+  --color-accent-2-300: #ffc4b9;
+  --color-accent-2-400: #ff9784;
+  --color-accent-2-500: #ef6853;
+  --color-accent-2-600: #c94b39;
+  --color-accent-2-700: #9e3526;
+  --color-accent-2-800: #71261b;
+  --color-accent-2-900: #471d16;
+
+  /* Status colours for request/event outcomes — a reserved set, never
+     folded into the accent ramp above (a failure is a state, not a brand
+     moment). Kept mode-invariant like the categorical waterfall palette
+     in App.css, and CVD-safe alongside it. */
+  --color-success: light-dark(#1a8f5c, #34c98a);
+  --color-success-tint: light-dark(#e6f5ee, #103322);
+  --color-danger: light-dark(#c72c1c, #ff6a52);
+  --color-danger-tint: light-dark(#fcece9, #3a1712);
+
+  --font-heading: "Archivo Variable", system-ui, sans-serif;
+  --font-heading-weight: 800;
+  --font-body: "Archivo Variable", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+
+  --motion-fast: 120ms;
+  --motion-med: 220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark ground — regenerated rather than reusing the light ramp's literal
+   hex values: a "subtle tint fill" and "high-contrast text on a tint"
+   only read correctly if 100/900 are recomputed against a dark ground.
+   The accent ramp is the one exception (kept identical — see the
+   .btn-primary/hover rules below), since it's already light/saturated
+   enough to work as a bright accent on black without regenerating it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #171514;
+    --color-surface: #211e1d;
+    --color-text: #f2efee;
+    --color-accent: #ff5b3c;
+    --color-divider: color-mix(in srgb, #f2efee 22%, transparent);
+
+    --color-neutral-100: #211e1d;
+    --color-neutral-200: #2b2827;
+    --color-neutral-300: #3a3635;
+    --color-neutral-400: #4e4a48;
+    --color-neutral-500: #67635f;
+    --color-neutral-600: #85807b;
+    --color-neutral-700: #a8a29c;
+    --color-neutral-800: #cbc6c0;
+    --color-neutral-900: #f2efe9;
+
+    --shadow-sm: 0 0 0 1px var(--color-divider);
+    --shadow-md:
+      0 0 0 1px var(--color-divider), 0 6px 20px color-mix(in srgb, #000 45%, transparent);
+    --shadow-lg:
+      0 0 0 1px var(--color-divider), 0 16px 40px color-mix(in srgb, #000 55%, transparent);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #171514;
+  --color-surface: #211e1d;
+  --color-text: #f2efee;
+  --color-accent: #ff5b3c;
+  --color-divider: color-mix(in srgb, #f2efee 22%, transparent);
+
+  --color-neutral-100: #211e1d;
+  --color-neutral-200: #2b2827;
+  --color-neutral-300: #3a3635;
+  --color-neutral-400: #4e4a48;
+  --color-neutral-500: #67635f;
+  --color-neutral-600: #85807b;
+  --color-neutral-700: #a8a29c;
+  --color-neutral-800: #cbc6c0;
+  --color-neutral-900: #f2efe9;
+
+  --shadow-sm: 0 0 0 1px var(--color-divider);
+  --shadow-md: 0 0 0 1px var(--color-divider), 0 6px 20px color-mix(in srgb, #000 45%, transparent);
+  --shadow-lg:
+    0 0 0 1px var(--color-divider), 0 16px 40px color-mix(in srgb, #000 55%, transparent);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-med: 0ms;
+  }
+}
+
+/* Transitions already read --motion-fast/--motion-med above, so they're
+   neutralised automatically that way. @keyframes animations don't read
+   those variables — App.css silences each one it defines (row-enter,
+   tab-fade, status-pulse) individually, at the same selectors that apply
+   it, right below its own @keyframes rule. */
+
+/* ══════════════════════════════════════════════════════════════════════
+   Base
+   ══════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  transition:
+    background-color var(--motion-med) var(--ease-out),
+    color var(--motion-med) var(--ease-out);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.text-muted {
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+
+.hr {
+  height: 2px;
+  border: 0;
+  margin: 0;
+  background: var(--color-divider);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Buttons
+   ══════════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.1);
+  border-radius: var(--radius-md);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: light-dark(var(--color-accent-600), var(--color-accent-400));
+}
+
+.btn-primary:active:not(:disabled) {
+  background: light-dark(var(--color-accent-700), var(--color-accent-300));
+}
+
+.btn-secondary {
+  border-color: var(--color-divider);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+.btn-secondary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+}
+
+.btn-ghost {
+  color: var(--color-accent);
+  padding-inline: var(--space-1);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Tags / status pills
+   ══════════════════════════════════════════════════════════════════ */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.tag-accent {
+  background: var(--color-accent-100);
+  color: light-dark(var(--color-accent-800), var(--color-accent-100));
+}
+
+@media (prefers-color-scheme: dark) {
+  .tag-accent {
+    background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+}
+
+:root[data-theme="dark"] .tag-accent {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.tag-neutral {
+  background: var(--color-neutral-200);
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+
+.tag-success {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.tag-danger {
+  background: var(--color-danger-tint);
+  color: var(--color-danger);
+}
+
+.tag-outline {
+  border: 1px solid var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  background: transparent;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Inputs
+   ══════════════════════════════════════════════════════════════════ */
+
+.input {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.input:hover {
+  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.input:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 0;
+}
+
+select.input {
+  appearance: none;
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Segmented control — used for the tab bar and the session-timeline
+   category filter.
+   ══════════════════════════════════════════════════════════════════ */
+
+.seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+
+.seg-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.seg-opt + .seg-opt {
+  border-left: 1px solid var(--color-divider);
+}
+
+.seg-opt[data-active="true"] {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.seg-opt:not([data-active="true"]):hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  color: var(--color-text);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Cards
+   ══════════════════════════════════════════════════════════════════ */
+
+.card {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}

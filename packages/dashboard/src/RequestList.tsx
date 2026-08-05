@@ -1,6 +1,7 @@
 import type { RequestModel } from "@wevna/intelligence";
 import { memo } from "react";
 import { formatEventCount, formatRequestDuration } from "./request-format.ts";
+import { isErrorRequest } from "./session-timeline-layout.ts";
 
 export interface RequestListProps {
   requests: readonly RequestModel[];
@@ -24,7 +25,7 @@ const RequestRow = memo(function RequestRow({ request, selected, onSelect }: Req
   const className = selected ? "request-row request-row--selected" : "request-row";
 
   return (
-    <li className={className}>
+    <li className={className} data-error={isErrorRequest(request)}>
       <button type="button" className="request-row__button" onClick={onSelect}>
         <span className="request-row__status" data-status={request.status}>
           {request.status}

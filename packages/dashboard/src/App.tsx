@@ -1,22 +1,21 @@
+import "./design-system.css";
 import "./App.css";
+import { DashboardHeader } from "./DashboardHeader.tsx";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
 import { findTimelineEntry } from "./find-timeline-entry.ts";
 import { ReplayControls } from "./ReplayControls.tsx";
 import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
-import { SearchControls } from "./SearchControls.tsx";
-import { TimelineControls } from "./TimelineControls.tsx";
+import { formatEventCount } from "./request-format.ts";
+import { SessionTimeline } from "./SessionTimeline.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useEventSource } from "./use-event-source.ts";
 import { useRequestSelection } from "./use-request-selection.ts";
 import { useSelection } from "./use-selection.ts";
+import { useTheme } from "./use-theme.ts";
 import { useTimeline } from "./use-timeline.ts";
 
-// TODO: Replace with the real dashboard (session list) once it exists.
-// For now this proves events — live, from a fully-loaded recording, or
-// from an in-progress replay (see use-event-source.ts) — reach the UI and
-// can be inspected, paused, and searched, regardless of which one it is.
 function App() {
   const { events, requests, clearRequests, sessionMode, replay } = useEventSource();
   const { selectedId, select } = useSelection();
@@ -46,6 +45,7 @@ function App() {
   // event list) without its owning request being the one currently open
   // in the inspector.
   const selectedTimelineEntry = findTimelineEntry(requests, selectedId);
+  const { theme, toggleTheme } = useTheme();
 
   // Only meaningful in live mode — see use-event-source.ts. Clearing the
   // request list removes whatever was selected too — leaving a stale id
@@ -58,8 +58,13 @@ function App() {
 
   return (
     <main className="app">
-      <h1 className="app__title">Wevna</h1>
-      <p className="app__description">Runtime understanding for modern backends.</p>
+      <DashboardHeader
+        sessionMode={sessionMode}
+        search={{ query, kind, availableKinds, onQueryChange: setQuery, onKindChange: setKind }}
+        timeline={{ paused, liveCount, onPause: pause, onResume: resume, onClear: clear }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
       {/* Purely informational — no replay controls here, just exposing
           which recording is being viewed and when it was made. */}
@@ -86,48 +91,56 @@ function App() {
         />
       ) : null}
 
-      <TimelineControls
-        paused={paused}
-        liveCount={liveCount}
-        onPause={pause}
-        onResume={resume}
-        onClear={clear}
-      />
-      <SearchControls
-        query={query}
-        kind={kind}
-        availableKinds={availableKinds}
-        onQueryChange={setQuery}
-        onKindChange={setKind}
+      <SessionTimeline
+        requests={requests}
+        selectedRequestId={selectedRequestId}
+        onSelectRequest={selectRequest}
+        variant="ribbon"
       />
 
-      <div className="app__layout">
-        <EventList events={filteredEvents} selectedId={selectedId} onSelect={select} />
-        <EventDetails
-          event={selectedEvent}
-          relativeOffsetMs={selectedTimelineEntry?.relativeOffsetMs}
-        />
-      </div>
-
-      <section className="requests-section">
-        <div className="requests-section__header">
-          <h2 className="requests-section__title">Requests</h2>
-          {clearRequests ? (
-            <button type="button" onClick={handleClearRequests}>
-              Clear requests
-            </button>
-          ) : null}
-        </div>
-        <div className="requests-section__layout">
+      <section className="dashboard-grid">
+        <div className="dashboard-pane dashboard-pane--events">
+          <div className="dashboard-pane__heading">
+            <h2>Events</h2>
+            <span className="dashboard-pane__count">{formatEventCount(requests.length)}</span>
+            {clearRequests ? (
+              <button type="button" className="btn btn-ghost" onClick={handleClearRequests}>
+                Clear requests
+              </button>
+            ) : null}
+          </div>
           <RequestList
             requests={requests}
             selectedRequestId={selectedRequestId}
             onSelectRequest={selectRequest}
           />
+        </div>
+
+        <div className="dashboard-pane dashboard-pane--timeline">
+          <SessionTimeline
+            requests={requests}
+            selectedRequestId={selectedRequestId}
+            onSelectRequest={selectRequest}
+            variant="expanded"
+          />
+        </div>
+
+        <div className="dashboard-pane dashboard-pane--inspector">
           <RequestInspector
             request={selectedRequest}
             selectedEventId={selectedId}
             onSelectEvent={select}
+          />
+        </div>
+      </section>
+
+      <section className="all-events-section">
+        <h2 className="all-events-section__title">All Events</h2>
+        <div className="app__layout">
+          <EventList events={filteredEvents} selectedId={selectedId} onSelect={select} />
+          <EventDetails
+            event={selectedEvent}
+            relativeOffsetMs={selectedTimelineEntry?.relativeOffsetMs}
           />
         </div>
       </section>

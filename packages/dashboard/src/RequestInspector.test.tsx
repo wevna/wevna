@@ -206,7 +206,12 @@ describe("RequestInspector", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("console.log"));
+      // Scoped to the Overview tab's own event list — the Attributes tab
+      // (always mounted, see RequestInspector.tsx) shows the same event's
+      // kind too, via EventDetails, so "console.log" alone is no longer
+      // unique on the page.
+      const eventList = document.querySelector(".event-list") as HTMLElement;
+      fireEvent.click(within(eventList).getByText("console.log"));
 
       expect(onSelectEvent).toHaveBeenCalledWith("e1");
     });

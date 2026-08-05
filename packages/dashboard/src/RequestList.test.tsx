@@ -1,7 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { RequestModel } from "@wevna/intelligence";
+import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { RequestList } from "./RequestList.tsx";
+
+function makeEvent(sequence: number): Envelope<CapturedEvent> {
+  return {
+    version: 1,
+    sessionId: "session-1",
+    sequence,
+    payload: { id: `event-${sequence}`, kind: "console.log", occurredAt: 0, attributes: {} },
+  };
+}
 
 function makeRequest(overrides: Partial<RequestModel> = {}): RequestModel {
   return {
@@ -86,8 +96,8 @@ describe("RequestList", () => {
     render(
       <RequestList
         requests={[
-          makeRequest({ id: "a", correlationId: "a", events: [{} as never] }),
-          makeRequest({ id: "b", correlationId: "b", events: [{} as never, {} as never] }),
+          makeRequest({ id: "a", correlationId: "a", events: [makeEvent(1)] }),
+          makeRequest({ id: "b", correlationId: "b", events: [makeEvent(1), makeEvent(2)] }),
         ]}
         selectedRequestId={undefined}
         onSelectRequest={vi.fn()}

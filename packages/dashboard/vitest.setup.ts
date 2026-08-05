@@ -29,6 +29,21 @@ beforeEach(() => {
       return new Response(JSON.stringify({ mode: "live" }), { status: 200 });
     }),
   );
+
+  // jsdom doesn't implement matchMedia (see
+  // https://github.com/jsdom/jsdom/issues/3522) — use-theme.ts reads it
+  // for the OS light/dark preference. Every test gets a "light" system
+  // preference by default with a no-op listener; a test that specifically
+  // exercises system-theme switching overrides this itself.
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
 });
 
 afterEach(() => {
