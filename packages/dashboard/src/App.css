@@ -1,360 +1,548 @@
+/* Dashboard-specific layout and component styling, built on top of the
+   Modernist tokens/primitives in design-system.css. Every class name here
+   is the one the components already render (see each component's own
+   file) — this file only ever changes how they look, never what they
+   are, so the dashboard's test suite (which pins a lot of this DOM
+   structure) keeps passing unmodified alongside the redesign. */
+
 :root {
-  color-scheme: light dark;
   /* Shared with .timeline-axis's spacers so its ticks line up with the
      waterfall track directly below them. */
-  --wf-label-width: 7rem;
-  --wf-timing-width: 6rem;
+  --wf-label-width: 8rem;
+  --wf-timing-width: 5rem;
   /* Validated categorical palette (dataviz skill: CVD ΔE + contrast
      checked via scripts/validate_palette.js for both surfaces) — one hue
      per duration-bearing event kind. Fixed order, never cycled. Kinds with
      no duration (console.log) stay uncoloured; shape (marker vs. bar)
      already sets them apart, and a 4th competing hue isn't needed for a
-     single category. */
-  --wf-color-http: light-dark(#2a78d6, #3987e5);
-  --wf-color-sql: light-dark(#eb6834, #d95926);
-  --wf-color-redis: light-dark(#1baf7a, #199e70);
+     single category. Hue is preserved across themes; only lightness
+     shifts via light-dark(). */
+  --wf-color-http: light-dark(#2a78d6, #5b9bef);
+  --wf-color-sql: light-dark(#eb6834, #ff8b52);
+  --wf-color-redis: light-dark(#1baf7a, #34c98a);
   /* Reserved status colour (dataviz skill's fixed status palette, not the
      categorical set above) — an exception is a state ("this failed"), not
      another kind of operation, so it never competes with http/sql/redis
-     for a categorical slot. Mode-invariant by design. Ships with the
-     diamond marker shape below and the always-visible kind label, per the
-     skill's "status colour never carries meaning alone" rule. */
-  --wf-color-exception: #d03b3b;
+     for a categorical slot. Reuses the design system's own danger token
+     rather than a parallel hardcoded value. */
+  --wf-color-exception: var(--color-danger);
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+/* ══════════════════════════════════════════════════════════════════════
+   Animation
+   ══════════════════════════════════════════════════════════════════ */
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Shell
+   ══════════════════════════════════════════════════════════════════ */
 
 .app {
-  max-width: 64rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-  text-align: center;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  max-width: 1800px;
+  margin: 0 auto;
+  border-left: 2px solid var(--color-divider);
+  border-right: 2px solid var(--color-divider);
 }
 
-.app__title {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+/* Below the max-width, the border reads as a stray line rather than a
+   frame around anything — drop it so the app just fills the viewport
+   edge to edge, same as before this existed. */
+@media (max-width: 1800px) {
+  .app {
+    border-left: none;
+    border-right: none;
+  }
 }
 
-.app__description {
-  opacity: 0.7;
-  margin-bottom: 1.5rem;
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Header
+   ══════════════════════════════════════════════════════════════════ */
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+  background: var(--color-surface);
+}
+
+.dashboard-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dashboard-header__wordmark {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 1.125rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.dashboard-header__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  white-space: nowrap;
+}
+
+.dashboard-header__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-neutral-500);
+  flex: none;
+}
+
+.dashboard-header__status[data-mode="live"] .dashboard-header__status-dot {
+  background: var(--color-success);
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+.dashboard-header__status[data-mode="recording"] .dashboard-header__status-dot {
+  background: var(--wf-color-http);
+}
+
+.dashboard-header__search {
+  flex: 1;
+  max-width: 30rem;
+}
+
+.dashboard-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
 }
 
 .app__recording-banner {
-  margin: -0.75rem 0 1.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--wf-color-http);
-  border-radius: 0.375rem;
-  background: color-mix(in srgb, var(--wf-color-http) 10%, transparent);
-  font-size: 0.8125rem;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+  border-left: 3px solid var(--wf-color-http);
+  background: var(--color-surface);
+  font-size: 0.75rem;
 }
 
 .replay-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+  background: var(--color-surface);
+}
+
+.replay-controls button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--color-divider);
+}
+
+.replay-controls button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+.replay-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .replay-controls__seek {
   flex: 1;
   min-width: 0;
+  accent-color: var(--color-accent);
 }
 
 .replay-controls__position {
-  opacity: 0.7;
-  font-size: 0.8125rem;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 
 .replay-controls__finished {
-  padding: 0.125rem 0.5rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+  padding: 2px 8px;
+  border: 1px solid var(--color-divider);
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
-  opacity: 0.7;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
 }
 
 .replay-controls__speed {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  opacity: 0.85;
+  gap: 6px;
+  font-size: 0.75rem;
 }
 
 .replay-controls__speed select {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  background: none;
+  padding: 4px 8px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-bg);
   color: inherit;
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Timeline / search controls (composed into the header — see
+   DashboardHeader.tsx)
+   ══════════════════════════════════════════════════════════════════ */
 
 .timeline-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2);
 }
 
 .timeline-controls__count {
-  opacity: 0.7;
-  font-size: 0.875rem;
-  margin-right: auto;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
 .search-controls {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2);
+  width: 100%;
 }
 
 .search-controls__query {
   flex: 1;
   min-width: 0;
-  padding: 0.375rem 0.625rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 0.875rem;
 }
 
 .search-controls__kind {
-  padding: 0.375rem 0.625rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 0.875rem;
+  flex: none;
+  max-width: 9rem;
 }
 
-.app__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
-  text-align: left;
+/* ══════════════════════════════════════════════════════════════════════
+   Session timeline (ribbon + expanded middle-pane variants)
+   ══════════════════════════════════════════════════════════════════ */
+
+.session-timeline--ribbon {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+  background: var(--color-bg);
 }
 
-.event-list__empty {
-  display: block;
-  padding: 2rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.5rem;
-  opacity: 0.6;
-  grid-column: 1 / -1;
+.session-timeline__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
-.event-list {
+.session-timeline__title {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+
+.session-timeline__filter {
+  all: unset;
+  display: inline-flex;
+}
+
+.session-timeline__empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.session-timeline__axis {
+  position: relative;
+  height: 14px;
+  margin: 0 0 4px var(--wf-label-width);
+}
+
+.session-timeline--ribbon .session-timeline__axis {
+  margin-left: 0;
+}
+
+.session-timeline__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  white-space: nowrap;
+}
+
+.session-timeline__rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 32rem;
-  overflow-y: auto;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  align-self: start;
-}
-
-.event-row {
-  border-bottom: 1px solid currentColor;
-  border-left: 3px solid transparent;
-}
-
-.event-row:last-child {
-  border-bottom: none;
-}
-
-.event-row--selected {
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-
-/* The border-left (a mark, not text) carries the colour; the .event-row__kind
-   override further down (font-weight only, no colour) is the independent,
-   colour-free signal — text itself stays in the ordinary ink, per "text
-   never wears the series colour." */
-.event-row[data-kind-category="exception"] {
-  border-left-color: var(--wf-color-exception);
-}
-
-.event-row__button {
   display: flex;
+  flex-direction: column;
+}
+
+.session-timeline__row {
+  animation: row-enter var(--motion-med) var(--ease-out) both;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.session-timeline__row[data-dimmed="true"] {
+  opacity: 0.3;
+}
+
+.session-timeline__row-button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   width: 100%;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  opacity: 0.9;
-  font-size: 0.875rem;
   cursor: pointer;
 }
 
-.event-row--selected .event-row__button {
-  opacity: 1;
+.session-timeline__row-button:hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
 }
 
-.event-row__kind {
-  font-weight: 600;
-  white-space: nowrap;
+.session-timeline__row[data-selected="true"] .session-timeline__row-button {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
-.event-row[data-kind-category="exception"] .event-row__kind {
-  font-weight: 700;
-}
-
-.event-row__time {
-  opacity: 0.6;
-  white-space: nowrap;
-}
-
-.event-row__summary {
+.session-timeline__label {
+  flex: none;
+  width: var(--wf-label-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-mono);
 }
 
-.event-details {
-  padding: 1rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+.session-timeline__row[data-selected="true"] .session-timeline__label {
+  color: var(--color-accent);
+  font-weight: 700;
 }
 
-.event-details__empty {
-  padding: 1rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.5rem;
-  opacity: 0.6;
+.session-timeline__track {
+  position: relative;
+  flex: 1;
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
 }
 
-.event-details__fields {
-  margin: 0 0 1rem;
+.session-timeline__bar {
+  position: absolute;
+  inset-block: 0;
+  min-inline-size: 2px;
+  background: var(--color-success);
 }
 
-.event-details__fields dt {
-  font-weight: 600;
-  opacity: 0.6;
+.session-timeline__row[data-error="true"] .session-timeline__bar {
+  background: var(--color-danger-tint);
+  border: 1px solid var(--color-danger);
 }
 
-.event-details__fields dd {
-  margin: 0 0 0.5rem;
-  word-break: break-all;
+.session-timeline__row[data-selected="true"] .session-timeline__bar {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
 }
 
-.event-details__attributes-heading {
-  font-size: 0.875rem;
-  margin: 0 0 0.5rem;
+.session-timeline__marker {
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: 6px;
+  block-size: 6px;
+  translate: -50% -50%;
+  rotate: 45deg;
+  background: var(--color-success);
 }
 
-.event-details__attributes {
-  margin: 0;
-  padding: 0.75rem;
-  overflow-x: auto;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  font-size: 0.8125rem;
+.session-timeline__row[data-error="true"] .session-timeline__marker {
+  background: var(--color-danger);
 }
 
-.exception-details {
-  margin: 0 0 1rem;
-  padding: 0.75rem;
-  border: 1px solid var(--wf-color-exception);
-  border-radius: 0.375rem;
+.session-timeline__duration {
+  flex: none;
+  width: var(--wf-timing-width);
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.exception-details__fields {
-  margin: 0;
+/* Ribbon rows are compact reference bars — no click affordance, smaller
+   type, no trailing duration column. */
+.session-timeline--ribbon .session-timeline__label {
+  width: 7rem;
+  font-size: 10px;
 }
 
-.exception-details__fields dt {
-  font-weight: 600;
-  opacity: 0.6;
+.session-timeline--ribbon .session-timeline__track {
+  height: 8px;
 }
 
-.exception-details__fields dd {
-  margin: 0 0 0.5rem;
-  word-break: break-word;
+.session-timeline--ribbon .session-timeline__rows {
+  gap: 1px;
 }
 
-.exception-details__stack-heading {
-  font-size: 0.875rem;
-  margin: 0.75rem 0 0.5rem;
+.session-timeline--expanded .session-timeline__label {
+  font-size: 12px;
 }
 
-.exception-details__stack {
-  margin: 0;
-  padding: 0.75rem;
-  overflow-x: auto;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  font-size: 0.8125rem;
-  white-space: pre-wrap;
-  word-break: break-word;
+.session-timeline--expanded .session-timeline__track {
+  height: 14px;
 }
 
-.requests-section {
-  margin-top: 1.5rem;
-  text-align: left;
+.session-timeline--expanded .session-timeline__rows {
+  gap: 3px;
 }
 
-.requests-section__header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
+/* ══════════════════════════════════════════════════════════════════════
+   Three-pane grid
+   ══════════════════════════════════════════════════════════════════ */
 
-.requests-section__title {
-  font-size: 1rem;
-  margin: 0;
-  margin-right: auto;
-}
-
-.requests-section__layout {
+.dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 1rem;
+  grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.2fr) minmax(340px, 1.4fr);
   align-items: start;
+  border-top: 2px solid var(--color-divider);
+  border-bottom: 2px solid var(--color-divider);
 }
+
+/* Divider lines are drawn per-pane (not via the grid-gap/background trick)
+   so each column's rule only ever runs the length of that column's own
+   content — three panes with very different content lengths (a two-line
+   placeholder next to a full inspector) never leaves a tall column's
+   divider colour bleeding into a short column's empty space below it. */
+.dashboard-pane {
+  background: var(--color-bg);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+  max-height: 34rem;
+  overflow-y: auto;
+  border-right: 2px solid var(--color-divider);
+}
+
+.dashboard-pane:last-child {
+  border-right: none;
+}
+
+.dashboard-pane__heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.dashboard-pane__heading h2 {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-pane__count {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.dashboard-pane__heading .btn {
+  margin-left: auto;
+}
+
+.dashboard-pane--timeline {
+  padding-top: var(--space-3);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Request list (the Events pane's rows)
+   ══════════════════════════════════════════════════════════════════ */
 
 .request-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  max-height: 32rem;
-  overflow-y: auto;
 }
 
 .request-list__empty {
-  padding: 2rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.5rem;
-  opacity: 0.6;
+  padding: var(--space-6) var(--space-3);
+  border: 1px dashed var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.8125rem;
+  text-align: center;
 }
 
 .request-row {
-  border-bottom: 1px solid currentColor;
-  font-size: 0.875rem;
+  border-bottom: 1px solid var(--color-divider);
+  border-left: 2px solid transparent;
+  animation: row-enter var(--motion-med) var(--ease-out) both;
 }
 
 .request-row:last-child {
@@ -362,140 +550,385 @@ body {
 }
 
 .request-row--selected {
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-left-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .request-row__button {
+  all: unset;
+  box-sizing: border-box;
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  opacity: 0.9;
+  gap: var(--space-2);
+  padding: 7px var(--space-2);
   cursor: pointer;
+  font-size: 0.75rem;
 }
 
-.request-row--selected .request-row__button {
-  opacity: 1;
+.request-row__button:hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
 }
 
 .request-row__status {
+  flex: none;
+  width: 3.75rem;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  opacity: 0.6;
-  white-space: nowrap;
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
 }
 
 .request-row__status[data-status="pending"] {
-  opacity: 0.9;
+  color: var(--wf-color-http);
 }
 
 .request-row__method {
-  font-weight: 600;
-  white-space: nowrap;
+  flex: none;
+  width: 2.75rem;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 0.6875rem;
 }
 
 .request-row__route {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  font-family: var(--font-mono);
 }
 
-.request-row__status-code,
+.request-row__status-code {
+  flex: none;
+  width: 2.25rem;
+  text-align: right;
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+
+.request-row[data-error="true"] .request-row__status-code {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
 .request-row__duration,
 .request-row__count {
-  opacity: 0.7;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
   white-space: nowrap;
 }
 
+.request-row__duration {
+  width: 3.5rem;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Event list (reused inside the Overview tab and the "All Events"
+   section)
+   ══════════════════════════════════════════════════════════════════ */
+
+.event-list__empty {
+  display: block;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 20rem;
+  overflow-y: auto;
+  border: 1px solid var(--color-divider);
+}
+
+.event-row {
+  border-bottom: 1px solid var(--color-divider);
+  border-left: 2px solid transparent;
+  animation: row-enter var(--motion-med) var(--ease-out) both;
+}
+
+.event-row:last-child {
+  border-bottom: none;
+}
+
+.event-row--selected {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.event-row[data-kind-category="exception"] {
+  border-left-color: var(--wf-color-exception);
+}
+
+.event-row__button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.event-row__button:hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+
+.event-row__kind {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.event-row[data-kind-category="exception"] .event-row__kind {
+  color: var(--wf-color-exception);
+}
+
+.event-row__time {
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.event-row__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--color-text) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Request inspector (right pane: tab bar + Overview/Attributes/
+   Performance panels)
+   ══════════════════════════════════════════════════════════════════ */
+
 .request-inspector {
-  padding: 0.75rem 1rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: 0.8125rem;
 }
 
 .request-inspector__empty {
-  padding: 2rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.5rem;
-  opacity: 0.6;
+  padding: var(--space-8) var(--space-3);
+  border: 1px dashed var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  text-align: center;
+}
+
+.request-inspector__tabs {
+  align-self: flex-start;
+}
+
+.request-inspector__panel {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.request-inspector__panel[data-active="true"] {
+  display: flex;
+  animation: tab-fade var(--motion-med) var(--ease-out);
 }
 
 .request-inspector__summary {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.25rem 0.75rem;
-  margin: 0 0 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .request-inspector__summary dt {
-  font-weight: 600;
-  opacity: 0.6;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  margin: 0 0 2px;
 }
 
 .request-inspector__summary dd {
   margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   word-break: break-all;
 }
 
 .request-inspector__section-heading {
-  font-size: 0.875rem;
-  margin: 1rem 0 0.25rem;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  margin: 0;
 }
 
-.request-inspector__section-heading:first-of-type {
-  margin-top: 0;
+/* ══════════════════════════════════════════════════════════════════════
+   Event details / exception details (Attributes tab + All Events pane)
+   ══════════════════════════════════════════════════════════════════ */
+
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.event-details__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px dashed var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  text-align: center;
+}
+
+.event-details__fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.event-details__fields dt {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  margin: 0 0 2px;
+}
+
+.event-details__fields dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  word-break: break-all;
+}
+
+.event-details__attributes-heading {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  margin: 0 0 var(--space-2);
+}
+
+.event-details__attributes {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.exception-details {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--wf-color-exception);
+  border-left-width: 3px;
+  background: var(--color-danger-tint);
+}
+
+.exception-details__fields {
+  margin: 0;
+}
+
+.exception-details__fields dt {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+
+.exception-details__fields dd {
+  margin: 0 0 var(--space-2);
+  word-break: break-word;
+}
+
+.exception-details__stack-heading {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.exception-details__stack {
+  margin: 0;
+  padding: var(--space-2);
+  overflow-x: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Performance section
+   ══════════════════════════════════════════════════════════════════ */
+
+.performance-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .performance-section__summary {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.25rem 0.75rem;
-  margin: 0 0 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
 }
 
 .performance-section__summary dt {
-  font-weight: 600;
-  opacity: 0.6;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  margin: 0 0 2px;
 }
 
 .performance-section__summary dd {
   margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
   word-break: break-word;
 }
 
 .performance-section__no-insights {
   margin: 0;
-  opacity: 0.6;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.8125rem;
 }
 
 .performance-section__insights {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .performance-insight {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
-  padding: 0.5rem 0.625rem;
-  margin-bottom: 0.5rem;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-divider);
   border-left: 3px solid var(--wf-color-exception);
-  border-radius: 0.125rem;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  font-size: 0.8125rem;
-}
-
-.performance-insight:last-child {
-  margin-bottom: 0;
+  background: var(--color-surface);
+  font-size: 0.75rem;
 }
 
 .performance-insight__title {
@@ -503,44 +936,39 @@ body {
 }
 
 .performance-insight__message {
-  opacity: 0.8;
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
 }
 
 .performance-section__attribution {
   list-style: none;
-  margin: 0 0 1rem;
+  margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.25rem;
+  gap: 4px;
 }
 
 .time-attribution {
   display: grid;
   grid-template-columns: var(--wf-label-width) minmax(0, 1fr) var(--wf-timing-width);
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
+  gap: var(--space-2);
+  font-size: 0.75rem;
 }
 
 .time-attribution__category {
-  font-family: ui-monospace, monospace;
-  opacity: 0.8;
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
 }
 
 .time-attribution__meter {
-  block-size: 0.5rem;
-  border-radius: 0.125rem;
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  block-size: 6px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
   overflow: hidden;
 }
 
-/* The meter is decorative: the millisecond total and percentage next to it
-   carry the same information as text, so colour and length are never the
-   only signal. */
 .time-attribution__fill {
   display: block;
   block-size: 100%;
-  border-radius: 0.125rem;
   background: currentColor;
 }
 
@@ -558,63 +986,51 @@ body {
 }
 
 .time-attribution__value {
-  opacity: 0.7;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: end;
   white-space: nowrap;
 }
 
-/* Removed from the visual layout but left in the accessibility tree — for
-   text that a sighted reader gets from position or shape instead. */
-.visually-hidden {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
+/* ══════════════════════════════════════════════════════════════════════
+   Execution graph
+   ══════════════════════════════════════════════════════════════════ */
 
 .execution-graph {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 .execution-graph__empty {
   margin: 0;
-  opacity: 0.6;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-/* Three columns: the nested label, the shared proportional track, and the
-   duration. The track is the flexible one, so bars stay comparable between
-   rows no matter how deeply a row is nested or how long its kind name is. */
 .execution-graph__row {
   display: grid;
   grid-template-columns: var(--wf-label-width) minmax(0, 1fr) var(--wf-timing-width);
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.125rem 0;
+  gap: var(--space-2);
+  padding: 2px 0;
 }
 
 .execution-graph__label {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 4px;
   min-width: 0;
 }
 
 .execution-graph__connector {
-  opacity: 0.45;
-  font-family: ui-monospace, monospace;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  font-family: var(--font-mono);
 }
 
 .execution-graph__kind {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -623,49 +1039,40 @@ body {
 .execution-graph__track {
   position: relative;
   display: block;
-  block-size: 0.75rem;
-  border-radius: 0.125rem;
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  block-size: 10px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 
 .execution-graph__bar {
   position: absolute;
   inset-block: 0;
   min-inline-size: 2px;
-  border-radius: 0.125rem;
   background: currentColor;
 }
 
-/* A zero-duration event is a point in time, not a span — shape carries that
-   distinction, so it reads correctly without relying on colour. */
 .execution-graph__marker {
   position: absolute;
   inset-block-start: 50%;
-  inline-size: 0.375rem;
-  block-size: 0.375rem;
+  inline-size: 6px;
+  block-size: 6px;
   translate: -50% -50%;
   rotate: 45deg;
   background: currentColor;
 }
 
 .execution-graph__duration {
-  opacity: 0.7;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: end;
   white-space: nowrap;
 }
 
-/* Same categorical palette as the waterfall, applied to the bar itself
-   rather than to text — the kind label is always present and readable, so
-   colour is never the only signal. */
 .execution-graph__row[data-kind-category="http"] .execution-graph__bar {
   background: var(--wf-color-http);
 }
 
 .execution-graph__row[data-kind-category="httpClient"] .execution-graph__bar {
-  /* Outgoing calls share the HTTP hue but are hatched, so "we served a
-     request" and "we called someone else" are distinguishable without
-     spending a second categorical colour on the same protocol. */
   background: repeating-linear-gradient(
     45deg,
     var(--wf-color-http),
@@ -688,25 +1095,23 @@ body {
   background: var(--wf-color-exception);
 }
 
-.execution-graph__connector {
-  padding: 0.125rem 0;
-  opacity: 0.5;
-  font-size: 0.75rem;
-}
+/* ══════════════════════════════════════════════════════════════════════
+   Waterfall timeline + its axis (Performance tab)
+   ══════════════════════════════════════════════════════════════════ */
 
 .waterfall {
   list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0 0;
-  border-top: 1px dashed currentColor;
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px dashed var(--color-divider);
 }
 
 .waterfall-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.125rem 0;
-  font-size: 0.75rem;
+  gap: var(--space-2);
+  padding: 2px 0;
+  font-size: 0.6875rem;
 }
 
 .waterfall-row__label {
@@ -715,16 +1120,15 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.8;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
 }
 
 .waterfall-row__track {
   position: relative;
   flex: 1;
-  height: 0.875rem;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  border-radius: 0.125rem;
+  height: 12px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 
 .waterfall-row__bar {
@@ -732,17 +1136,16 @@ body {
   top: 0;
   bottom: 0;
   min-width: 2px;
-  background: color-mix(in srgb, currentColor 55%, transparent);
-  border: 1px solid currentColor;
-  border-radius: 0.125rem;
+  background: color-mix(in srgb, var(--color-text) 45%, transparent);
+  border: 1px solid var(--color-divider);
 }
 
 .waterfall-row__marker {
   position: absolute;
   top: 50%;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-left: -0.25rem;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
   transform: translateY(-50%);
   border-radius: 50%;
   background: currentColor;
@@ -752,9 +1155,9 @@ body {
   flex: none;
   width: var(--wf-timing-width);
   text-align: right;
-  opacity: 0.6;
-  font-family: ui-monospace, monospace;
-  font-size: 0.6875rem;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
 }
 
 .waterfall-row__bar[data-kind-category="http"] {
@@ -789,8 +1192,6 @@ body {
   border-color: var(--wf-color-exception);
 }
 
-/* A diamond, not the neutral dot every other instantaneous kind uses —
-   shape carries the "this failed" distinction independently of colour. */
 .waterfall-row__marker[data-kind-category="exception"] {
   background: var(--wf-color-exception);
   border-radius: 0;
@@ -800,9 +1201,9 @@ body {
 .timeline-axis {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 0.875rem;
-  margin: 0.5rem 0 0.125rem;
+  gap: var(--space-2);
+  height: 14px;
+  margin: var(--space-2) 0 2px;
 }
 
 .timeline-axis__spacer {
@@ -824,7 +1225,56 @@ body {
   position: absolute;
   top: 0;
   white-space: nowrap;
-  opacity: 0.5;
-  font-family: ui-monospace, monospace;
-  font-size: 0.625rem;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   All Events (the original flat, request-agnostic event stream —
+   demoted below the hero three-pane layout, still fully functional)
+   ══════════════════════════════════════════════════════════════════ */
+
+.all-events-section {
+  padding: var(--space-4);
+}
+
+.all-events-section__title {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  margin: 0 0 var(--space-3);
+}
+
+.app__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 960px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Reduced motion — silences every @keyframes animation defined above at
+   the same selectors that apply it. Kept last so its specificity always
+   wins in source order too, rather than leaning on !important.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .request-row,
+  .event-row,
+  .session-timeline__row,
+  .request-inspector__panel[data-active="true"],
+  .dashboard-header__status[data-mode="live"] .dashboard-header__status-dot {
+    animation: none;
+  }
 }

@@ -13,8 +13,10 @@
     "lint": "biome check ."
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
     "@wevna/intelligence": "workspace:*",
     "@wevna/protocol": "workspace:*",
+    "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
