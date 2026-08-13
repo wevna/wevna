@@ -43,7 +43,7 @@ describe("ConsoleInstrumentation", () => {
     expect(publish.mock.calls[0]?.[0].kind).toBe("console.log");
   });
 
-  it("includes the original arguments in attributes", () => {
+  it("formats the arguments into a message", () => {
     console.log = vi.fn();
     const publish = vi.fn<(event: CapturedEvent) => void>();
     const instrumentation = new ConsoleInstrumentation(publish);
@@ -51,8 +51,54 @@ describe("ConsoleInstrumentation", () => {
     instrumentation.start();
     console.log("hello", 42, { a: 1 });
 
-    expect(publish.mock.calls[0]?.[0].attributes.arguments).toEqual(["hello", 42, { a: 1 }]);
     expect(publish.mock.calls[0]?.[0].attributes.message).toBe("hello 42 { a: 1 }");
+  });
+
+  // The raw values are user-controlled and are serialized downstream, so
+  // capturing them is what made console.log(req) throw a circular-structure
+  // TypeError back into the caller. Nothing ever read them.
+  it("never captures the raw argument values", () => {
+    console.log = vi.fn();
+    const publish = vi.fn<(event: CapturedEvent) => void>();
+    const instrumentation = new ConsoleInstrumentation(publish);
+
+    instrumentation.start();
+    console.log("hello", 42, { a: 1 });
+
+    expect(publish.mock.calls[0]?.[0].attributes).not.toHaveProperty("arguments");
+  });
+
+  it("does not throw when an argument cannot be serialized", () => {
+    console.log = vi.fn();
+    const circular: Record<string, unknown> = { name: "req" };
+    circular.self = circular;
+    const published: CapturedEvent[] = [];
+    const instrumentation = new ConsoleInstrumentation((event) => {
+      // Stands in for the WebSocket transport, the real subscriber whose
+      // JSON.stringify threw on the way back out to the caller.
+      JSON.stringify(event);
+      published.push(event);
+    });
+
+    instrumentation.start();
+
+    expect(() => {
+      console.log(circular);
+    }).not.toThrow();
+    expect(published).toHaveLength(1);
+  });
+
+  it("does not throw on a BigInt argument", () => {
+    console.log = vi.fn();
+    const instrumentation = new ConsoleInstrumentation((event) => {
+      JSON.stringify(event);
+    });
+
+    instrumentation.start();
+
+    expect(() => {
+      console.log(10n);
+    }).not.toThrow();
   });
 
   it("restores the original console.log on stop", () => {

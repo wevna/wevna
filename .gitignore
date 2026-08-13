@@ -36,3 +36,6 @@ packages/dashboard/dist/
 # Generated at build time from the root README — see
 # scripts/copy-root-readme.mjs. Not a second copy to edit by hand.
 packages/sdk/README.md
+
+# Internal architecture audit — working notes, not public documentation.
+AUDIT_wevna.md

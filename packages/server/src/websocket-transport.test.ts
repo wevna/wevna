@@ -69,6 +69,54 @@ describe("WebSocketTransport", () => {
     ws.terminate();
   });
 
+  // `attributes` is Record<string, unknown> by design, so a plugin can hand
+  // the transport a value JSON cannot represent. Emitting runs on the call
+  // stack of the work being observed, so this has to degrade rather than
+  // throw.
+  it("drops an unserializable event instead of throwing at the emit site", async () => {
+    app = Fastify();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const eventSource = createTestEventSource();
+    await new WebSocketTransport().register(app, eventSource);
+    await app.ready();
+
+    const ws = await app.injectWS("/ws");
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const envelope = makeEnvelope();
+    envelope.payload.attributes = { circular };
+
+    expect(() => eventSource.emit(envelope)).not.toThrow();
+    expect(errors).toHaveBeenCalledOnce();
+    expect(errors.mock.calls[0]?.[0]).toContain('dropped a "test" event');
+
+    ws.terminate();
+    errors.mockRestore();
+  });
+
+  it("keeps broadcasting after an unserializable event is dropped", async () => {
+    app = Fastify();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const eventSource = createTestEventSource();
+    await new WebSocketTransport().register(app, eventSource);
+    await app.ready();
+
+    const ws = await app.injectWS("/ws");
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const bad = makeEnvelope(1);
+    bad.payload.attributes = { circular };
+    eventSource.emit(bad);
+
+    const received = nextMessage(ws);
+    const good = makeEnvelope(2);
+    eventSource.emit(good);
+
+    expect(JSON.parse(await received)).toEqual(good);
+    ws.terminate();
+    errors.mockRestore();
+  });
+
   it("broadcasts the same event to multiple connected clients", async () => {
     app = Fastify();
     const eventSource = createTestEventSource();

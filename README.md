@@ -143,10 +143,17 @@ Order doesn't matter — call these before or after `start()`.
 | --- | --- | --- |
 | PostgreSQL | Query text, duration, row count | Parameter **values** (`args[1]` is never read) |
 | Redis | Command name, duration | Command arguments or results |
+| `console.log` | The formatted message, as a string | The raw argument objects |
 
 Redis arguments are never captured because commands routinely carry the value
 inline (`SET session:abc <token>`) — unlike parameterized SQL, there's no safe
 subset to keep.
+
+`console.log` is captured the way it prints: arguments go through
+`util.format` and only the resulting string is kept. The raw objects are
+never retained, so logging something live and deeply connected —
+`console.log(req)` — records the same line you saw in your terminal and
+nothing hanging off it.
 
 ## Outgoing HTTP
 
@@ -202,7 +209,7 @@ const app = express();
 
 // ... your routes ...
 
-app.use(wevnaExpressErrorHandler());  // last, after all routes
+app.use(wevnaExpressErrorHandler);  // last, after all routes
 ```
 
 **Fastify:**
@@ -623,9 +630,15 @@ pnpm build
 pnpm test
 ```
 
-Requires Node 22+ and pnpm. See [examples/](examples/) for integration
+Requires Node 22+ and pnpm. [CONTRIBUTING.md](CONTRIBUTING.md) has the full
+guide — repository layout, the one command that runs exactly what CI runs,
+and what we look for in a change. See [examples/](examples/) for integration
 patterns with specific frameworks, and [TESTING.md](TESTING.md) for how to
 verify a change — both the automated gate and a manual end-to-end checklist.
+
+Participation is covered by our [Code of Conduct](CODE_OF_CONDUCT.md).
+Security issues go through [SECURITY.md](SECURITY.md), privately, rather than
+the public issue tracker.
 
 Releases are cut by pushing a version tag (`v1.0.0`); CI runs the full
 build/check/test/lint gate and publishes the three public packages with npm

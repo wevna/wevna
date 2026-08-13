@@ -1,0 +1,49 @@
+name: Feature request
+description: Something Wevna should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, it's worth skimming
+        [PROJECT_STATUS.md](https://github.com/wevna/wevna/blob/main/PROJECT_STATUS.md)
+        — it records what was deliberately left out and why, so you may find
+        your idea already has an answer there.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you running into?
+      description: >
+        Describe the situation you're in, not the feature you have in mind.
+        The underlying problem is usually more useful than a proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Wevna to do?
+      description: If you have a specific design in mind, sketch it here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What are you doing instead today?
+      description: >
+        Workarounds, other tools, or "nothing — I just live with it" are all
+        useful answers.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: >
+        Wevna is deliberately a **local-first development tool** — not an APM,
+        not a cloud service, not another OpenTelemetry SDK.
+      options:
+        - label: This fits a local-first development tool that runs on a developer's machine
