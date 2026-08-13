@@ -131,7 +131,7 @@ signature — with SQL normalized to a shape.
 
 ### #38 — Publishable + v1 contracts frozen
 **The actual production blocker.** Every package was `private: true`, so
-`npm install wevna` was impossible. Three packages now publish at 1.0.0. Closed
+publishing was impossible. Three packages now publish at 1.0.0. Closed
 internal-package leaks from published type declarations. Narrowed
 `wevna.start()`'s options. Added `STABILITY.md`, `CHANGELOG.md`, and a release
 workflow.

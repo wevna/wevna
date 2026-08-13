@@ -1,5 +1,5 @@
+import { PLUGIN_API_VERSION, type PluginContext, type PluginEvent } from "@wevna/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PLUGIN_API_VERSION, type PluginContext, type PluginEvent } from "wevna";
 import { createFetchPlugin } from "./fetch-plugin.js";
 
 function makeContext(): PluginContext & { published: PluginEvent[] } {

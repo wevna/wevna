@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copies the repo root README (the project's primary documentation) into a
 // package directory so it ships inside that package's published tarball.
-// Used by `wevna` specifically: it's the flagship package and effectively
+// Used by `@wevna/sdk` specifically: it's the flagship package and effectively
 // synonymous with the whole project, so its npm page should show the same
 // comprehensive usage guide as the repository itself, rather than a thin
 // package-specific stub — unlike @wevna/protocol and @wevna/plugin-fetch,

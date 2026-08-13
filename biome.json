@@ -7,13 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": [
-      "**",
-      "!**/dist",
-      "!**/coverage",
-      "!**/.turbo",
-      "!**/tsup.config.bundled_*.mjs"
-    ]
+    "includes": ["**", "!**/dist", "!**/coverage", "!**/.turbo", "!**/tsup.config.bundled_*.mjs"]
   },
   "formatter": {
     "enabled": true,

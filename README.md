@@ -75,7 +75,7 @@ order, with the slow part named — instead of reconstructing it from log lines.
 ## Install
 
 ```bash
-npm install wevna     # pnpm add wevna · yarn add wevna
+npm install @wevna/sdk     # pnpm add @wevna/sdk · yarn add @wevna/sdk
 ```
 
 Requires **Node 22+**. Wevna is a `devDependency` in spirit — it's a debugging
@@ -87,7 +87,7 @@ tool, not something you run in production. Nothing stops you, but see
 One call. Put it as early in your startup as you can:
 
 ```ts
-import { wevna } from "wevna";
+import { wevna } from "@wevna/sdk";
 
 await wevna.start();
 ```
@@ -122,7 +122,7 @@ Wevna the client you already created, once.
 ```ts
 import { Pool } from "pg";
 import Redis from "ioredis";
-import { wevna } from "wevna";
+import { wevna } from "@wevna/sdk";
 
 await wevna.start();
 
@@ -165,7 +165,7 @@ npm install @wevna/plugin-fetch
 ```
 
 ```ts
-import { wevna } from "wevna";
+import { wevna } from "@wevna/sdk";
 import { createFetchPlugin } from "@wevna/plugin-fetch";
 
 wevna.use(createFetchPlugin());
@@ -202,7 +202,7 @@ handler exceptions (Express has no hook Wevna can patch for this):
 
 ```ts
 import express from "express";
-import { wevna, wevnaExpressErrorHandler } from "wevna";
+import { wevna, wevnaExpressErrorHandler } from "@wevna/sdk";
 
 await wevna.start();
 const app = express();
@@ -216,7 +216,7 @@ app.use(wevnaExpressErrorHandler);  // last, after all routes
 
 ```ts
 import Fastify from "fastify";
-import { wevna, wevnaFastifyEnrichment } from "wevna";
+import { wevna, wevnaFastifyEnrichment } from "@wevna/sdk";
 
 await wevna.start();
 const app = Fastify();
@@ -226,7 +226,7 @@ await app.register(wevnaFastifyEnrichment);
 **NestJS:**
 
 ```ts
-import { WevnaNestInterceptor } from "wevna";
+import { WevnaNestInterceptor } from "@wevna/sdk";
 
 app.useGlobalInterceptors(new WevnaNestInterceptor());
 ```
@@ -293,7 +293,7 @@ cut short by a crash is still valid up to its last complete line.
 Open it later, with no running application:
 
 ```ts
-import { openRecording } from "wevna";
+import { openRecording } from "@wevna/sdk";
 
 const result = await openRecording("./session.jsonl");
 if (result.ok) {
@@ -375,7 +375,7 @@ Anything Wevna doesn't instrument itself can be added as a plugin, without
 touching Wevna's core:
 
 ```ts
-import { PLUGIN_API_VERSION, wevna, type WevnaPlugin } from "wevna";
+import { PLUGIN_API_VERSION, wevna, type WevnaPlugin } from "@wevna/sdk";
 
 const myPlugin: WevnaPlugin = {
   name: "wevna-plugin-acme",
@@ -608,12 +608,12 @@ recording, find out what a request was without importing React.
 
 ## Packages
 
-This is a pnpm monorepo. The published `wevna` package (`packages/sdk`) is
+This is a pnpm monorepo. The published `@wevna/sdk` package (`packages/sdk`) is
 the only one you install; everything else supports it:
 
 | Package               | What it is                                      |
 | ---------------------- | ------------------------------------------------ |
-| `packages/sdk`         | The `wevna` package — public API, Runtime, instrumentation |
+| `packages/sdk`         | The `@wevna/sdk` package — public API, Runtime, instrumentation |
 | `packages/protocol`    | The shared event/envelope types every other package agrees on. Published as `@wevna/protocol` for plugin authors and anything reading a recording file |
 | `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
 | `packages/dashboard`   | The React dashboard UI, served by the local server |
@@ -649,7 +649,7 @@ rather run `pnpm release` locally.
 ## Stability
 
 `PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen at `1` for the 1.x
-line. Three published packages — `wevna`, `@wevna/protocol`,
+line. Three published packages — `@wevna/sdk`, `@wevna/protocol`,
 `@wevna/plugin-fetch` — everything else is internal and bundled.
 
 Wevna guarantees it never changes what your code does and never throws into

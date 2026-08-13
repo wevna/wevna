@@ -1,5 +1,5 @@
 {
-  "name": "wevna",
+  "name": "@wevna/sdk",
   "version": "1.0.0",
   "description": "Local-first runtime dashboard for Node.js backends: watch HTTP, SQL, Redis and console activity live, correlated per request.",
   "type": "module",

@@ -216,7 +216,7 @@ wc -l session.jsonl
 Then in a **separate** process, with your app not running:
 
 ```ts
-import { openRecording } from "wevna";
+import { openRecording } from "@wevna/sdk";
 const result = await openRecording("./session.jsonl");
 console.log(result.ok ? result.recording.url : result.error);
 ```

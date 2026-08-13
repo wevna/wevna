@@ -4,7 +4,7 @@ import {
   type PluginContext,
   type PluginSetupResult,
   type WevnaPlugin,
-} from "wevna";
+} from "@wevna/sdk";
 import { describeFetchTarget } from "./sanitize-url.js";
 
 export interface FetchPluginOptions {
