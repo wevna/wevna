@@ -53,3 +53,4 @@ tsup.config.bundled_*.mjs
 
 # Draft launch post — not repo content.
 DEVTO-POST.md
+GITHUB-SUPPORT-REQUEST.md
