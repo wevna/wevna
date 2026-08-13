@@ -87,6 +87,41 @@ describe("normalizeSqlShape", () => {
       "super-secret",
     );
   });
+
+  // Double quotes delimit an identifier in Postgres, not a string. Rewriting
+  // them collapsed every quoted table and column to `?`, so unrelated queries
+  // grouped as one repeated operation — and mixed-case identifiers are the
+  // default for Prisma, TypeORM and Sequelize.
+  it("keeps queries against different quoted tables distinct", () => {
+    expect(normalizeSqlShape('select * from "Users" where "orgId" = $1')).not.toBe(
+      normalizeSqlShape('select * from "Orders" where "orgId" = $1'),
+    );
+  });
+
+  it("keeps different quoted columns on the same table distinct", () => {
+    expect(normalizeSqlShape('select * from "Users" where "orgId" = $1')).not.toBe(
+      normalizeSqlShape('select * from "Users" where "email" = $1'),
+    );
+  });
+
+  it("preserves quoted identifiers in the signature so it stays actionable", () => {
+    const shape = normalizeSqlShape('select * from "OrderItems" where "orderId" = $1');
+    expect(shape).toContain("orderitems");
+    expect(shape).toContain("orderid");
+  });
+
+  it("still groups a quoted-identifier query repeated with different values", () => {
+    // The N+1 case this detector exists for, on a Prisma-style schema.
+    expect(normalizeSqlShape('select * from "OrderItems" where "orderId" = 1')).toBe(
+      normalizeSqlShape('select * from "OrderItems" where "orderId" = 2'),
+    );
+  });
+
+  it("still collapses a single-quoted literal next to a quoted identifier", () => {
+    const shape = normalizeSqlShape(`select * from "Users" where "email" = 'a@b.com'`);
+    expect(shape).not.toContain("a@b.com");
+    expect(shape).toContain("users");
+  });
 });
 
 describe("detectRepeatedOperations", () => {
