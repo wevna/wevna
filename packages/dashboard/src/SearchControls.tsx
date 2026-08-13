@@ -17,14 +17,14 @@ export function SearchControls({
     <div className="search-controls">
       <input
         type="search"
-        className="search-controls__query"
-        placeholder="Search kind, summary, attributes..."
+        className="search-controls__query input"
+        placeholder="Search kind, route, attributes..."
         aria-label="Search events"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
       />
       <select
-        className="search-controls__kind"
+        className="search-controls__kind input"
         aria-label="Filter by kind"
         value={kind}
         onChange={(event) => onKindChange(event.target.value)}

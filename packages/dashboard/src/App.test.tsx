@@ -420,8 +420,13 @@ describe("App", () => {
 
       const inspector = document.querySelector(".request-inspector") as HTMLElement;
       expect(inspector).not.toBeNull();
-      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
-      expect(within(inspector).getByText("200")).toBeInTheDocument();
+      // Scoped to the summary dl — "corr-1" also shows up in the
+      // Attributes tab's own EventDetails view (always mounted, see
+      // RequestInspector.tsx), so it's no longer unique across the whole
+      // inspector.
+      const summary = inspector.querySelector(".request-inspector__summary") as HTMLElement;
+      expect(within(summary).getByText("corr-1")).toBeInTheDocument();
+      expect(within(summary).getByText("200")).toBeInTheDocument();
       expect(inspector.querySelector(".waterfall")).not.toBeNull();
       // Both events belonging to corr-1 show up in the inspector's own
       // event list.
@@ -450,7 +455,8 @@ describe("App", () => {
       receiveHttpEvent(2, "corr-1");
 
       const inspector = document.querySelector(".request-inspector") as HTMLElement;
-      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+      const summary = inspector.querySelector(".request-inspector__summary") as HTMLElement;
+      expect(within(summary).getByText("corr-1")).toBeInTheDocument();
       expect(inspector.querySelectorAll(".event-row")).toHaveLength(2);
     });
 
@@ -533,9 +539,13 @@ describe("App", () => {
 
       fireEvent.click(within(inspectorEventList).getByText("exception.captured"));
 
-      expect(document.querySelector(".exception-details")).not.toBeNull();
-      expect(screen.getByText("TypeError")).toBeInTheDocument();
-      expect(screen.getByText("cannot read property of undefined")).toBeInTheDocument();
+      // Scoped to the inspector — the same event's ExceptionDetails also
+      // renders in the top-level EventDetails panel (always mounted, see
+      // App.tsx), so this content is no longer unique across the page.
+      const inspector = document.querySelector(".request-inspector") as HTMLElement;
+      expect(inspector.querySelector(".exception-details")).not.toBeNull();
+      expect(within(inspector).getByText("TypeError")).toBeInTheDocument();
+      expect(within(inspector).getByText("cannot read property of undefined")).toBeInTheDocument();
     });
 
     it("shows Time Within Request and Correlation ID for a selected exception", () => {
@@ -844,7 +854,8 @@ describe("Offline session viewing", () => {
     await selectFirstRequest();
 
     const inspector = document.querySelector(".request-inspector") as HTMLElement;
-    expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+    const summary = inspector.querySelector(".request-inspector__summary") as HTMLElement;
+    expect(within(summary).getByText("corr-1")).toBeInTheDocument();
     expect(inspector.querySelector(".waterfall")).not.toBeNull();
     expect(inspector.querySelectorAll(".event-row")).toHaveLength(2);
   });
@@ -1097,7 +1108,8 @@ describe("Replay", () => {
       fireEvent.click(document.querySelector(".request-list .request-row__button") as HTMLElement);
 
       const inspector = document.querySelector(".request-inspector") as HTMLElement;
-      expect(within(inspector).getByText("corr-1")).toBeInTheDocument();
+      const summary = inspector.querySelector(".request-inspector__summary") as HTMLElement;
+      expect(within(summary).getByText("corr-1")).toBeInTheDocument();
       expect(inspector.querySelector(".waterfall")).not.toBeNull();
       expect(inspector.querySelectorAll(".event-row")).toHaveLength(3);
     });
