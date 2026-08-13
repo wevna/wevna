@@ -50,3 +50,6 @@ tsup.config.bundled_*.mjs
 
 # Ad-hoc screenshots taken while driving the dashboard locally.
 /*.png
+
+# Draft launch post — not repo content.
+DEVTO-POST.md
