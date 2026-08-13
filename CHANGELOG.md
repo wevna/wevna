@@ -4,6 +4,36 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## 1.1.0 — `@wevna/sdk`
+
+A redesigned dashboard. `@wevna/protocol` and `@wevna/plugin-fetch` are
+unchanged and stay at `1.0.0` — the UI is compiled into the SDK at build
+time, so it is the only package whose contents moved.
+
+### Added
+
+- **Session timeline** — every request in the session on one shared time
+  axis, so you can see how requests overlap rather than only what happened
+  inside one of them.
+- **Design system** — a token layer (`design-system.css`) behind the whole
+  UI, and Archivo as the interface typeface.
+- **Theme toggle** — light and dark, with the choice remembered.
+- **Tabbed request inspector** — Overview, Attributes and Performance,
+  instead of one long scrolling column.
+- **Kind filters** on both timelines — All, SQL, Redis, Errors.
+
+### Changed
+
+- Failed requests are now visually distinct in the request list and on both
+  timelines, rather than differing only by status code text.
+
+### Note on provenance
+
+This is the first release published through npm's trusted publishing
+(OIDC), so it carries a provenance attestation. `1.0.0` does not: it was
+published before the trusted publisher existed, and pnpm fell back to a
+token without failing the build. See the comment in `release.yml`.
+
 ## 1.0.0
 
 First stable release. `PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen
