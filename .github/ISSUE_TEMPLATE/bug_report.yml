@@ -1,0 +1,94 @@
+name: Bug report
+description: Something Wevna did that it shouldn't have
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. If this is a **security** issue, please don't use
+        this form — report it privately via
+        [a security advisory](https://github.com/wevna/wevna/security/advisories/new).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did Wevna do, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest code that shows the problem. A minimal repo or a
+        self-contained snippet both work — whatever is less effort for you.
+      render: ts
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - The SDK / instrumentation (wevna)
+        - The dashboard UI
+        - Recording or replay
+        - Performance insights / execution graph
+        - Plugins (@wevna/plugin-fetch or your own)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: wevna-version
+    attributes:
+      label: Wevna version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of `node --version`. Wevna requires Node 22+.
+      placeholder: "v22.11.0"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and framework
+      description: >
+        Anything relevant about the app Wevna is running in — Express, Fastify,
+        NestJS, which database driver, and your operating system.
+      placeholder: "macOS 15, Express 5, pg 8"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: >
+        Any output prefixed with `[wevna]`, plus a stack trace if something
+        threw. This will be automatically formatted — no backticks needed.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: guarantees
+    attributes:
+      label: Does this break a stated guarantee?
+      description: >
+        See [STABILITY.md](https://github.com/wevna/wevna/blob/main/STABILITY.md).
+        Tick anything that applies — these are treated as high priority.
+      options:
+        - label: Wevna threw an error into my own code path
+        - label: Wevna changed what my application does
+        - label: Wevna captured data it documents that it does not capture
