@@ -15,7 +15,7 @@ you can see the call.
 Install it if your app makes outgoing `fetch()` calls (to a third-party
 API, a webhook, another internal service) that you want to see in Wevna's
 waterfall alongside the incoming request that triggered them. It requires
-the `wevna` SDK — this plugin does nothing on its own.
+the `@wevna/sdk` SDK — this plugin does nothing on its own.
 
 ## Install
 
@@ -26,7 +26,7 @@ npm install @wevna/plugin-fetch
 ## Usage
 
 ```ts
-import { wevna } from "wevna";
+import { wevna } from "@wevna/sdk";
 import { createFetchPlugin } from "@wevna/plugin-fetch";
 
 wevna.use(createFetchPlugin());

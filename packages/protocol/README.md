@@ -6,7 +6,7 @@ producer and consumer agrees on.
 
 ## When you need this
 
-Most Wevna users never install this directly — the `wevna` SDK already
+Most Wevna users never install this directly — the `@wevna/sdk` SDK already
 depends on it. Install `@wevna/protocol` yourself if you're:
 
 - **writing a Wevna plugin** and need `CapturedEvent`/`Envelope` to type
@@ -54,7 +54,7 @@ function parseLine(line: string): RecordingLine {
 `RECORDING_FORMAT_VERSION` (the shape of the `.jsonl` file itself) are
 versioned independently and stamped onto every envelope and recording
 header, so a consumer always knows what it's reading. Both are frozen for
-the `wevna` 1.x line — see
+the `@wevna/sdk` 1.x line — see
 [STABILITY.md](https://github.com/wevna/wevna/blob/main/STABILITY.md) for
 exactly what that guarantees.
 

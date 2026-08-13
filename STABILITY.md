@@ -13,12 +13,12 @@ may be restructured, renamed, or deleted in any release.
 
 | Package | What it is |
 | --- | --- |
-| `wevna` | The SDK. What you install and call. |
+| `@wevna/sdk` | The SDK. What you install and call. |
 | `@wevna/protocol` | Event, envelope and recording-file types. Needed to write a plugin or read a recording. |
 | `@wevna/plugin-fetch` | Official plugin: outgoing HTTP capture. |
 
 `@wevna/server`, `@wevna/dashboard` and `@wevna/intelligence` are **internal**.
-They are bundled into `wevna` rather than published. Do not depend on them —
+They are bundled into `@wevna/sdk` rather than published. Do not depend on them —
 importing them is not a supported use, and their APIs change without notice.
 
 ## Three independently versioned contracts
@@ -28,7 +28,7 @@ reasons and conflating them would force major bumps that break nobody.
 
 ### 1. The package version (semver, currently `1.0.0`)
 
-Covers everything exported from `wevna`'s entrypoint: the `wevna` object's
+Covers everything exported from `@wevna/sdk`'s entrypoint: the `wevna` object's
 methods, the framework helpers, `openRecording`, `SessionLoader`, and the
 plugin authoring types.
 

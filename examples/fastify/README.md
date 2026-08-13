@@ -4,14 +4,14 @@ How to run Wevna alongside a Fastify application.
 
 > **Status:** this package documents the integration pattern; it doesn't
 > contain a runnable demo app yet. The code below works today against the
-> real `wevna` package — see [the root README](../../README.md) for what's
+> real `@wevna/sdk` package — see [the root README](../../README.md) for what's
 > actually implemented.
 
 ## Setup
 
 ```ts
 import Fastify from "fastify";
-import { wevna, wevnaFastifyEnrichment } from "wevna";
+import { wevna, wevnaFastifyEnrichment } from "@wevna/sdk";
 
 await wevna.start();
 

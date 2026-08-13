@@ -4,7 +4,7 @@ How to run Wevna alongside a NestJS application.
 
 > **Status:** this package documents the integration pattern; it doesn't
 > contain a runnable demo app yet. The code below works today against the
-> real `wevna` package — see [the root README](../../README.md) for what's
+> real `@wevna/sdk` package — see [the root README](../../README.md) for what's
 > actually implemented.
 
 ## Setup
@@ -12,7 +12,7 @@ How to run Wevna alongside a NestJS application.
 ```ts
 // main.ts
 import { NestFactory } from "@nestjs/core";
-import { wevna, WevnaNestInterceptor } from "wevna";
+import { wevna, WevnaNestInterceptor } from "@wevna/sdk";
 import { AppModule } from "./app.module";
 
 await wevna.start();

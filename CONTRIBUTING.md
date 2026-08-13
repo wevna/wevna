@@ -42,14 +42,14 @@ Six packages, three of them published:
 
 | Package | Published | What it is |
 | --- | --- | --- |
-| `wevna` (`packages/sdk`) | yes | The public SDK — `wevna.start()`, instrumentation, plugin host |
+| `@wevna/sdk` (`packages/sdk`) | yes | The public SDK — `wevna.start()`, instrumentation, plugin host |
 | `@wevna/protocol` | yes | The event and recording-file shapes every producer and consumer agrees on |
 | `@wevna/plugin-fetch` | yes | Outgoing HTTP capture; also the reference plugin |
 | `@wevna/server` | no | The local Fastify server and WebSocket transport |
-| `@wevna/dashboard` | no | The React UI, bundled into `wevna` at build time |
+| `@wevna/dashboard` | no | The React UI, bundled into `@wevna/sdk` at build time |
 | `@wevna/intelligence` | no | Deterministic performance analysis |
 
-The three private packages are bundled into `wevna` rather than published,
+The three private packages are bundled into `@wevna/sdk` rather than published,
 which is why the release workflow needs no package list to keep in sync —
 `pnpm publish -r` picks up exactly the non-private ones.
 

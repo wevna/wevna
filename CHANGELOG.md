@@ -9,6 +9,15 @@ what each version number covers.
 First stable release. `PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen
 at `1` for the 1.x line.
 
+> **The SDK publishes as `@wevna/sdk`, not `wevna`.** npm's automated
+> similar-name check rejects `wevna` as too close to the existing `levn` and
+> `lerna`, so the flagship package is scoped like the other two. Only the
+> package name changed — the import binding is still `wevna`:
+>
+> ```ts
+> import { wevna } from "@wevna/sdk";
+> ```
+
 ### Added
 
 - **Plugin SDK** — `wevna.use()`, a versioned plugin api, lifecycle tied to the
@@ -76,5 +85,5 @@ at `1` for the 1.x line.
 ### Publishing
 
 Wevna was previously unpublishable: every package was marked `private: true`,
-so the documented `npm install wevna` could not work. The three public
+so the documented `npm install` could not work. The three public
 packages are now published, at `1.0.0`, from CI on a version tag.

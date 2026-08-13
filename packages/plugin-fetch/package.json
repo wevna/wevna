@@ -27,14 +27,14 @@
     "lint": "biome check ."
   },
   "peerDependencies": {
-    "wevna": "^1.0.0"
+    "@wevna/sdk": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
-    "wevna": "workspace:*"
+    "@wevna/sdk": "workspace:*"
   },
   "license": "MIT",
   "author": "Boluwatife Ajayi",
