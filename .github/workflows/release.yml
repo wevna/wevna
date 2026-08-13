@@ -47,7 +47,19 @@ jobs:
       # pack time. `-r` publishes every non-private package, which is exactly
       # the three public ones — the internal packages are marked private
       # precisely so this needs no list to keep in sync.
+      #
+      # No NODE_AUTH_TOKEN, deliberately. All three packages have a trusted
+      # publisher on npm pinned to this repository and this workflow file, so
+      # pnpm exchanges the `id-token: write` OIDC token above for a
+      # short-lived registry credential at publish time. There is no long-
+      # lived secret to rotate, leak, or lose, and it sidesteps npm's
+      # deprecation of 2FA-bypass tokens for direct publishing (Jan 2027).
+      #
+      # This is also what makes the provenance attestation work. v1.0.0
+      # published before the trusted publishers existed: pnpm tried the
+      # exchange, got a 404, fell back to a token, and shipped without
+      # provenance despite publishConfig.provenance being set — silently. If
+      # a future run logs "Skipped OIDC", the attestation is missing again
+      # and the trusted publisher config is what to check.
       - name: Publish
         run: pnpm publish -r --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
