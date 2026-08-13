@@ -43,3 +43,7 @@ AUDIT_wevna.md
 # Playwright MCP scratch output — page snapshots and evaluation results.
 .playwright-mcp/
 npm-token.txt
+
+# tsup writes this next to a package tsup.config.ts while bundling its own
+# config, then removes it. It exists only mid-build.
+tsup.config.bundled_*.mjs
