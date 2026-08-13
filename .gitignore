@@ -39,3 +39,7 @@ packages/sdk/README.md
 
 # Internal architecture audit — working notes, not public documentation.
 AUDIT_wevna.md
+
+# Playwright MCP scratch output — page snapshots and evaluation results.
+.playwright-mcp/
+npm-token.txt
