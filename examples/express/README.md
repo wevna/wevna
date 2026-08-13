@@ -1,78 +1,116 @@
 # Wevna + Express
 
-How to run Wevna alongside a plain Express application.
+A runnable Express app, instrumented with Wevna.
 
-> **Status:** this package documents the integration pattern; it doesn't
-> contain a runnable demo app yet. The code below works today against the
-> real `@wevna/sdk` package — see [the root README](../../README.md) for what's
-> actually implemented.
+## Run it
 
-## Setup
-
-```ts
-import express from "express";
-import { wevna, wevnaExpressErrorHandler } from "@wevna/sdk";
-
-await wevna.start();
-
-const app = express();
-
-app.get("/widgets/:id", (req, res) => {
-  console.log("fetching widget", req.params.id);
-  res.json({ id: req.params.id });
-});
-
-// Registered after your routes — see "Capturing exceptions" below.
-app.use(wevnaExpressErrorHandler);
-
-app.listen(3000);
+```bash
+git clone https://github.com/wevna/wevna.git
+cd wevna
+pnpm install
+pnpm build
+pnpm --filter @wevna/example-express dev
 ```
 
-Requests, routes, and console logs need nothing beyond `wevna.start()`.
-`wevnaExpressErrorHandler` is the one addition, and it's only for
-capturing exceptions (next section) — everything else here is automatic.
+Then open **<http://localhost:4123>** and, in another terminal:
 
-## Why nothing else is needed
+```bash
+curl http://localhost:3000/orders/42   # the interesting one
+curl http://localhost:3000/health
+curl http://localhost:3000/boom        # throws on purpose
+```
 
-Wevna's HTTP instrumentation observes Node's raw `http.Server`, one layer
-below Express — so every request Express handles is captured
-automatically, regardless of when `wevna.start()` runs relative to
-`app.listen()`.
+No database, no Redis, no containers. See [below](#about-the-fake-clients) for
+why that works and what it does *not* fake.
 
-Express also gets **automatic route enrichment**: because Express mutates
-the same request object Wevna already observes, the matched route pattern
-(e.g. `/widgets/:id`, not just the raw URL) and the name of the handler
-function that served it show up in the dashboard with no extra
-configuration. This is the one framework where enrichment needs no setup
-at all — see [Fastify](../fastify/README.md) and [NestJS](../nest/README.md)
-for the frameworks that do.
+## What you should see
 
-## Capturing exceptions
+`GET /orders/42` produces a request with thirteen events in it:
 
-Unlike routing, Express *does* catch a handler's thrown or rejected error
-itself and finishes the response before Wevna's HTTP instrumentation ever
-sees the error object — so exception capture needs the one explicit line
-above. `wevnaExpressErrorHandler` only observes: it reports the error to
-Wevna, correlated to the request it came from, and immediately calls
-`next(err)` — your own error handling (or Express's default) runs exactly
-as it would without it.
+- a couple of `console.log` lines
+- a lookup on `"Orders"`, then one on `"Customers"`
+- a Redis `get`
+- **four identical queries against `"OrderItems"`** — one per item, which is
+  an N+1
+- an outgoing `fetch` to a local stand-in API
+- a Redis `set`
 
-A rejected async handler nobody awaited or caught is captured either way,
-even without this middleware — Wevna also listens for
-`unhandledRejection`/`uncaughtException` as a framework-agnostic baseline.
-Registering `wevnaExpressErrorHandler` is what additionally catches the
-errors Express handles internally, which is the common case.
+Open the request and switch to the **Performance** tab. Wevna reports:
 
-## What you'll see
+```
+Repeated Query
+The same query ran 4 times, taking 198ms in total:
+select * from "orderitems" where "orderid" = ?
+```
 
-Open the dashboard Wevna prints (`http://localhost:4123` by default) and
-hit an endpoint. You'll see, correlated to that one request:
+The table and column survive so the finding is actionable; the *value* is
+replaced, so an interpolated literal can never reach the dashboard through
+the signature.
 
-- the `http.request` event itself — method, route, status, duration
-- any `console.log` calls made while handling it
-- any instrumented `pg`/`ioredis` calls made while handling it (see the
-  root README for wiring those up)
-- any exception thrown or rejected while handling it, with its type,
-  message, and stack trace
+`GET /boom` throws, and the exception is attached to the request that caused
+it rather than floating loose in a log.
 
-all grouped together and laid out on that request's waterfall.
+## The setup, in full
+
+```ts
+import { createFetchPlugin } from "@wevna/plugin-fetch";
+import { wevna, wevnaExpressErrorHandler } from "@wevna/sdk";
+
+wevna.use(createFetchPlugin());
+await wevna.start();
+
+wevna.instrumentPg(pool);
+wevna.instrumentRedis(redis);
+
+// ... your ordinary Express app ...
+
+app.use(wevnaExpressErrorHandler);  // last, after all routes
+```
+
+That's everything. [`src/app.ts`](src/app.ts) is otherwise a plain Express
+app — nothing below the setup block is Wevna-aware.
+
+## Why so little is needed
+
+Requests, routes and `console.log` need nothing beyond `wevna.start()`.
+Wevna patches `http.Server.prototype.emit` and `console.log` once, and
+correlates everything through `AsyncLocalStorage`, so your handlers never
+have to pass a context around.
+
+`pg` and `ioredis` are opt-in because there's no global hook for "every pool
+anyone ever creates" — you hand Wevna the client you already made.
+
+`wevnaExpressErrorHandler` is the one addition, and only for exceptions.
+Express swallows handler errors into its own error pipeline, which is not
+something Wevna can patch from the outside, so it needs a normal error
+middleware registered after your routes. It only observes and always calls
+`next(err)`, so it never changes what response Express sends.
+
+## About the fake clients
+
+[`src/fake-clients.ts`](src/fake-clients.ts) stands in for `pg.Pool` and
+`ioredis` so this example runs with nothing installed.
+
+They are **not** mocks of Wevna. Wevna's instrumentation interfaces are
+structural on purpose — `PgQueryable` needs only `query()`, and
+`RedisSendCommandLike` only `sendCommand()` — precisely so a real client
+satisfies them without Wevna depending on `pg` or `ioredis`. These objects
+satisfy the same interfaces, so they travel the identical code path a real
+client does. Only the storage is fake; every event in the dashboard was
+produced by the real instrumentation.
+
+To point it at a real database, swap two lines:
+
+```ts
+const pool = new Pool();          // instead of createPool()
+const redis = new Redis();        // instead of createRedis()
+```
+
+Nothing else in `app.ts` changes.
+
+## See also
+
+- [Root README](../../README.md) — everything Wevna does
+- [`@wevna/plugin-fetch`](../../packages/plugin-fetch/README.md) — outgoing
+  HTTP capture and its redaction rules
+- [STABILITY.md](../../STABILITY.md) — what's guaranteed, and what isn't
