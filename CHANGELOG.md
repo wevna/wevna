@@ -4,6 +4,12 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## 1.1.1 — `@wevna/sdk`
+
+No code changes. Publishes the rewritten README so the npm landing page shows
+the dashboard rather than describing it — npm only refreshes a package's
+readme on publish, and the rewrite landed after `1.1.0` went out.
+
 ## 1.1.0 — `@wevna/sdk`
 
 A redesigned dashboard. `@wevna/protocol` and `@wevna/plugin-fetch` are
