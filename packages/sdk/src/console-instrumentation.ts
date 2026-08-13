@@ -36,7 +36,16 @@ export class ConsoleInstrumentation {
         kind: "console.log",
         occurredAt: Date.now(),
         attributes: {
-          arguments: args,
+          // Only the formatted string, never the raw argument objects. Two
+          // reasons, and either alone would be sufficient. First, the raw
+          // values are user-controlled and reach JSON.stringify on the way
+          // to a dashboard client: console.log(req) in Express passes a
+          // circular object (req.res.req), and console.log(10n) passes a
+          // BigInt — both throw from the serializer, which is a throw out
+          // of the developer's own console.log() call. Second, they were
+          // the one capture surface in Wevna with no redaction of any kind,
+          // and nothing ever read them; util.format has already flattened
+          // everything a consumer actually displays into `message`.
           message: format(...args),
         },
       });

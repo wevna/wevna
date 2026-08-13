@@ -48,7 +48,25 @@ export class WebSocketTransport {
   }
 
   #broadcast(event: Envelope<CapturedEvent>): void {
-    const message = JSON.stringify(event);
+    // Guarded because `attributes` is Record<string, unknown> by design, so
+    // any producer — a third-party plugin especially — can hand us a value
+    // JSON cannot represent (a circular object, a BigInt). Dropping the one
+    // event with a diagnostic is the correct degradation: this runs inside
+    // the developer's process on the call stack of the work being observed,
+    // so throwing would take down the operation Wevna is only supposed to
+    // be watching. console.error, not app.log — Fastify is constructed with
+    // logging disabled, so app.log would discard this.
+    let message: string;
+    try {
+      message = JSON.stringify(event);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[wevna] dropped a "${event.payload.kind}" event that could not be serialized: ${reason}`,
+      );
+      return;
+    }
+
     for (const client of this.#clients) {
       if (client.readyState === client.OPEN) {
         client.send(message);
