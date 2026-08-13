@@ -1,90 +1,79 @@
+<div align="center">
+
 # Wevna
 
-**A local-first runtime dashboard for backend developers.**
+**See what your backend is actually doing.**
 
-Wevna watches your Node.js backend run — every HTTP request, SQL query,
-Redis command, and `console.log` — and streams it live to a dashboard in
-your browser, correlated back into the request it belongs to.
+[![npm](https://img.shields.io/npm/v/@wevna/sdk?color=2ea043&label=%40wevna%2Fsdk)](https://www.npmjs.com/package/@wevna/sdk)
+[![CI](https://github.com/wevna/wevna/actions/workflows/ci.yml/badge.svg)](https://github.com/wevna/wevna/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A522-5FA04E)](https://nodejs.org)
 
-> **Status:** 1.0. This README describes what actually runs today, not a
-> roadmap dressed up as a feature list. See [STABILITY.md](STABILITY.md) for
-> exactly what is covered by semver, what the frozen protocol and plugin api
-> guarantee, and what is deliberately *not* guaranteed.
+One line of code. A live dashboard at `localhost:4123` showing every HTTP
+request, SQL query, Redis command and `console.log` your Node.js backend
+makes — grouped under the request that caused it.
 
-## Why
+No agent. No account. No network egress. Nothing leaves your machine.
 
-Backend debugging today usually looks like one of two things:
+<img src="https://raw.githubusercontent.com/wevna/wevna/main/docs/images/dashboard-demo.gif" alt="The Wevna dashboard filling up live as requests hit an Express app" width="100%">
 
-```
-console.log(...)
-console.log(...)
-console.log(...)
-```
+</div>
 
-or
+---
 
-```
-tail -f app.log
-```
+## The problem
 
-Both work. Neither shows you what's actually happening — which query ran
-for which request, how long it took, what fired before or after it. You
-reconstruct that by hand, every time.
+You're debugging a slow endpoint. So you do this:
 
-Wevna doesn't replace your logs. It gives you a live, structured view of
-runtime behavior sitting next to them: instead of reading logs, watch your
-backend execute.
-
-## What you actually see
-
-Start your app, open `http://localhost:4123`, and hit an endpoint. The
-dashboard fills in live:
-
-```
-GET /orders/42                                      200 · 187ms
-
-  Waterfall
-  0ms                    93ms                    187ms
-  http.request  ██████████████████████████████████████
-  sql.query          ████████████
-  redis.command                  ██
-  console.log                        •
-  sql.query                            ██████████████
-
-  Where the time went
-  sql              161ms · 86.1%   ████████████████████
-  redis              2ms ·  1.1%   ▏
-
-  Insights
-  Repeated Query    The same query ran 4 times, taking 158ms in total:
-                    select * from order_items where order_id = ?
-  Where The Time    86.1% of this request (161ms) was spent on PostgreSQL.
-  Went
-
-  Execution graph
-  http.request                    ████████████████████   187ms
-  ├ sql.query                        ███                    3ms
-  ├ redis.command                        ▪                   2ms
-  │ └ console.log                        •                     —
-  └ sql.query                              ████████████    158ms
+```js
+console.log("got here");
+console.log("query done", Date.now() - t0);
+console.log("still here??");
 ```
 
-That's the whole idea: a request came in, and you can see *what it did*, in
-order, with the slow part named — instead of reconstructing it from log lines.
+It works. But you're rebuilding, by hand, a picture your runtime already
+has: which query ran for which request, how long it took, what happened
+before and after it.
+
+Wevna just shows you that picture.
+
+```
+GET /orders/42                                      200 · 294ms
+
+  console.log     ●                                   +0ms
+  sql.query       ▏                                   +3ms ·   3ms
+  redis.command   ▏                                   +5ms ·   2ms
+  sql.query          ███                             +49ms ·  38ms
+  sql.query             ███                          +89ms ·  39ms
+  sql.query                ███                      +127ms ·  38ms
+  sql.query                   ███                   +165ms ·  38ms
+  http.client                     ████████          +290ms · 124ms
+  http.request    ████████████████████████          +293ms · 294ms
+
+  Repeated Query   The same query ran 4 times, taking 155ms in total:
+                   select * from order_items where order_id = ?
+```
+
+Four identical queries in a row. That's an N+1, and you didn't have to go
+looking for it.
+
+---
 
 ## Install
 
 ```bash
-npm install @wevna/sdk     # pnpm add @wevna/sdk · yarn add @wevna/sdk
+npm install @wevna/sdk
 ```
 
-Requires **Node 22+**. Wevna is a `devDependency` in spirit — it's a debugging
-tool, not something you run in production. Nothing stops you, but see
-[Should I run this in production?](#should-i-run-this-in-production) first.
+<sub>`pnpm add @wevna/sdk` · `yarn add @wevna/sdk` · requires **Node 22+**</sub>
+
+> **Heads up on the name:** the package is `@wevna/sdk`, not `wevna`. npm's
+> automated similar-name check rejects the unscoped name as too close to the
+> existing `levn` and `lerna`. The import binding is still `wevna`.
 
 ## Quick start
 
-One call. Put it as early in your startup as you can:
+Put this as early in your startup as you can:
 
 ```ts
 import { wevna } from "@wevna/sdk";
@@ -92,32 +81,44 @@ import { wevna } from "@wevna/sdk";
 await wevna.start();
 ```
 
-That's the whole setup. You now have:
+That's it. Open **`http://localhost:4123`** and hit an endpoint.
 
-- A dashboard at **`http://localhost:4123`**
-- Every `console.log` captured
-- Every HTTP request your app serves captured, with method, route, status and
-  duration
-- Every uncaught exception and unhandled rejection captured, attached to the
-  request that produced it
-- All of it **correlated** — events from one request are grouped under that
-  request automatically
-
-No config file, no agent, no account, no network egress.
-
-### Options
+You now get every `console.log`, every HTTP request your app serves (method,
+route, status, duration), and every uncaught exception — all **correlated**,
+so events from one request are grouped under that request automatically.
 
 ```ts
 await wevna.start({
   port: 4123,        // default; use 0 to let the OS pick a free port
-  host: "localhost", // default; the dashboard is not reachable off-machine
+  host: "localhost", // default; not reachable off-machine
 });
 ```
 
+---
+
+## What you see
+
+<img src="https://raw.githubusercontent.com/wevna/wevna/main/docs/images/request-inspector.png" alt="The Wevna dashboard: session timeline, request list, per-event timeline and the request inspector" width="100%">
+
+**Session timeline** (top) — every request on one shared time axis, so you
+can see how they overlap, not just what happened inside one.
+
+**Request list** — think Chrome's Network panel. Failed requests stand out.
+
+**Request inspector** — pick a request and get its summary, a waterfall of
+everything that happened inside it, where the time went, insights, and an
+execution graph.
+
+### Light or dark
+
+<img src="https://raw.githubusercontent.com/wevna/wevna/main/docs/images/dashboard-dark.png" alt="The Wevna dashboard in dark theme" width="100%">
+
+---
+
 ## Adding your database and cache
 
-There's no global "every `pg.Pool`" hook to patch, so these are opt-in: hand
-Wevna the client you already created, once.
+There's no global "every `pg.Pool`" hook to patch, so these are opt-in. Hand
+Wevna the client you already created, once:
 
 ```ts
 import { Pool } from "pg";
@@ -134,26 +135,28 @@ wevna.instrumentRedis(redis);  // → redis.command events
 ```
 
 Everything you already do with `pool` / `redis` keeps working **identically**.
-Wevna wraps the method, times the call, and passes the result straight through.
-Order doesn't matter — call these before or after `start()`.
+Wevna wraps the method, times the call, and passes the result straight
+through. Order doesn't matter — before or after `start()`.
 
-**What gets recorded, and what doesn't:**
+### What gets recorded, and what doesn't
 
-| | Recorded | Not recorded |
+| | Recorded | **Not** recorded |
 | --- | --- | --- |
 | PostgreSQL | Query text, duration, row count | Parameter **values** (`args[1]` is never read) |
 | Redis | Command name, duration | Command arguments or results |
 | `console.log` | The formatted message, as a string | The raw argument objects |
+| Outgoing HTTP | Method, sanitized URL, status, duration | Headers and bodies |
 
 Redis arguments are never captured because commands routinely carry the value
 inline (`SET session:abc <token>`) — unlike parameterized SQL, there's no safe
 subset to keep.
 
 `console.log` is captured the way it prints: arguments go through
-`util.format` and only the resulting string is kept. The raw objects are
-never retained, so logging something live and deeply connected —
-`console.log(req)` — records the same line you saw in your terminal and
-nothing hanging off it.
+`util.format` and only the resulting string is kept. Log something live and
+deeply connected — `console.log(req)` — and you get the same line you saw in
+your terminal, with nothing hanging off it.
+
+---
 
 ## Outgoing HTTP
 
@@ -172,33 +175,36 @@ wevna.use(createFetchPlugin());
 await wevna.start();
 ```
 
-Every `fetch()` now appears in the waterfall of the request that triggered it,
-and is eligible to be named as that request's slowest operation.
+Every `fetch()` now appears in the waterfall of the request that triggered it.
 
 ```ts
 // Keep a chatty internal dependency out of the stream:
 wevna.use(createFetchPlugin({ ignoreHosts: ["metrics.internal"] }));
 ```
 
-URLs are sanitized before being recorded: userinfo stripped, sensitive-looking
-query parameter *values* redacted, everything else kept. Headers and bodies are
-**never** recorded. See [the plugin's README](packages/plugin-fetch/README.md)
-for the exact redaction rules — and note they're a conservative default, not a
-guarantee.
+URLs are sanitized before recording: userinfo stripped, sensitive-looking
+query parameter *values* redacted. Headers and bodies are **never** recorded.
+See [the plugin's README](packages/plugin-fetch/README.md) for the exact rules
+— and note they're a conservative default, not a guarantee.
+
+---
 
 ## Framework setup
 
 | Framework | What you need to do |
 | --- | --- |
 | **Express** | Nothing. Route and handler enrichment is automatic. |
-| **Fastify** | Register one plugin (below) for route names. |
-| **NestJS** | Register one interceptor (below) for route/handler names. |
+| **Fastify** | Register one plugin for route names. |
+| **NestJS** | Register one interceptor for route/handler names. |
 
-HTTP capture itself is framework-agnostic and needs no wiring anywhere — these
-only add richer route/handler attributes.
+HTTP capture itself is framework-agnostic and needs no wiring — these only add
+richer route/handler attributes.
 
-**Express** — nothing required, but add the error handler *last* to capture
-handler exceptions (Express has no hook Wevna can patch for this):
+<details>
+<summary><b>Express</b> — optional error handler</summary>
+
+Nothing is required, but add the error handler *last* to capture handler
+exceptions (Express has no hook Wevna can patch for this):
 
 ```ts
 import express from "express";
@@ -212,7 +218,13 @@ const app = express();
 app.use(wevnaExpressErrorHandler);  // last, after all routes
 ```
 
-**Fastify:**
+It only observes and always calls `next(err)`, so it never changes what
+response Express ends up sending.
+
+</details>
+
+<details>
+<summary><b>Fastify</b></summary>
 
 ```ts
 import Fastify from "fastify";
@@ -223,7 +235,10 @@ const app = Fastify();
 await app.register(wevnaFastifyEnrichment);
 ```
 
-**NestJS:**
+</details>
+
+<details>
+<summary><b>NestJS</b></summary>
 
 ```ts
 import { WevnaNestInterceptor } from "@wevna/sdk";
@@ -231,50 +246,38 @@ import { WevnaNestInterceptor } from "@wevna/sdk";
 app.useGlobalInterceptors(new WevnaNestInterceptor());
 ```
 
-Runnable versions of all three live in [examples/](examples/).
+</details>
 
-## Reading the dashboard
+---
 
-The **Request Inspector** is the primary view — think Chrome's Network panel.
-Pick a request from the list and you get five things:
+## Insights
 
-**Summary** — method, route, status, duration, and counts per event kind.
-
-**Waterfall** — every event laid out proportionally. A bar *ends* at the moment
-the operation finished and extends backward by its duration, so bar length is
-real time spent. Zero-duration events (a `console.log`) render as markers, not
-bars.
-
-**Where the time went** — per-category totals and share of the request. This is
-what turns "842ms" into "601ms of it was PostgreSQL". Shares can sum past 100%
-for genuinely concurrent work — that's reported rather than normalized away,
-because inventing a serialization the runtime never had would be worse.
-
-**Insights** — threshold-based findings, each stating the numbers behind it:
+Wevna flags things worth a second look, always with the numbers behind them:
 
 | Insight | Fires when |
 | --- | --- |
+| **Repeated Query / Redis Command** | The same operation ran ≥ 3 times |
 | Slow Request | Total duration > 1000ms |
 | Long SQL Execution | Any single query > 100ms |
 | Multiple Database Calls | More than 5 queries |
 | Multiple Redis Operations | More than 5 commands |
-| **Repeated Query / Redis Command** | The same operation ran ≥ 3 times |
 | Where The Time Went | One category took > 60% of the request |
 | Exception Occurred | Any exception was captured |
 
-Repeated-operation detection normalizes query *shape*, so a loop interpolating
-`id = 1`, `id = 2`, `id = 3` is recognized as one repeated query — the
-observable signature of an N+1. It reports rather than diagnoses: a repeated
-query is often an N+1 and sometimes entirely correct.
+Repeated-operation detection normalizes query *shape*, so a loop
+interpolating `id = 1`, `id = 2`, `id = 3` is recognised as one repeated query
+— the observable signature of an N+1.
 
-**Execution graph** — the same events as a dependency tree, nested by what ran
-*inside* what. Nesting is derived from timing containment, the way a flame chart
-works. It means "this ran during that" — **not** "this caused that", because
-nothing Wevna observes could establish causality.
+It **reports rather than diagnoses**: a repeated query is often an N+1 and
+sometimes entirely correct. Same with the execution graph — nesting is derived
+from timing containment, so it means *"this ran during that"*, **not** *"this
+caused that"*. Nothing Wevna observes could establish causality.
 
-Above the request list you also get live **search**, **kind filtering**, and
-**pause / resume / clear** — all client-side, so pausing never loses events
-still arriving.
+Shares can sum past 100% for genuinely concurrent work. That's reported rather
+than normalised away, because inventing a serialisation the runtime never had
+would be worse.
+
+---
 
 ## Recording and replay
 
@@ -286,9 +289,9 @@ await wevna.startRecording("./session.jsonl");
 await wevna.stopRecording();
 ```
 
-It's JSON Lines — a header, one line per event, then a footer — so it's safe to
-`tail -f` or pipe through `jq` while it's still being written, and a recording
-cut short by a crash is still valid up to its last complete line.
+It's JSON Lines — a header, one line per event, then a footer — so it's safe
+to `tail -f` or pipe through `jq` while it's still being written, and a
+recording cut short by a crash is still valid up to its last complete line.
 
 Open it later, with no running application:
 
@@ -305,16 +308,17 @@ if (result.ok) {
 ```
 
 You get the same dashboard plus a transport bar: **Restart**, **Step
-Back/Forward**, **Play/Pause**, a **seek slider**, and **0.25x–8x** speed.
-Playback preserves the recording's own relative timing. Every feature —
-inspector, waterfall, insights, graph, exceptions, search — works at whatever
-position you're scrubbed to, because from the dashboard's point of view it *is*
-live, just backed by a file with a position you control instead of "now".
+Back/Forward**, **Play/Pause**, a **seek slider**, and **0.25×–8×** speed.
+Every feature — inspector, waterfall, insights, graph, search — works at
+whatever position you're scrubbed to, because from the dashboard's point of
+view it *is* live, just backed by a file whose position you control.
 
 A freshly opened recording starts **fully played**, so opening one shows you
-everything immediately rather than an empty screen you have to press play on.
+everything immediately rather than an empty screen.
 
-## API reference
+---
+
+## API
 
 | Call | Does |
 | --- | --- |
@@ -331,296 +335,124 @@ everything immediately rather than an empty screen you have to press play on.
 | `openRecording(path, options?)` | Serve a recording offline. Returns a result, never throws. |
 | `SessionLoader` | Read a recording programmatically, without a dashboard. |
 
+---
+
 ## Should I run this in production?
 
-Wevna is built to be safe in a live process — it never changes what your code
-does, never throws into your code path, and sends nothing off your machine. But
-it's designed for **development and staging**, and two things are worth knowing
-before you reach for it in production:
+Wevna never changes what your code does, never throws into your code path, and
+sends nothing off your machine. But it's built for **development and
+staging**, and two things matter before you reach for it in production:
 
-- It registers process-level `uncaughtException` / `unhandledRejection`
-  listeners, which changes Node's default crash behaviour.
-- It holds recent history in memory (bounded — 10,000 events / 1,000 requests)
-  and serves an unauthenticated dashboard on localhost.
+- **The dashboard is unauthenticated.** Anything that can reach port 4123 can
+  read the captured stream. It binds to `localhost` by default for exactly
+  this reason.
+- **Everything is in memory**, bounded by a retention cap. It's sized for a
+  debugging session, not for continuous operation.
 
-[STABILITY.md](STABILITY.md) spells out every guarantee and non-guarantee.
+Treat it as a `devDependency` in spirit.
 
-## Troubleshooting
-
-**Dashboard is empty.** Have you actually sent a request? Startup logs before
-`wevna.start()` resolves aren't captured. Check the port isn't already taken —
-`start({ port: 0 })` will pick a free one and log it.
-
-**No SQL or Redis events.** These need `instrumentPg()` / `instrumentRedis()`
-with the *same* client instance your code queries through. A pool created after
-the call, or a second pool, isn't instrumented. Only Promise-returning `pg`
-calls are observed — callback-style calls pass through unobserved rather than
-being guessed at.
-
-**No events from my plugin.** Check `wevna.plugins`: a plugin with status
-`failed` has an `error` explaining why. Wrong `apiVersion` and duplicate names
-are reported there rather than thrown.
-
-**Events aren't grouped under a request.** Correlation uses
-`AsyncLocalStorage`. Work that escapes the request's async context — something
-queued to a `setInterval`, or a detached promise — genuinely isn't part of that
-request and is reported uncorrelated rather than guessed at.
-
-**Older events disappeared.** Expected: the dashboard retains the most recent
-10,000 events and 1,000 requests. Record the session if you need more.
+---
 
 ## Writing a plugin
 
-Anything Wevna doesn't instrument itself can be added as a plugin, without
-touching Wevna's core:
+The plugin API is frozen at `PLUGIN_API_VERSION = 1` for the whole 1.x line.
 
 ```ts
 import { PLUGIN_API_VERSION, wevna, type WevnaPlugin } from "@wevna/sdk";
 
 const myPlugin: WevnaPlugin = {
-  name: "wevna-plugin-acme",
-  version: "1.0.0",
+  name: "my-plugin",
   apiVersion: PLUGIN_API_VERSION,
-  // Optional, declarative — lets tooling answer "what can this runtime
-  // produce" before a single event has been produced.
-  eventKinds: ["acme.call"],
+  setup(ctx) {
+    const timer = setInterval(() => {
+      ctx.publish({
+        kind: "my.event",
+        attributes: { note: "something happened" },
+      });
+    }, 1000);
 
-  setup(context) {
-    const original = acmeClient.call;
-    acmeClient.call = async (...args) => {
-      const startedAt = performance.now();
-      try {
-        return await original.apply(acmeClient, args);
-      } finally {
-        context.publish({
-          kind: "acme.call",
-          attributes: { durationMs: performance.now() - startedAt },
-        });
-      }
-    };
-    // Optional: undo it when Wevna stops.
-    return () => {
-      acmeClient.call = original;
-    };
+    return () => clearInterval(timer);  // teardown
   },
 };
 
 wevna.use(myPlugin);
-await wevna.start();
 ```
 
-`context.publish()` stamps the event id, timestamp, source plugin, and the
-active request correlation for you, so a plugin's events land in the
-waterfall, performance insights, execution graph, and replay exactly like a
-built-in producer's — no dashboard changes required.
+`ctx.publish` never throws. A plugin whose `setup()` fails is quarantined and
+disabled rather than taking down the app observing it — check
+`wevna.plugins` to see status. `@wevna/plugin-fetch` is the reference
+implementation.
 
-`wevna.use()` works before or after `start()`, and **never throws**: a plugin
-Wevna can't use (wrong `apiVersion`, duplicate name, a `setup()` that
-throws) is quarantined and reported through `wevna.plugins` rather than
-breaking your application's startup.
+> Fault isolation is about **accidents, not malice**. Plugins are not
+> sandboxed and run with full process privileges — installing one is
+> equivalent to installing any other dependency.
 
-```ts
-console.table(wevna.plugins);
-// name                 version  apiVersion  status   error
-// wevna:pg             1.0.0    1           active
-// wevna:redis          1.0.0    1           active
-// wevna-plugin-acme    1.0.0    1           active
-```
+---
 
-Wevna's own PostgreSQL and Redis instrumentation are in that list because
-they genuinely are plugins — `instrumentPg()`/`instrumentRedis()` are
-convenience wrappers over the same public api your plugin uses. A plugin
-system whose own built-ins bypass it is how extension points rot: if the
-shipped instrumentation can't be written against the documented surface, a
-community plugin won't manage it either.
+## Troubleshooting
 
-A note on what that protection is and isn't: plugins run **in your process,
-with full access to it**, because instrumentation works by wrapping your
-actual client objects — a sandbox would put a boundary between a plugin and
-the very things it exists to observe. What Wevna guarantees is *fault*
-isolation: a plugin's failures stay the plugin's own and never reach your
-application. Plugins are code you install and trust, exactly like any other
-dependency.
+<details>
+<summary>The dashboard is blank</summary>
 
-## Features
+Check `http://localhost:4123/health` — it should return
+`{"status":"running","product":"wevna"}`. If that works but the UI is empty,
+the dashboard bundle may be missing from the install; reinstall
+`@wevna/sdk`.
 
-What's actually implemented and running, today:
+</details>
 
-- ✅ **Live runtime dashboard** — a local web UI, no account, no cloud
-- ✅ **HTTP requests** — framework-agnostic; works under Express, Fastify,
-  and NestJS with no code changes
-- ✅ **PostgreSQL** (`pg`) — query text, duration, row count
-- ✅ **Redis** (`ioredis`) — command name and duration
-- ✅ **Console** — every `console.log`, correlated to the request it
-  happened during
-- ✅ **Request correlation** — every event from the same request shares
-  one identifier, automatically, via `AsyncLocalStorage`
-- ✅ **Request Inspector** — select a request to see its full summary,
-  waterfall, and events in one place, DevTools-Network-panel style
-- ✅ **Waterfall timeline** — each request's events laid out visually,
-  proportional to when they happened and how long they took
-- ✅ **Exception capture** — uncaught errors and rejections, correlated to
-  the request that produced them, with type/message/stack trace
-- ✅ **Performance intelligence** — deterministic per-request analysis
-  (longest operation, SQL/Redis time, event counts) and insights like
-  "Slow Request" or "Multiple Database Calls", with the numbers behind them
-- ✅ **Where the time went** — per-category time attribution, so a request's
-  duration comes with "601ms of it was PostgreSQL" instead of just a number
-- ✅ **Repeated-operation detection** — the same query shape run N times in
-  one request, normalized so interpolated literals still group together: the
-  observable signature of an N+1
-- ✅ **Execution graph** — a request's events as a real dependency DAG,
-  nested by what ran *inside* what, rendered flame-chart style in the Request
-  Inspector with each row's bar proportional to when it ran and for how long
-- ✅ **Session recording** — optionally record the live protocol stream to
-  a portable JSON Lines file on disk, without changing anything about the
-  live dashboard while it's on
-- ✅ **Session loading** — open a recording later, offline, with no live
-  runtime required; the same dashboard, streaming events from the file
-  instead of a WebSocket
-- ✅ **Replay & time travel** — play, pause, restart, step, seek, and
-  change playback speed (0.25x–8x) through an opened recording, with the
-  dashboard's request list, waterfall, performance insights, execution
-  graph, and exception details all reconstructed live at whatever
-  position you're viewing — deterministically, and fast enough to seek
-  around a recording with tens of thousands of events
-- ✅ **Outgoing HTTP** (`@wevna/plugin-fetch`) — every `fetch()` your app
-  makes, correlated to the request that triggered it, with credentials
-  stripped from recorded URLs
-- ✅ **Plugin SDK** — teach Wevna about anything it doesn't instrument
-  itself, with a versioned plugin api, a lifecycle tied to the runtime's,
-  declarative capability discovery via `wevna.plugins`, and fault isolation
-  so a failing plugin can never take down the application it's observing
-- ✅ **Search, filtering, pause/resume/clear** — on the live event stream,
-  entirely client-side
+<details>
+<summary>I see requests but no SQL or Redis events</summary>
 
-Framework-specific route/handler enrichment is available for
-[Fastify](examples/fastify/README.md) and [NestJS](examples/nest/README.md)
-as an explicit opt-in; Express gets it automatically.
+Those are opt-in. You need `wevna.instrumentPg(pool)` /
+`wevna.instrumentRedis(client)` with the actual client instance your code
+uses. Only the Promise-returning `query()` form is observed — callback-style
+calls pass through unobserved rather than being guessed at.
 
-## Architecture
+</details>
 
-```
-   YOUR APPLICATION                          A RECORDING FILE
-          │                                   (session.jsonl)
-          │  console.log · http · pg · redis         │
-          ▼  exceptions · plugins                   ▼
-   ┌─────────────────┐                      ┌─────────────────┐
-   │  Instrumentation│                      │  Session Loader │
-   └────────┬────────┘                      └────────┬────────┘
-            │  CapturedEvent                         │
-            ▼                                        ▼
-   ┌─────────────────┐                      ┌─────────────────┐
-   │     Runtime     │  stamps id, session, │  Replay Engine  │ "where am I?"
-   │                 │  sequence, and the   └────────┬────────┘
-   │  Envelope<T>    │  active correlation           │
-   └────────┬────────┘                               ▼
-            │                               ┌─────────────────┐
-            ▼                               │ Snapshot Engine │ "what should
-   ┌─────────────────┐                      └────────┬────────┘  show here?"
-   │    EventBus     │                               │
-   └────┬───────┬────┘                               │
-        │       │                                    │
-        ▼       ▼                                    │
-   WebSocket  Session                                │
-        │     Recorder ──────────────────────────────┘
-        │        │
-        │        └──► session.jsonl
-        ▼                                    ▼
-   ┌────────────────────────────────────────────────┐
-   │                   DASHBOARD                    │
-   │  one event-source hook — live or replayed      │
-   │                                                │
-   │  Request Inspector · Waterfall · Insights      │
-   │  Execution Graph · Exceptions · Search         │
-   └────────────────────────────────────────────────┘
-                          ▲
-                          │  pure, React-free models
-                 ┌────────┴─────────┐
-                 │  @wevna/protocol │  what an event *is*
-                 │   intelligence   │  what a request *means*
-                 └──────────────────┘
-```
+<details>
+<summary>Port 4123 is already in use</summary>
 
-**Your application never talks to the dashboard.** Instrumentation observes
-in-process and emits a `CapturedEvent`. The Runtime is the single place that
-turns one into an `Envelope` — stamping the protocol version, session id,
-sequence number, and whichever correlation is active for the calling async flow.
-That last part is how every producer gets request correlation *for free*: none
-of them know correlation exists.
+`await wevna.start({ port: 0 })` lets the OS pick a free port.
 
-From the EventBus, events fan out to two independent subscribers: the WebSocket
-the local server hosts, and — only if you asked for it — the Session Recorder.
-Neither knows about the other, which is why recording changes nothing about
-live behaviour.
+</details>
 
-**A recording is just another event source.** `openRecording()` feeds a file
-through the same server and dashboard. For replay specifically, two small
-React-free modules sit in between, and neither knows the other exists: the
-**Replay Engine** owns *when* (position, playback state, speed) as a
-timer-driven state machine, and the **Snapshot Engine** owns *what should be
-shown at that position*, using periodic `sqrt(n)` checkpoints so seeking a
-large recording stays fast instead of rebuilding from scratch on every scrub.
+<details>
+<summary>Events stop appearing after a while</summary>
 
-The dashboard consumes both through the **same single hook** it uses for live
-mode — which is why every feature works identically in both, with no
-`if (replaying)` anywhere in the UI.
+Retention is bounded on purpose. The oldest events are dropped once the cap is
+reached — record to a file if you need the whole history.
 
-**One rule decides where code lives:** the dashboard owns presentation and UI
-state; `intelligence` owns everything true about a request regardless of who's
-looking. So assembling events into a request, deriving its timeline, computing
-attribution, and reconstructing state at a replay position all live in
-`intelligence` — while the stores deciding *when* to rebuild and who to notify
-stay in the dashboard. That's what lets a future CLI, or a test asserting over a
-recording, find out what a request was without importing React.
+</details>
 
-## Roadmap
-
-**Completed**
-
-- ✔ Protocol & runtime
-- ✔ Console, HTTP, PostgreSQL, and Redis instrumentation
-- ✔ Framework enrichment (Express, Fastify, NestJS)
-- ✔ Live dashboard (search, filter, pause/resume/clear)
-- ✔ Request correlation
-- ✔ Request model
-- ✔ Timeline model
-- ✔ Waterfall view
-- ✔ Request Inspector
-- ✔ Exception capture & inspector
-- ✔ Performance intelligence
-- ✔ Execution graph model
-- ✔ Execution graph renderer (dependency DAG, nested + proportional)
-- ✔ Time attribution & repeated-operation detection
-- ✔ Session recording
-- ✔ Session loading (offline inspection)
-- ✔ Plugin SDK (versioned api, lifecycle, capability discovery, fault isolation)
-- ✔ Official plugin: outgoing HTTP via `fetch`
-- ✔ Replay engine & time travel (play/pause/restart/step/seek/speed, with
-  deterministic dashboard state reconstruction at any position)
-
-**Next**
-
-- More official plugins (MongoDB, Prisma, BullMQ)
-- Cross-request views (slow endpoint ranking, global statistics)
-- Dashboard polish (dark theme, keyboard shortcuts, command palette,
-  virtualized event list)
+---
 
 ## Packages
 
-This is a pnpm monorepo. The published `@wevna/sdk` package (`packages/sdk`) is
-the only one you install; everything else supports it:
+| Package | | What it is |
+| --- | --- | --- |
+| [`@wevna/sdk`](https://www.npmjs.com/package/@wevna/sdk) | published | The SDK — what you install and call. Dashboard bundled in. |
+| [`@wevna/protocol`](https://www.npmjs.com/package/@wevna/protocol) | published | The event and recording-file contract |
+| [`@wevna/plugin-fetch`](https://www.npmjs.com/package/@wevna/plugin-fetch) | published | Outgoing HTTP capture, and the reference plugin |
+| `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDK — don't depend on these |
 
-| Package               | What it is                                      |
-| ---------------------- | ------------------------------------------------ |
-| `packages/sdk`         | The `@wevna/sdk` package — public API, Runtime, instrumentation |
-| `packages/protocol`    | The shared event/envelope types every other package agrees on. Published as `@wevna/protocol` for plugin authors and anything reading a recording file |
-| `packages/server`      | The local Fastify server + WebSocket transport the SDK starts |
-| `packages/dashboard`   | The React dashboard UI, served by the local server |
-| `packages/intelligence`| Deterministic runtime interpretation — request assembly, timelines, replay snapshots, performance analysis, execution graph modeling. No React, no Fastify, reusable outside the dashboard |
-| `packages/plugin-fetch`| Official plugin: outgoing HTTP (`fetch`) capture. Lives outside the SDK on purpose — it is written against nothing but the published plugin api |
+---
 
-## Contributing / running locally
+## Stability
+
+`PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen at `1` for the 1.x
+line.
+
+Wevna guarantees it **never changes what your code does** and **never throws
+into your code path**. It does *not* claim plugins are sandboxed, that URL
+redaction is exhaustive, or that graph nesting implies causality.
+
+All of it — including what a major bump would mean for each contract — is
+spelled out in **[STABILITY.md](STABILITY.md)**. Changes are recorded in
+[CHANGELOG.md](CHANGELOG.md).
+
+## Contributing
 
 ```bash
 git clone https://github.com/wevna/wevna.git
@@ -630,37 +462,20 @@ pnpm build
 pnpm test
 ```
 
-Requires Node 22+ and pnpm. [CONTRIBUTING.md](CONTRIBUTING.md) has the full
-guide — repository layout, the one command that runs exactly what CI runs,
-and what we look for in a change. See [examples/](examples/) for integration
-patterns with specific frameworks, and [TESTING.md](TESTING.md) for how to
-verify a change — both the automated gate and a manual end-to-end checklist.
+One command runs exactly what CI runs:
+
+```bash
+pnpm turbo run build check test lint
+```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full guide — repository layout, and
+what we look for in a change. [TESTING.md](TESTING.md) covers how to verify
+one. [PROJECT_STATUS.md](PROJECT_STATUS.md) is the architectural handoff: what
+was built, what was decided, and what's deliberately left.
 
 Participation is covered by our [Code of Conduct](CODE_OF_CONDUCT.md).
 Security issues go through [SECURITY.md](SECURITY.md), privately, rather than
 the public issue tracker.
-
-Releases are cut by pushing a version tag (`v1.0.0`); CI runs the full
-build/check/test/lint gate and publishes the three public packages with npm
-provenance. Publishing from a laptop cannot produce a provenance attestation,
-which is why it goes through CI — drop `publishConfig.provenance` if you'd
-rather run `pnpm release` locally.
-
-## Stability
-
-`PROTOCOL_VERSION` and `PLUGIN_API_VERSION` are frozen at `1` for the 1.x
-line. Three published packages — `@wevna/sdk`, `@wevna/protocol`,
-`@wevna/plugin-fetch` — everything else is internal and bundled.
-
-Wevna guarantees it never changes what your code does and never throws into
-your code path. It does *not* claim plugins are sandboxed, that URL redaction
-is exhaustive, or that graph nesting implies causality. All of that is spelled
-out in [STABILITY.md](STABILITY.md), along with what a major bump means for
-each contract.
-
-Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
-[PROJECT_STATUS.md](PROJECT_STATUS.md) is a full architectural handoff — what
-was built, what was decided and why, and what's deliberately left.
 
 ## License
 
