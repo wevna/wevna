@@ -71,6 +71,23 @@ npm install @wevna/sdk
 > automated similar-name check rejects the unscoped name as too close to the
 > existing `levn` and `lerna`. The import binding is still `wevna`.
 
+## Try it in 30 seconds
+
+Don't want to wire it into your own app yet? There's a runnable one:
+
+```bash
+git clone https://github.com/wevna/wevna.git
+cd wevna && pnpm install && pnpm build
+pnpm --filter @wevna/example-express dev
+```
+
+Open **`http://localhost:4123`**, then `curl http://localhost:3000/orders/42`.
+No database or Redis needed — see
+[examples/express](examples/express/README.md) for how, and what it doesn't
+fake.
+
+That endpoint has a deliberate N+1 in it. Wevna finds it.
+
 ## Quick start
 
 Put this as early in your startup as you can:
