@@ -4,6 +4,25 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## 1.1.2 — `@wevna/sdk`
+
+### Fixed
+
+- **Repeated-query detection no longer collapses Postgres quoted
+  identifiers.** `normalizeSqlShape` treated a double-quoted run as a string
+  literal, so `select * from "Users" where "orgId" = $1` and
+  `select * from "Orders" where "orgId" = $1` both became
+  `select * from ? where ? = ?` — two tables reported as one repeated query,
+  with a signature too generic to act on. Mixed-case identifiers are the
+  default for Prisma, TypeORM and Sequelize, so this was the common case.
+  Values are still replaced; only identifiers survive. ([#43](https://github.com/wevna/wevna/issues/43))
+
+### Added
+
+- **A runnable example.** `examples/express` is now a real app — an N+1, a
+  Redis lookup, console logs, an outgoing `fetch`, and a route that throws —
+  runnable with no database or containers installed.
+
 ## 1.1.1 — `@wevna/sdk`
 
 No code changes. Publishes the rewritten README so the npm landing page shows

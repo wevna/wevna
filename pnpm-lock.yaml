@@ -20,7 +20,30 @@ importers:
 
   examples/bullmq: {}
 
-  examples/express: {}
+  examples/express:
+    dependencies:
+      '@wevna/plugin-fetch':
+        specifier: workspace:*
+        version: link:../../packages/plugin-fetch
+      '@wevna/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^26.1.2
+        version: 26.2.0
+      tsx:
+        specifier: ^4.23.1
+        version: 4.23.12
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   examples/fastify: {}
 
