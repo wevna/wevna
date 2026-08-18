@@ -17,6 +17,11 @@
 // halves here is what lets a CLI, a regression test asserting over a
 // recording, or an alternative UI reach the same models without importing
 // React or reimplementing the grouping.
+
+export {
+  aggregateEndpointStats,
+  type EndpointStats,
+} from "./aggregate-endpoint-stats.js";
 export type { AnalyzableRequest, AnalyzableTimelineEntry } from "./analyzable-request.js";
 export {
   analyzeRequestPerformance,
