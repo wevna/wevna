@@ -675,11 +675,57 @@ describe("Runtime session recording", () => {
     return join(dir, name);
   }
 
-  it("throws when starting a recording before Runtime has started a session", async () => {
+  it("does not throw when starting a recording before Runtime has started a session", async () => {
     runtime = new Runtime();
     const filePath = await makeFilePath();
 
-    await expect(runtime.startRecording(filePath)).rejects.toThrow();
+    const started = runtime.startRecording(filePath);
+    await runtime.start({ port: 0 });
+
+    await expect(started).resolves.toBeUndefined();
+    expect(runtime.isRecording).toBe(true);
+  });
+
+  it("actually begins recording, from start(), for a startRecording() call queued beforehand", async () => {
+    runtime = new Runtime();
+    const filePath = await makeFilePath();
+
+    const started = runtime.startRecording(filePath);
+    await runtime.start({ port: 0 });
+    await started;
+
+    runtime.publish(makeCapturedEvent("console.log"));
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const eventLines = lines.filter((line) => line.type === "event");
+    expect(
+      eventLines.map((line) => (line.type === "event" ? line.envelope.payload.kind : null)),
+    ).toEqual(["console.log"]);
+  });
+
+  it("starts recordings queued before start() in the order they were requested", async () => {
+    runtime = new Runtime();
+    const firstPath = await makeFilePath("first.jsonl");
+    const secondPath = await makeFilePath("second.jsonl");
+
+    const firstStarted = runtime.startRecording(firstPath);
+    const secondStarted = runtime.startRecording(secondPath);
+    await runtime.start({ port: 0 });
+
+    // The second call is a no-op once the first is already recording (same
+    // as calling startRecording() twice after start()) — both promises
+    // still resolve, but only the first file actually opens.
+    await expect(firstStarted).resolves.toBeUndefined();
+    await expect(secondStarted).resolves.toBeUndefined();
+    expect(runtime.isRecording).toBe(true);
+
+    runtime.publish(makeCapturedEvent("console.log"));
+    await runtime.stopRecording();
+
+    const firstLines = await readRecordingLines(firstPath);
+    expect(firstLines.some((line) => line.type === "event")).toBe(true);
+    await expect(readFile(secondPath, "utf8")).rejects.toThrow();
   });
 
   it("is not recording by default", async () => {
