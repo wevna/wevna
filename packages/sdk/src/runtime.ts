@@ -72,6 +72,14 @@ export class Runtime {
   // WebSocket transport. Recording is entirely opt-in: a developer who
   // never calls startRecording() sees no behavioural change at all.
   readonly #sessionRecorder = new SessionRecorder();
+  // startRecording() calls made before a session exists to describe them —
+  // see startRecording() for why they're queued here instead of throwing.
+  // Actually started, in call order, as soon as #performStart creates one.
+  #pendingRecordings: Array<{
+    filePath: string;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }> = [];
   // Third-party event producers. Given the same narrow host surface every
   // built-in producer effectively has (publish + correlation), rather than a
   // reference to Runtime itself — so what plugins depend on is a documented
@@ -223,15 +231,19 @@ export class Runtime {
   }
 
   // Starts recording the live protocol stream to filePath as it's
-  // published — see session-recorder.ts. Requires a running session (the
-  // recording's header needs one to describe), unlike instrumentPg/
-  // instrumentRedis which can be called at any point in Runtime's
-  // lifecycle; matches publish()'s own "cannot do this before a session
-  // exists" guard for the same reason. Safe to call while already
-  // recording (a no-op — see SessionRecorder.start()).
+  // published — see session-recorder.ts. A recording's header needs a
+  // session to describe, so a call made before Runtime has started one is
+  // queued rather than rejected: STABILITY.md guarantees that calls made
+  // before start() are safe and do not fail, with no carve-out for this
+  // one, so throwing here would be a documented promise this method broke
+  // in practice. #performStart() flushes #pendingRecordings, in the order
+  // requested, as soon as it creates a session — see there. Safe to call
+  // while already recording (a no-op — see SessionRecorder.start()).
   async startRecording(filePath: string): Promise<void> {
     if (!this.#session) {
-      throw new Error("Cannot start recording before Runtime has started a session.");
+      return new Promise<void>((resolve, reject) => {
+        this.#pendingRecordings.push({ filePath, resolve, reject });
+      });
     }
     await this.#sessionRecorder.start(this.#eventBus, this.#session, filePath);
   }
@@ -240,6 +252,26 @@ export class Runtime {
   // is fully flushed and closed.
   async stopRecording(): Promise<void> {
     await this.#sessionRecorder.stop();
+  }
+
+  // Starts every recording queued by startRecording() calls made before
+  // this session existed, in the order they were requested, then settles
+  // each caller's promise the same way starting it directly would have.
+  // Sequential rather than Promise.all: SessionRecorder.start() is a no-op
+  // once already recording, so only the first queued request actually
+  // opens a file — later ones just resolve once it has, exactly as if
+  // they'd raced startRecording() after start() and lost.
+  async #flushPendingRecordings(): Promise<void> {
+    const pending = this.#pendingRecordings;
+    this.#pendingRecordings = [];
+    for (const { filePath, resolve, reject } of pending) {
+      try {
+        await this.startRecording(filePath);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    }
   }
 
   async start(options?: WevnaStartOptions): Promise<void> {
@@ -263,6 +295,7 @@ export class Runtime {
 
     this.#session = createSession();
     this.#sequence = 0;
+    await this.#flushPendingRecordings();
 
     try {
       // eventSource is supplied here and is deliberately not something a
