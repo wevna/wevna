@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { describeInstrumentationError } from "./instrumentation-error.js";
 import type { PluginEvent } from "./plugin.js";
 
 // Emits PluginEvent, not CapturedEvent: this producer reaches the runtime
@@ -51,6 +52,10 @@ function extractRowCount(result: unknown): number | undefined {
 // being standard practice, so it normally contains no data — that's a
 // property of how pg is meant to be used, not something this
 // instrumentation itself enforces or verifies.
+//
+// A query that rejects is reported with a description of the failure —
+// see instrumentation-error.ts for why that is a SQLSTATE code rather
+// than the driver's free-text message whenever one is available.
 export class PgInstrumentation {
   readonly #publish: PublishPluginEvent;
   #wrapped = new WeakSet<PgQueryable>();
@@ -95,7 +100,11 @@ export class PgInstrumentation {
         (error: unknown) => {
           publish({
             kind: "sql.query",
-            attributes: { query: queryText, durationMs: performance.now() - startedAt },
+            attributes: {
+              query: queryText,
+              durationMs: performance.now() - startedAt,
+              ...describeInstrumentationError(error),
+            },
           });
           throw error;
         },

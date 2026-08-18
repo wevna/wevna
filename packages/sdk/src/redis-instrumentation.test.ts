@@ -73,6 +73,36 @@ describe("RedisInstrumentation", () => {
     expect(publish.mock.calls[0]?.[0].attributes.command).toBe("get");
   });
 
+  it("reports a rejected command's error, distinguishing it from a success", async () => {
+    const { command, reject } = makeCommand("get");
+    const client = makeClient(() => undefined);
+    const publish = vi.fn<(event: PluginEvent) => void>();
+    new RedisInstrumentation(publish).instrument(client);
+
+    client.sendCommand(command);
+    reject(new Error("WRONGTYPE Operation against a key holding the wrong kind of value"));
+    await command.promise?.catch(() => {});
+    await Promise.resolve();
+
+    expect(publish.mock.calls[0]?.[0].attributes.error).toBe(
+      "WRONGTYPE Operation against a key holding the wrong kind of value",
+    );
+  });
+
+  it("does not include an error attribute for a successful command", async () => {
+    const { command, resolve } = makeCommand("get");
+    const client = makeClient(() => undefined);
+    const publish = vi.fn<(event: PluginEvent) => void>();
+    new RedisInstrumentation(publish).instrument(client);
+
+    client.sendCommand(command);
+    resolve("value");
+    await command.promise;
+    await Promise.resolve();
+
+    expect(publish.mock.calls[0]?.[0].attributes.error).toBeUndefined();
+  });
+
   it("calls through to the original sendCommand and preserves its return value", () => {
     const { command } = makeCommand("get");
     const client = makeClient(() => "original-return-value");

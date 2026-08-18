@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { describeInstrumentationError } from "./instrumentation-error.js";
 import type { PluginEvent } from "./plugin.js";
 
 // Emits PluginEvent, not CapturedEvent — see pg-instrumentation.ts for why.
@@ -24,10 +25,11 @@ export interface RedisSendCommandLike {
 // depends on sendCommand's return value, just observes it).
 //
 // Deliberately never records command arguments or results — only the
-// command *name* (e.g. "get", "set") and timing. Redis commands routinely
-// carry the values themselves as plain arguments (SET password s3cr3t),
-// unlike parameterized SQL, so there's no safe subset of args to keep;
-// the full payload is never captured, per spec.
+// command *name* (e.g. "get", "set"), timing, and — when the command
+// rejects — a description of the failure (see instrumentation-error.ts).
+// Redis commands routinely carry the values themselves as plain arguments
+// (SET password s3cr3t), unlike parameterized SQL, so there's no safe
+// subset of args to keep; the full payload is never captured, per spec.
 export class RedisInstrumentation {
   readonly #publish: PublishPluginEvent;
   #wrapped = new WeakSet<RedisSendCommandLike>();
@@ -50,13 +52,20 @@ export class RedisInstrumentation {
       const commandName = typeof command?.name === "string" ? command.name : "";
 
       if (command?.promise && typeof command.promise.then === "function") {
-        const report = (): void => {
+        const report = (error?: unknown): void => {
           publish({
             kind: "redis.command",
-            attributes: { command: commandName, durationMs: performance.now() - startedAt },
+            attributes: {
+              command: commandName,
+              durationMs: performance.now() - startedAt,
+              ...(error !== undefined ? describeInstrumentationError(error) : {}),
+            },
           });
         };
-        command.promise.then(report, report);
+        command.promise.then(
+          () => report(),
+          (error: unknown) => report(error),
+        );
       }
 
       return originalSendCommand(command, ...rest);
