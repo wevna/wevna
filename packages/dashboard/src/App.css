@@ -1231,6 +1231,72 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   Endpoints (the session's one cross-request view — every other pane
+   answers "what happened in this request"; this ranks all of them)
+   ══════════════════════════════════════════════════════════════════ */
+
+.endpoint-stats-section {
+  padding: var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+}
+
+.endpoint-stats-section__title {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  margin: 0 0 var(--space-3);
+}
+
+.endpoint-stats-section__empty {
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-size: 0.8125rem;
+}
+
+.endpoint-stats-table__scroll {
+  overflow-x: auto;
+}
+
+.endpoint-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.endpoint-stats-table th,
+.endpoint-stats-table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+}
+
+.endpoint-stats-table th {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-weight: 500;
+}
+
+.endpoint-stats-table__endpoint {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+}
+
+.endpoint-stats-table__method {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.endpoint-stats-table td[data-has-errors="true"] {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    All Events (the original flat, request-agnostic event stream —
    demoted below the hero three-pane layout, still fully functional)
    ══════════════════════════════════════════════════════════════════ */

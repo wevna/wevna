@@ -1,6 +1,7 @@
 import "./design-system.css";
 import "./App.css";
 import { DashboardHeader } from "./DashboardHeader.tsx";
+import { EndpointStatsSection } from "./EndpointStatsSection.tsx";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
 import { findTimelineEntry } from "./find-timeline-entry.ts";
@@ -133,6 +134,8 @@ function App() {
           />
         </div>
       </section>
+
+      <EndpointStatsSection requests={requests} />
 
       <section className="all-events-section">
         <h2 className="all-events-section__title">All Events</h2>
