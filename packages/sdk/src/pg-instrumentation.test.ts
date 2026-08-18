@@ -35,6 +35,25 @@ describe("PgInstrumentation", () => {
     expect(attributes).not.toContain("secret@example.com");
   });
 
+  it("never leaks a parameter value echoed into a driver error's message", async () => {
+    const driverError = new Error(
+      'duplicate key value violates unique constraint "users_email_key"',
+    ) as Error & { code: string };
+    driverError.code = "23505";
+    const queryable = makeQueryable(async () => {
+      throw driverError;
+    });
+    const publish = vi.fn<(event: PluginEvent) => void>();
+    new PgInstrumentation(publish).instrument(queryable);
+
+    await expect(
+      queryable.query("INSERT INTO users (email) VALUES ($1)", ["secret@example.com"]),
+    ).rejects.toThrow();
+
+    const attributes = JSON.stringify(publish.mock.calls[0]?.[0].attributes);
+    expect(attributes).not.toContain("secret@example.com");
+  });
+
   it("reads the query text from a QueryConfig-style object argument", async () => {
     const queryable = makeQueryable(async () => ({ rowCount: 0 }));
     const publish = vi.fn<(event: PluginEvent) => void>();
@@ -66,6 +85,34 @@ describe("PgInstrumentation", () => {
 
     expect(publish).toHaveBeenCalledOnce();
     expect(publish.mock.calls[0]?.[0].attributes.rows).toBeUndefined();
+  });
+
+  it("reports a rejected query's error, distinguishing it from a success", async () => {
+    const queryable = makeQueryable(async () => {
+      throw new Error("connection terminated");
+    });
+    const publish = vi.fn<(event: PluginEvent) => void>();
+    new PgInstrumentation(publish).instrument(queryable);
+
+    await expect(queryable.query("SELECT 1")).rejects.toThrow();
+
+    expect(publish.mock.calls[0]?.[0].attributes.error).toBe("connection terminated");
+  });
+
+  it("reports a driver error's SQLSTATE code instead of its message", async () => {
+    const driverError = new Error('invalid input syntax for type integer: "abc"') as Error & {
+      code: string;
+    };
+    driverError.code = "22P02";
+    const queryable = makeQueryable(async () => {
+      throw driverError;
+    });
+    const publish = vi.fn<(event: PluginEvent) => void>();
+    new PgInstrumentation(publish).instrument(queryable);
+
+    await expect(queryable.query("SELECT * FROM users WHERE id = $1", ["abc"])).rejects.toThrow();
+
+    expect(publish.mock.calls[0]?.[0].attributes.error).toBe("22P02");
   });
 
   it("still rejects with the original error after publishing", async () => {
