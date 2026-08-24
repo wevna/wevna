@@ -8,10 +8,14 @@
 [![CI](https://github.com/wevna/wevna/actions/workflows/ci.yml/badge.svg)](https://github.com/wevna/wevna/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A522-5FA04E)](https://nodejs.org)
+[![python](https://img.shields.io/badge/python-%E2%89%A53.10-3776AB)](python/wevna/README.md)
 
 One line of code. A live dashboard at `localhost:4123` showing every HTTP
-request, SQL query, Redis command and `console.log` your Node.js backend
-makes — grouped under the request that caused it.
+request, SQL query, Redis command and log line your backend makes — grouped
+under the request that caused it.
+
+**Node.js today. Python (FastAPI) in alpha.** Same dashboard, same protocol,
+same recording format.
 
 No agent. No account. No network egress. Nothing leaves your machine.
 
@@ -61,11 +65,16 @@ looking for it.
 
 ## Install
 
+**Node.js** — stable:
+
 ```bash
 npm install @wevna/sdk
 ```
 
 <sub>`pnpm add @wevna/sdk` · `yarn add @wevna/sdk` · requires **Node 22+**</sub>
+
+**Python** — alpha, not on PyPI yet. See
+[python/wevna](python/wevna/README.md) to run it from source.
 
 > **Heads up on the name:** the package is `@wevna/sdk`, not `wevna`. npm's
 > automated similar-name check rejects the unscoped name as too close to the
@@ -88,14 +97,30 @@ fake.
 
 That endpoint has a deliberate N+1 in it. Wevna finds it.
 
+For the Python version, swap the last command:
+
+```bash
+pnpm --filter @wevna/python example   # then curl localhost:8000/orders/42
+```
+
 ## Quick start
 
 Put this as early in your startup as you can:
 
 ```ts
+// Node.js
 import { wevna } from "@wevna/sdk";
 
 await wevna.start();
+```
+
+```python
+# Python — FastAPI, Starlette, or anything ASGI
+import wevna
+from wevna.asgi import WevnaMiddleware
+
+wevna.start()
+app.add_middleware(WevnaMiddleware)
 ```
 
 That's it. Open **`http://localhost:4123`** and hit an endpoint.
@@ -161,7 +186,8 @@ through. Order doesn't matter — before or after `start()`.
 | --- | --- | --- |
 | PostgreSQL | Query text, duration, row count | Parameter **values** (`args[1]` is never read) |
 | Redis | Command name, duration | Command arguments or results |
-| `console.log` | The formatted message, as a string | The raw argument objects |
+| `console.log` (Node) | The formatted message, as a string | The raw argument objects |
+| `logging` (Python) | The formatted message, level, logger name | `record.args` — the raw argument objects |
 | Outgoing HTTP | Method, sanitized URL, status, duration | Headers and bodies |
 
 Redis arguments are never captured because commands routinely carry the value
@@ -452,7 +478,15 @@ reached — record to a file if you need the whole history.
 | [`@wevna/sdk`](https://www.npmjs.com/package/@wevna/sdk) | published | The SDK — what you install and call. Dashboard bundled in. |
 | [`@wevna/protocol`](https://www.npmjs.com/package/@wevna/protocol) | published | The event and recording-file contract |
 | [`@wevna/plugin-fetch`](https://www.npmjs.com/package/@wevna/plugin-fetch) | published | Outgoing HTTP capture, and the reference plugin |
-| `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDK — don't depend on these |
+| [`wevna`](python/wevna/README.md) (Python) | alpha | The Python SDK — ASGI middleware, `logging` capture, dashboard |
+| `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDKs — don't depend on these |
+
+The protocol is a
+[JSON Schema](packages/protocol/schema/wevna-protocol.schema.json), not a
+TypeScript API, and both SDKs are tested against the same
+[conformance fixtures](packages/protocol/fixtures/). That is what lets one
+dashboard serve both languages — and it means a recording made by a Python app
+opens in the same viewer as one made by Node.
 
 ---
 

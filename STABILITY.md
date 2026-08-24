@@ -21,6 +21,19 @@ may be restructured, renamed, or deleted in any release.
 They are bundled into `@wevna/sdk` rather than published. Do not depend on them —
 importing them is not a supported use, and their APIs change without notice.
 
+### The Python SDK is not covered yet
+
+`python/wevna` is at `0.1.0` and **nothing below applies to it**. Its Python
+API may change in any release, and it is not published to PyPI.
+
+One thing about it *is* already fixed: the **protocol**. A Python-produced
+event stream is held to the same
+[schema and conformance fixtures](packages/protocol/fixtures/) as a
+Node-produced one, and both SDKs' test suites read the same files. So
+`PROTOCOL_VERSION` and `RECORDING_FORMAT_VERSION` mean exactly what they mean
+below regardless of which language wrote a recording — while the Python
+*package* API is still free to move.
+
 ## Three independently versioned contracts
 
 Wevna versions three things separately, because they change for different

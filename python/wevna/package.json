@@ -7,7 +7,8 @@
     "build": "node ../../scripts/copy-dashboard-assets.mjs src/wevna/dashboard && bash scripts/run.sh python -c \"import wevna; print('wevna', wevna.__version__)\"",
     "test": "bash scripts/run.sh pytest -q",
     "check": "bash scripts/run.sh mypy",
-    "lint": "bash scripts/run.sh ruff check . && bash scripts/run.sh ruff format --check ."
+    "lint": "bash scripts/run.sh ruff check . && bash scripts/run.sh ruff format --check .",
+    "example": "bash scripts/run.sh python -m examples.fastapi.app"
   },
   "devDependencies": {
     "@wevna/dashboard": "workspace:*"
