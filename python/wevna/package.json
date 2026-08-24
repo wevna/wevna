@@ -4,9 +4,12 @@
   "private": true,
   "description": "Turborepo shim for the Python SDK — delegates the four standard tasks to pytest, mypy and ruff.",
   "scripts": {
-    "build": "bash scripts/run.sh python -c \"import wevna; print('wevna', wevna.__version__)\"",
+    "build": "node ../../scripts/copy-dashboard-assets.mjs src/wevna/dashboard && bash scripts/run.sh python -c \"import wevna; print('wevna', wevna.__version__)\"",
     "test": "bash scripts/run.sh pytest -q",
     "check": "bash scripts/run.sh mypy",
     "lint": "bash scripts/run.sh ruff check . && bash scripts/run.sh ruff format --check ."
+  },
+  "devDependencies": {
+    "@wevna/dashboard": "workspace:*"
   }
 }
