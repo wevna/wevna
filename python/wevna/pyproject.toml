@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wevna"
+version = "0.1.0"
+description = "Local-first runtime dashboard for Python backends. Watch HTTP, SQL, Redis and log activity live, correlated per request."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Boluwatife Ajayi" }]
+keywords = [
+  "observability", "debugging", "devtools", "fastapi", "asgi", "starlette",
+  "runtime", "backend", "dashboard", "instrumentation", "local-first",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Debuggers",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "mypy>=1.11",
+  "jsonschema>=4.23",
+  "types-jsonschema>=4.23",
+  "ruff>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/wevna/wevna"
+Repository = "https://github.com/wevna/wevna"
+Issues = "https://github.com/wevna/wevna/issues"
+Changelog = "https://github.com/wevna/wevna/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wevna"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]

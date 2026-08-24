@@ -1,6 +1,9 @@
 packages:
   - "packages/*"
   - "examples/*"
+  # The Python SDK is not a JS package; it carries a package.json purely so
+  # turbo can drive it through the same four task names as everything else.
+  - "python/*"
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:

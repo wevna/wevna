@@ -34,6 +34,13 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
+      # The Verify step below runs the same gate as CI, which now includes the
+      # Python SDK's tasks.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
