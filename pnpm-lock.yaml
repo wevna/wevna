@@ -245,7 +245,11 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.2.0)(jsdom@30.0.1)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(tsx@4.23.12))
 
-  python/wevna: {}
+  python/wevna:
+    devDependencies:
+      '@wevna/dashboard':
+        specifier: workspace:*
+        version: link:../../packages/dashboard
 
 packages:
 
