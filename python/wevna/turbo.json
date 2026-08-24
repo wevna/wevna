@@ -5,6 +5,18 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["src/wevna/dashboard/**"]
+    },
+    "test": {
+      // "build", not "^build". The root config's `^build` orders a package's
+      // tests after its *upstream* packages' builds but not after its own,
+      // which is harmless for the TypeScript packages because their tests
+      // import from src/ and never touch dist/. These tests are different:
+      // they assert the dashboard bundle was copied into the package, which is
+      // this package's own build step. Without the override the suite passes
+      // on a warm tree and fails on a clean checkout — including the first
+      // time anybody clones the repo.
+      "dependsOn": ["build"],
+      "outputs": []
     }
   }
 }
