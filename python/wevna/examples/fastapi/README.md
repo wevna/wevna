@@ -24,9 +24,10 @@ No database, no Redis, no containers.
 
 ## What you should see
 
-`GET /orders/42` produces a request with twelve events in it — logs, an
-`"Orders"` lookup, a Redis `get`, a `"Customers"` lookup, and **four identical
-queries against `"OrderItems"`**, which is an N+1.
+`GET /orders/42` produces a request with fourteen events in it — logs, an
+`"Orders"` lookup, a Redis `get`, a `"Customers"` lookup, **four identical
+queries against `"OrderItems"`** (an N+1), an outgoing HTTP call, and a Redis
+`set`.
 
 Open the request and switch to the **Performance** tab:
 
@@ -50,36 +51,46 @@ it rather than floating loose in a log.
 ```python
 import wevna
 from wevna.asgi import WevnaMiddleware
+from wevna.httpx import instrument as instrument_httpx
+from wevna.redis import instrument as instrument_redis
+from wevna.sqlalchemy import instrument as instrument_sqlalchemy
 
 wevna.start()
 
 app = FastAPI()
 app.add_middleware(WevnaMiddleware)
+
+instrument_sqlalchemy(engine)
+instrument_redis(cache)
+instrument_httpx(upstream)
 ```
 
 That's everything. [`app.py`](app.py) is otherwise an ordinary FastAPI app —
 nothing below the setup block is Wevna-aware, and no handler passes a context
 object anywhere.
 
-## About the fake clients
+## Nothing here is stubbed
 
-[`fake_clients.py`](fake_clients.py) stands in for a database and a cache so
-this example needs no services running.
+Every integration in this example is the real one:
 
-Phase 2 will instrument SQLAlchemy and `redis-py` directly. Until then these
-publish `sql.query` and `redis.command` events through the same path those
-integrations will use, so the dashboard shows exactly what it will show for
-the real thing. What is fake is the storage; what is real is the event stream,
-the correlation and the timing.
+- **SQLAlchemy** — a real async engine over a real `aiosqlite` driver
+- **redis-py** — a real client, with `fakeredis` providing the server in memory
+- **httpx** — a real client calling a real local API
 
-They also hold the same capture boundaries the real integrations will:
+What is substituted is only the *server* on the other end, which is why this
+runs with no database, no Redis and no network. The instrumentation, the
+correlation and the timings are all genuine.
 
-- **SQL records the query text and a duration, never the bound parameters.**
-  Parameterised query text normally contains no data, and the values are
-  exactly where the secrets are.
-- **Redis records only the command name.** Commands routinely carry the value
-  inline — `SET session:abc <token>` — so unlike parameterised SQL there is no
-  safe subset of the arguments to keep.
+That also means the capture boundaries you see here are the real ones:
+
+- **SQL records statement text and a duration, never the bound parameters.**
+  Note that the dashboard shows `where id = ?` — the value never left your
+  process.
+- **Redis records only the command name.** Commands carry the value inline —
+  `SET session:abc <token>` — so unlike parameterised SQL there is no safe
+  subset of the arguments to keep.
+- **The outgoing call's `api_key` is redacted** before it reaches the
+  dashboard, while the path and the other query parameters survive.
 
 ## See also
 

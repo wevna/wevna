@@ -14,8 +14,8 @@ One line of code. A live dashboard at `localhost:4123` showing every HTTP
 request, SQL query, Redis command and log line your backend makes — grouped
 under the request that caused it.
 
-**Node.js today. Python (FastAPI) in alpha.** Same dashboard, same protocol,
-same recording format.
+**Node.js today. Python (FastAPI) in alpha** — requests, SQLAlchemy, Redis and
+outgoing HTTP. Same dashboard, same protocol, same recording format.
 
 No agent. No account. No network egress. Nothing leaves your machine.
 
@@ -118,9 +118,11 @@ await wevna.start();
 # Python — FastAPI, Starlette, or anything ASGI
 import wevna
 from wevna.asgi import WevnaMiddleware
+from wevna.sqlalchemy import instrument as instrument_sqlalchemy
 
 wevna.start()
 app.add_middleware(WevnaMiddleware)
+instrument_sqlalchemy(engine)
 ```
 
 That's it. Open **`http://localhost:4123`** and hit an endpoint.
@@ -188,6 +190,8 @@ through. Order doesn't matter — before or after `start()`.
 | Redis | Command name, duration | Command arguments or results |
 | `console.log` (Node) | The formatted message, as a string | The raw argument objects |
 | `logging` (Python) | The formatted message, level, logger name | `record.args` — the raw argument objects |
+| SQLAlchemy (Python) | Statement text, duration, row count | Bound **parameters** |
+| redis-py (Python) | Command name, duration | Arguments and return values |
 | Outgoing HTTP | Method, sanitized URL, status, duration | Headers and bodies |
 
 Redis arguments are never captured because commands routinely carry the value
@@ -478,7 +482,7 @@ reached — record to a file if you need the whole history.
 | [`@wevna/sdk`](https://www.npmjs.com/package/@wevna/sdk) | published | The SDK — what you install and call. Dashboard bundled in. |
 | [`@wevna/protocol`](https://www.npmjs.com/package/@wevna/protocol) | published | The event and recording-file contract |
 | [`@wevna/plugin-fetch`](https://www.npmjs.com/package/@wevna/plugin-fetch) | published | Outgoing HTTP capture, and the reference plugin |
-| [`wevna`](python/wevna/README.md) (Python) | alpha | The Python SDK — ASGI middleware, `logging` capture, dashboard |
+| [`wevna`](python/wevna/README.md) (Python) | alpha | The Python SDK — ASGI, SQLAlchemy, redis-py, httpx, `logging`, dashboard |
 | `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDKs — don't depend on these |
 
 The protocol is a

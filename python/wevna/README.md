@@ -8,22 +8,30 @@ protocol, the same recording format, now fed by Python.
 ```python
 import wevna
 from wevna.asgi import WevnaMiddleware
+from wevna.sqlalchemy import instrument as instrument_sqlalchemy
+from wevna.redis import instrument as instrument_redis
+from wevna.httpx import instrument as instrument_httpx
 
 wevna.start()
 
 app = FastAPI()
 app.add_middleware(WevnaMiddleware)
+
+instrument_sqlalchemy(engine)  # -> sql.query events
+instrument_redis(cache)  # -> redis.command events
+instrument_httpx(client)  # -> http.client events
 ```
 
 Open `localhost:4123`. That's the setup.
 
 > **Status: alpha (`0.1.0`), not on PyPI yet.**
 >
-> Phase 1 works end to end — requests, correlation, logging and the dashboard.
-> Databases are next. The [Node SDK](https://www.npmjs.com/package/@wevna/sdk)
-> is the stable one today; this is not.
+> Phases 1 and 2 are done: requests, correlation, logging, the dashboard,
+> SQLAlchemy, redis-py and outgoing HTTP. Recording and replay are next. The
+> [Node SDK](https://www.npmjs.com/package/@wevna/sdk) is the stable one today;
+> this is not.
 >
-> Track it on the [Phase 1 milestone](https://github.com/wevna/wevna/milestone/1).
+> Track it on the [Phase 2 milestone](https://github.com/wevna/wevna/milestone/2).
 
 ## Try it
 
@@ -48,15 +56,49 @@ a deliberate N+1 in it — see
 | **`logging` capture** | levels, logger names, exceptions |
 | **Uncaught exceptions** | attached to the request that caused them |
 | **The dashboard** | served from your process, on its own thread |
+| **SQLAlchemy** | sync and async engines, ORM and Core alike |
+| **redis-py** | sync and async clients |
+| **Outgoing HTTP** | `httpx`, sync and async, with URL redaction |
+
+Install only what you use:
+
+```bash
+pip install "wevna[sqlalchemy,redis,httpx]"
+```
+
+Each integration is an optional extra. Instrumentation for a library you don't
+use shouldn't make you install it.
+
+### What each one records, and what it never does
+
+| | Recorded | **Never** recorded |
+| --- | --- | --- |
+| SQLAlchemy | Statement text, duration, row count | **Bound parameters** |
+| redis-py | Command name, duration | **Arguments. Return values.** |
+| httpx | Method, sanitized URL, status, duration | **Headers. Bodies.** |
+| `logging` | Formatted message, level, logger | **`record.args`** |
+
+These are the Node SDK's boundaries, not new ones. A Python event stream that
+captured more than its Node counterpart would make the protocol a lie, and the
+[URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
+are literally the same fixture both languages test against.
+
+### Known gaps
+
+- **Redis pipelines are not captured.** A pipeline sends through its own object
+  rather than the client's `execute_command`. Reporting a batch as one
+  misleading event would be worse than reporting nothing, so nothing is
+  reported. There is a test that fails if this ever changes silently.
+- **Raw `asyncpg` is not instrumented.** SQLAlchemy over asyncpg is, which
+  covers most of it.
+- **`requests` is not instrumented.** `httpx` is.
 
 ## What's next
 
 | | |
 | --- | --- |
-| SQLAlchemy and `asyncpg` | Phase 2 |
-| `redis-py` | Phase 2 |
-| Outgoing HTTP (`httpx`, `requests`) | Phase 2 |
 | Recording and replay | Phase 3 |
+| Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
 
 Phase 3 is the interesting one: the recording format is shared, so a session
 recorded from a Python app will open in the same viewer as one recorded from
