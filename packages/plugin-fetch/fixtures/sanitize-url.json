@@ -1,0 +1,61 @@
+{
+  "note": "Generated from packages/plugin-fetch/src/sanitize-url.ts, which is authoritative. Both SDKs assert against this file so the two sanitizers cannot diverge.",
+  "cases": [
+    {
+      "url": "https://api.example.com/v1/rates?api_key=secret123&page=2",
+      "sanitized": "https://api.example.com/v1/rates?api_key=%5Bredacted%5D&page=2"
+    },
+    {
+      "url": "https://user:pw@api.example.com/x",
+      "sanitized": "https://api.example.com/x"
+    },
+    {
+      "url": "https://api.example.com/x?refreshToken=abc&keyboard_layout=qwerty",
+      "sanitized": "https://api.example.com/x?refreshToken=%5Bredacted%5D&keyboard_layout=qwerty"
+    },
+    {
+      "url": "https://api.example.com/x?author=ada",
+      "sanitized": "https://api.example.com/x?author=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com/x?apiKey=a&API_KEY=b&x-api-key=c",
+      "sanitized": "https://api.example.com/x?apiKey=%5Bredacted%5D&API_KEY=%5Bredacted%5D&x-api-key=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com/x?authorization=bearer%20xyz",
+      "sanitized": "https://api.example.com/x?authorization=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com/x?monkey_id=7&sight=far",
+      "sanitized": "https://api.example.com/x?monkey_id=7&sight=far"
+    },
+    {
+      "url": "https://api.example.com/x?sig=abc&signature=def",
+      "sanitized": "https://api.example.com/x?sig=%5Bredacted%5D&signature=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com/x?password=p&passwd=q&pwd=r",
+      "sanitized": "https://api.example.com/x?password=%5Bredacted%5D&passwd=%5Bredacted%5D&pwd=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com/x?credential=c&secret=s&token=t",
+      "sanitized": "https://api.example.com/x?credential=%5Bredacted%5D&secret=%5Bredacted%5D&token=%5Bredacted%5D"
+    },
+    {
+      "url": "https://api.example.com:8443/deep/path?page=2&per_page=50",
+      "sanitized": "https://api.example.com:8443/deep/path?page=2&per_page=50"
+    },
+    {
+      "url": "https://api.example.com/x?empty=&keys=a",
+      "sanitized": "https://api.example.com/x?empty=&keys=%5Bredacted%5D"
+    },
+    {
+      "url": "not-a-url",
+      "sanitized": "not-a-url"
+    },
+    {
+      "url": "https://api.example.com/x#fragment",
+      "sanitized": "https://api.example.com/x#fragment"
+    }
+  ]
+}
