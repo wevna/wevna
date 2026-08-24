@@ -26,6 +26,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # The Python SDK's turbo tasks build a virtualenv on first run, so the
+      # gate needs an interpreter even though nothing here is pip-installed
+      # globally. 3.10 is the package's floor, so CI runs the oldest
+      # supported version rather than the newest.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

@@ -55,3 +55,12 @@ tsup.config.bundled_*.mjs
 DEVTO-POST.md
 GITHUB-SUPPORT-REQUEST.md
 LAUNCH-POSTS.md
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
