@@ -6,6 +6,31 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added — Phase 2: databases and outgoing HTTP
+
+- **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
+  and Core alike, via SQLAlchemy's own event system rather than by wrapping
+  anything. Records statement text, duration and row count; never the bound
+  parameters.
+- **redis-py** (`wevna.redis.instrument`) — sync and async clients. Records the
+  command name and duration only. Pipelines are a documented gap.
+- **Outgoing HTTP** (`wevna.httpx.instrument`) — `httpx`, sync and async, with
+  `ignore_hosts`. Records method, sanitized URL, status and duration; never
+  headers or bodies.
+- **Shared URL-redaction fixtures.** `sanitize_url` is a port of the Node
+  plugin's, and both languages now assert against a fixture generated from the
+  TypeScript — so redaction cannot diverge by language without a suite going
+  red.
+- Each integration is an optional extra: `pip install "wevna[sqlalchemy,redis,httpx]"`.
+
+### Fixed — Phase 2
+
+- The analyzer counts `log.record` as log output. Python requests previously
+  reported "Console Events 0" regardless of how much they logged, and log output
+  was missing from the category breakdown. The insight label is now "log output"
+  rather than "console output", which was wrong for half the users.
+
+
 Wevna now runs on Python. `python/wevna` is at `0.1.0`, not published to PyPI,
 and its API is not covered by [STABILITY.md](STABILITY.md) — but its *protocol*
 is: a Python-produced event stream is held to the same schema and conformance
@@ -24,7 +49,8 @@ write the same recording format.
 - **The dashboard, served from Python** — the same React bundle the Node SDK
   ships, copied into the wheel at build time and served on its own thread.
 - **A runnable FastAPI example** with a deliberate N+1 in it, needing no
-  database or containers.
+  database or containers. Every integration in it is the real one; only the
+  server on the other end is substituted.
 - **`packages/protocol/schema/`** — the protocol as JSON Schema, plus
   `fixtures/` holding the cases every implementation must accept and reject.
   Both SDKs' test suites read the same files, which is what stops them
