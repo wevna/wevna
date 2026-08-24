@@ -29,7 +29,7 @@ const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   redis: "Redis",
   httpClient: "outgoing HTTP calls",
   http: "HTTP",
-  console: "console output",
+  console: "log output",
   exception: "exception handling",
   other: "uncategorized operations",
 };

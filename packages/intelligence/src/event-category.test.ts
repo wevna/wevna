@@ -48,4 +48,23 @@ describe("categorizeEvent outgoing HTTP", () => {
   it("does not mistake another http kind for an outgoing call", () => {
     expect(categorizeEvent("http.upgrade")).toBe("http");
   });
+
+  // log.record is the Python SDK's logging capture. It shares the "console"
+  // category with console.log because the analyzer reports one log count, and
+  // a Python request reporting zero logs would be a wrong number rather than
+  // a missing feature.
+  it("categorizes log.record as console", () => {
+    expect(categorizeEvent("log.record")).toBe("console");
+  });
+
+  it("categorizes a future log kind as console", () => {
+    // Prefix-matched, so a later "log.structured" needs no change here.
+    expect(categorizeEvent("log.structured")).toBe("console");
+  });
+
+  it("does not swallow an unrelated kind that merely starts with 'log'", () => {
+    // "log." with the dot, not "log" — otherwise a hypothetical "logic.step"
+    // from a third-party plugin would be miscounted as log output.
+    expect(categorizeEvent("logic.step")).toBe("other");
+  });
 });
