@@ -38,6 +38,7 @@ dependencies = [
 # Each extra pulls in only what its own integration imports.
 [project.optional-dependencies]
 sqlalchemy = ["sqlalchemy>=2.0"]
+redis = ["redis>=5.0"]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.24",
@@ -57,6 +58,11 @@ dev = [
   # engines, which take different code paths through the event system.
   "sqlalchemy>=2.0",
   "aiosqlite>=0.20",
+  "redis>=5.0",
+  # A real redis-py-compatible server in memory. The point is to exercise
+  # redis-py's own client code paths rather than a stub of them, since what is
+  # being instrumented is redis-py's method, not Redis itself.
+  "fakeredis>=2.23",
 ]
 
 [project.urls]
