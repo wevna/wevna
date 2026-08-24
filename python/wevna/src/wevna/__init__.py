@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from wevna import correlation
+from wevna.asgi import WevnaMiddleware
 from wevna.event_bus import EventBus
 from wevna.protocol import (
     PROTOCOL_VERSION,
@@ -15,7 +16,7 @@ from wevna.protocol import (
     new_id,
     now_ms,
 )
-from wevna.runtime import Runtime
+from wevna.runtime import Runtime, default_runtime
 
 __version__ = "0.1.0"
 
@@ -29,8 +30,10 @@ __all__ = [
     "Runtime",
     "Session",
     "SessionStatus",
+    "WevnaMiddleware",
     "__version__",
     "correlation",
+    "default_runtime",
     "new_id",
     "now_ms",
 ]

@@ -119,3 +119,30 @@ class Runtime:
 
     def subscribe(self, listener: EventListener) -> Callable[[], None]:
         return self._bus.subscribe(listener)
+
+
+# The process-wide runtime. `wevna.start()` is meant to be one line in
+# somebody's startup, which needs a default instance to act on — but keeping
+# it a module-level function rather than a module-level constant means tests
+# can build their own Runtime and pass it explicitly, and nothing is
+# constructed as a side effect of importing.
+_default: Runtime | None = None
+
+
+def default_runtime() -> Runtime:
+    """The runtime the convenience API acts on. Created on first use."""
+    global _default
+    if _default is None:
+        _default = Runtime()
+    return _default
+
+
+def reset_default_runtime() -> None:
+    """Discards the process-wide runtime.
+
+    For tests. Without it, state from one test — a running session, a
+    subscriber — leaks into the next, and the failures that produces are
+    ordering-dependent and miserable to diagnose.
+    """
+    global _default
+    _default = None

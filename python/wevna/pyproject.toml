@@ -35,6 +35,15 @@ dev = [
   "jsonschema>=4.23",
   "types-jsonschema>=4.23",
   "ruff>=0.9",
+  # Only the tests need these. The middleware itself is written against raw
+  # ASGI and imports neither, which is what lets it work with any ASGI
+  # framework rather than the one it was developed against.
+  "starlette>=0.40",
+  "httpx>=0.27",
+  # FastAPI is the headline target, and it resolves routes differently from
+  # bare Starlette, so both are tested rather than one being assumed to stand
+  # in for the other.
+  "fastapi>=0.115",
 ]
 
 [project.urls]
