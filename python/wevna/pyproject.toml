@@ -34,7 +34,10 @@ dependencies = [
   "websockets>=12.0",
 ]
 
+# Instrumentation for a library you do not use should not make you install it.
+# Each extra pulls in only what its own integration imports.
 [project.optional-dependencies]
+sqlalchemy = ["sqlalchemy>=2.0"]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.24",
@@ -50,6 +53,10 @@ dev = [
   # bare Starlette, so both are tested rather than one being assumed to stand
   # in for the other.
   "fastapi>=0.115",
+  # Phase 2 targets. SQLAlchemy is tested against both its sync and async
+  # engines, which take different code paths through the event system.
+  "sqlalchemy>=2.0",
+  "aiosqlite>=0.20",
 ]
 
 [project.urls]
