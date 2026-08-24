@@ -1,0 +1,14 @@
+{
+  "type": "event",
+  "envelope": {
+    "version": 1,
+    "sessionId": "s-1",
+    "sequence": 7,
+    "payload": {
+      "id": "e-7",
+      "kind": "redis.command",
+      "occurredAt": 1755043200500,
+      "attributes": { "command": "get", "durationMs": 2 }
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wevna.dev/schema/wevna-protocol.schema.json",
+  "title": "Wevna protocol",
+  "description": "The wire contract every Wevna producer and consumer agrees on, in a form no single language owns. packages/protocol/src/index.ts is the TypeScript expression of this; python/wevna/src/wevna/protocol.py is the Python one. Neither is the source of truth — this file is, and both are tested against it.\n\nNote what is deliberately absent: additionalProperties is never false. The protocol is designed so an optional field can be added without breaking a consumer that predates it (see the `source` field's comment in index.ts), and a schema that rejected unknown keys would make that impossible.",
+  "$defs": {
+    "Correlation": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "required": ["id"]
+    },
+    "CapturedEvent": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "occurredAt": { "type": "number" },
+        "attributes": { "type": "object" },
+        "correlation": { "$ref": "#/$defs/Correlation" },
+        "source": { "type": "string", "minLength": 1 }
+      },
+      "required": ["id", "kind", "occurredAt", "attributes"]
+    },
+    "SessionStatus": {
+      "enum": ["running", "stopped"]
+    },
+    "Session": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "number" },
+        "status": { "$ref": "#/$defs/SessionStatus" }
+      },
+      "required": ["id", "startedAt", "status"]
+    },
+    "EventEnvelope": {
+      "type": "object",
+      "description": "Envelope<CapturedEvent> — the only envelope payload that currently travels the wire.",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "sessionId": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "payload": { "$ref": "#/$defs/CapturedEvent" }
+      },
+      "required": ["version", "sessionId", "sequence", "payload"]
+    },
+    "RecordingHeader": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "header" },
+        "formatVersion": { "type": "integer", "minimum": 1 },
+        "protocolVersion": { "type": "integer", "minimum": 1 },
+        "session": { "$ref": "#/$defs/Session" },
+        "recordingStartedAt": { "type": "number" }
+      },
+      "required": ["type", "formatVersion", "protocolVersion", "session", "recordingStartedAt"]
+    },
+    "RecordingEventRecord": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "event" },
+        "envelope": { "$ref": "#/$defs/EventEnvelope" }
+      },
+      "required": ["type", "envelope"]
+    },
+    "RecordingFooter": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "footer" },
+        "recordingEndedAt": { "type": "number" },
+        "eventCount": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "recordingEndedAt", "eventCount"]
+    },
+    "RecordingLine": {
+      "description": "One line of a .jsonl recording. Discriminated on `type`.",
+      "oneOf": [
+        { "$ref": "#/$defs/RecordingHeader" },
+        { "$ref": "#/$defs/RecordingEventRecord" },
+        { "$ref": "#/$defs/RecordingFooter" }
+      ]
+    }
+  }
+}

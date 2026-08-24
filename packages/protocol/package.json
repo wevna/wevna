@@ -13,6 +13,8 @@
   },
   "files": [
     "dist",
+    "schema",
+    "fixtures",
     "README.md",
     "LICENSE",
     "!dist/**/*.test.d.ts",
@@ -30,7 +32,8 @@
     "@types/node": "^26.1.2",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "ajv": "^8.20.0"
   },
   "license": "MIT",
   "author": "Boluwatife Ajayi",

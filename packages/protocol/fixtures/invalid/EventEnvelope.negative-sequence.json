@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "sessionId": "s",
+  "sequence": -1,
+  "payload": { "id": "e", "kind": "k", "occurredAt": 1, "attributes": {} }
+}
