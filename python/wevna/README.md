@@ -3,73 +3,113 @@
 **Local-first runtime dashboard for Python backends.**
 
 Part of [Wevna](https://github.com/wevna/wevna) — the same dashboard, the same
-recording format, now fed by Python.
-
-> **Status: early. Not on PyPI yet.**
->
-> This package currently implements the wire protocol and nothing else. The
-> FastAPI/ASGI middleware, per-request correlation and the dashboard host are
-> in progress — see the
-> [Phase 1 milestone](https://github.com/wevna/wevna/milestone/1).
->
-> The [Node SDK](https://www.npmjs.com/package/@wevna/sdk) is stable and
-> released today. This is not.
-
-## Why it exists
-
-Wevna's whole premise is that a request's story — the queries it ran, the
-calls it made, the logs it wrote — should be something you *look at* rather
-than reconstruct from interleaved log lines. That premise is not
-language-specific, and the protocol was designed to be a wire format rather
-than a TypeScript API.
-
-So a Python producer emitting the same envelopes gets the same dashboard, the
-same per-request grouping, the same insights, and recordings that open in the
-same viewer.
-
-## What's here today
+protocol, the same recording format, now fed by Python.
 
 ```python
-from wevna import CapturedEvent, Envelope, Session, PROTOCOL_VERSION
+import wevna
+from wevna.asgi import WevnaMiddleware
+
+wevna.start()
+
+app = FastAPI()
+app.add_middleware(WevnaMiddleware)
 ```
 
-The protocol types, and the guarantee that what they emit is byte-compatible
-with what the Node SDK emits. That guarantee is
-[tested](tests/test_conformance.py), not asserted: these tests read
-`packages/protocol/schema/` and `packages/protocol/fixtures/` — the *same*
-files the TypeScript suite reads — so the two implementations cannot drift
-apart without one going red.
+Open `localhost:4123`. That's the setup.
 
-## What's coming
+> **Status: alpha (`0.1.0`), not on PyPI yet.**
+>
+> Phase 1 works end to end — requests, correlation, logging and the dashboard.
+> Databases are next. The [Node SDK](https://www.npmjs.com/package/@wevna/sdk)
+> is the stable one today; this is not.
+>
+> Track it on the [Phase 1 milestone](https://github.com/wevna/wevna/milestone/1).
+
+## Try it
+
+No database or containers needed:
+
+```bash
+git clone https://github.com/wevna/wevna.git
+cd wevna && pnpm install && pnpm build
+pnpm --filter @wevna/python example
+```
+
+Then `curl localhost:8000/orders/42` and watch the dashboard. That endpoint has
+a deliberate N+1 in it — see
+[examples/fastapi](examples/fastapi/README.md).
+
+## What works today
 
 | | |
 | --- | --- |
-| ASGI middleware for FastAPI and Starlette | in progress |
-| Per-request correlation via `contextvars` | in progress |
-| `logging` capture | in progress |
-| The dashboard, served from Python | in progress |
+| **HTTP requests** via ASGI middleware | FastAPI, Starlette, and anything ASGI |
+| **Per-request correlation** via `contextvars` | automatic; handlers pass nothing |
+| **`logging` capture** | levels, logger names, exceptions |
+| **Uncaught exceptions** | attached to the request that caused them |
+| **The dashboard** | served from your process, on its own thread |
+
+## What's next
+
+| | |
+| --- | --- |
 | SQLAlchemy and `asyncpg` | Phase 2 |
 | `redis-py` | Phase 2 |
+| Outgoing HTTP (`httpx`, `requests`) | Phase 2 |
 | Recording and replay | Phase 3 |
 
-Phase 3 is the interesting one: because the recording format is shared, a
-session recorded from a Python app will open in the same viewer as one
-recorded from Node.
+Phase 3 is the interesting one: the recording format is shared, so a session
+recorded from a Python app will open in the same viewer as one recorded from
+Node.
+
+## Design notes
+
+**The middleware is raw ASGI, not `BaseHTTPMiddleware`.** That keeps this
+package framework-agnostic — it works with Quart or Litestar as readily as
+FastAPI — and it means Wevna wraps a callable rather than patching a global.
+This is a real difference from the Node SDK, which has to patch
+`http.Server.prototype.emit` because Node offers no equivalent seam. Several
+of the caveats in [STABILITY.md](../../STABILITY.md) about global patching
+simply do not apply on this side.
+
+**`logging`, not `print`.** `print` has no hook, redirecting `sys.stdout` would
+change what your application does, and anything worth correlating is logged
+rather than printed. Attaching a `logging.Handler` leaves your formatters,
+levels, other handlers and propagation exactly as they were.
+
+**Only the formatted message is kept, never `record.args`.** The arguments are
+arbitrary objects that get serialized on the way to the dashboard, and they
+carry no redaction. `record.getMessage()` already holds everything a reader
+displays.
+
+**`start()` is synchronous.** It is called before your event loop exists, often
+at import time, so it cannot be a coroutine. The dashboard runs on its own
+thread for the same reason — your application keeps its main loop.
+
+**The wire format is JavaScript's.** Keys are `camelCase` and timestamps are
+integer milliseconds, matching `Date.now()`. Python names things `snake_case`
+internally and converts at the boundary.
 
 ## Development
 
-From the repository root:
+From the repository root — these run through Turborepo alongside the
+TypeScript packages, so one command covers both languages:
 
 ```bash
-pnpm --filter @wevna/python test    # pytest
-pnpm --filter @wevna/python check   # mypy, strict
-pnpm --filter @wevna/python lint    # ruff
+pnpm turbo run build check test lint
 ```
 
-Those go through Turborepo alongside the TypeScript packages, so
-`pnpm turbo run build check test lint` at the root covers both languages.
-The virtualenv is created on first run; no global installs required beyond
-Python 3.10+.
+Or individually:
+
+```bash
+pnpm --filter @wevna/python test      # pytest
+pnpm --filter @wevna/python check     # mypy, strict
+pnpm --filter @wevna/python lint      # ruff, lint + format
+pnpm --filter @wevna/python example   # the FastAPI demo
+```
+
+The virtualenv is built on first run. Nothing global is required beyond Python
+3.10+.
 
 To work in it directly:
 
@@ -79,22 +119,14 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 ```
 
-## Design notes
+## The protocol is shared, and tested
 
-**The wire format is JavaScript's, not Python's.** Keys are `camelCase` and
-timestamps are integer milliseconds, matching `Date.now()`. Python names
-things `snake_case` internally and converts at the boundary — see
-`to_wire()`.
-
-**Absent optional fields are omitted, never `null`.** The TypeScript is
-explicit that `correlation` and `source` must be *absent as keys* when unset,
-so that a consumer predating a field sees nothing rather than a `null` it has
-no branch for. There are tests for this.
-
-**`Envelope` is not generic.** TypeScript has `Envelope<T>`, but only
-`CapturedEvent` payloads travel the wire today, and an unused type parameter
-would be noise in every annotation. It becomes generic when there is a second
-payload type.
+[`tests/test_conformance.py`](tests/test_conformance.py) reads
+`packages/protocol/schema/` and `packages/protocol/fixtures/` — the *same*
+files the TypeScript suite reads — rather than a copy vendored here. That is
+what makes "a Python event stream is indistinguishable from a Node one" a fact
+rather than an intention: the two implementations cannot drift without one of
+them going red.
 
 ## License
 

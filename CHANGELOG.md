@@ -4,6 +4,38 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## Unreleased — Python SDK (`wevna`, alpha)
+
+Wevna now runs on Python. `python/wevna` is at `0.1.0`, not published to PyPI,
+and its API is not covered by [STABILITY.md](STABILITY.md) — but its *protocol*
+is: a Python-produced event stream is held to the same schema and conformance
+fixtures as a Node-produced one, so both languages feed the same dashboard and
+write the same recording format.
+
+### Added
+
+- **ASGI middleware** (`wevna.asgi.WevnaMiddleware`) — HTTP capture for
+  FastAPI, Starlette and anything ASGI. Written against raw ASGI, so it wraps a
+  callable rather than patching a global.
+- **Per-request correlation** via `contextvars`, the direct equivalent of the
+  Node SDK's `AsyncLocalStorage`. Handlers pass nothing.
+- **`logging` capture** — message, level, logger name and exceptions. Attached
+  as a handler, so an application's own formatters and levels are untouched.
+- **The dashboard, served from Python** — the same React bundle the Node SDK
+  ships, copied into the wheel at build time and served on its own thread.
+- **A runnable FastAPI example** with a deliberate N+1 in it, needing no
+  database or containers.
+- **`packages/protocol/schema/`** — the protocol as JSON Schema, plus
+  `fixtures/` holding the cases every implementation must accept and reject.
+  Both SDKs' test suites read the same files, which is what stops them
+  drifting.
+
+### Fixed
+
+- The dashboard now summarizes `log.record` events, so Python log output is
+  readable in the event list and matched by free-text search. It previously
+  rendered as blank rows.
+
 ## 1.1.2 — `@wevna/sdk`
 
 ### Fixed

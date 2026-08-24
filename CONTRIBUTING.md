@@ -13,8 +13,13 @@ pnpm build
 pnpm test
 ```
 
-Requires **Node 22+** and **pnpm 11+**. The repo is a pnpm + Turborepo
-monorepo; `pnpm build` at the root builds every package in dependency order.
+Requires **Node 22+**, **pnpm 11+**, and — for the Python SDK — **Python
+3.10+**. The repo is a pnpm + Turborepo monorepo; `pnpm build` at the root
+builds every package in dependency order.
+
+Nothing Python needs to be installed by hand. The Python package carries a
+`package.json` shim so turbo drives it through the same four task names as
+everything else, and its virtualenv is built on first run.
 
 To see your change running against a real app, `packages/server` has a dev
 server (`pnpm --filter @wevna/server dev`) and `examples/` documents the
@@ -34,7 +39,10 @@ same four tasks, so there is no path to npm that skips them.
 manual end-to-end checklist for changes that automated tests can't reach
 (anything involving the dashboard rendering or a real database driver).
 
-Formatting and linting are both Biome: `pnpm lint:fix` fixes what it can.
+Formatting and linting are Biome for TypeScript and ruff for Python;
+`pnpm lint:fix` fixes what it can on the TypeScript side, and
+`pnpm --filter @wevna/python lint` covers both ruff's lint and format checks.
+Type checking is `tsc` and `mypy --strict` respectively.
 
 ## Repository layout
 
@@ -48,6 +56,18 @@ Six packages, three of them published:
 | `@wevna/server` | no | The local Fastify server and WebSocket transport |
 | `@wevna/dashboard` | no | The React UI, bundled into `@wevna/sdk` at build time |
 | `@wevna/intelligence` | no | Deterministic performance analysis |
+
+And one Python package:
+
+| Package | Published | What it is |
+| --- | --- | --- |
+| `wevna` (`python/wevna`) | not yet | The Python SDK — ASGI middleware, `logging` capture, dashboard host |
+
+It lives under `python/` rather than `packages/` deliberately: everything in
+`packages/` is built by tsup and published to npm, and putting a pip package
+there would make the directory mean two things. Its tests read
+`packages/protocol/schema/` and `packages/protocol/fixtures/` directly, so the
+two SDKs cannot drift apart on the wire format without one of them going red.
 
 The three private packages are bundled into `@wevna/sdk` rather than published,
 which is why the release workflow needs no package list to keep in sync —
