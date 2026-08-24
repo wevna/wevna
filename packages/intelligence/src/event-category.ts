@@ -6,6 +6,12 @@
 // because the analyzer reports an explicit console event count as one of
 // its metrics, so it needs its own bucket in the same breakdown every
 // other category goes through.
+//
+// The "console" category covers log output from any producer, not just
+// console.log: the Node SDK emits "console.log" and the Python SDK emits
+// "log.record", which are the same idea named for the mechanism each
+// language actually uses. Both map here so a Python request reports a log
+// count rather than always reporting zero.
 // "httpClient" (outgoing requests this application made) is deliberately
 // separate from "http" (the incoming request being served). They are not
 // variations on one thing: http.request's duration *contains* the whole
@@ -34,6 +40,7 @@ const PREFIX_CATEGORIES: readonly (readonly [prefix: string, category: EventCate
   ["redis.", "redis"],
   ["exception.", "exception"],
   ["console.", "console"],
+  ["log.", "console"],
 ];
 
 export function categorizeEvent(kind: string): EventCategory {
