@@ -63,3 +63,23 @@ exactly what that guarantees.
 This package only defines shapes; it doesn't run anything. See the
 [main Wevna repository](https://github.com/wevna/wevna) for the SDK,
 runtime, and dashboard that produce and consume them.
+
+## The schema is the contract, not the TypeScript
+
+`schema/wevna-protocol.schema.json` is the language-neutral form of
+everything this package describes, and it is the authority. The TypeScript in
+`src/index.ts` is one expression of it; `python/wevna/src/wevna/protocol.py`
+is another. Neither language owns the protocol.
+
+`fixtures/` holds the conformance cases — canonical events every
+implementation must accept, and malformed ones every implementation must
+reject. Both SDKs validate the *same files*, which is what stops a
+Python-produced event stream from drifting away from a Node-produced one.
+
+Adding a field? Add it to the schema, add a fixture, and both test suites
+will tell you which implementation hasn't caught up.
+
+Note what the schema deliberately never does: set `additionalProperties:
+false`. The protocol's forward-compatibility story is that an optional field
+can be added without breaking a consumer that predates it, and a closed
+schema would make that impossible. There is a test asserting this.

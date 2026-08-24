@@ -1,0 +1,11 @@
+{
+  "id": "8eb43165-d367-4d15-a508-aede9912a70f",
+  "kind": "sql.query",
+  "occurredAt": 1755043200123,
+  "attributes": {
+    "query": "select * from \"Orders\" where \"id\" = $1",
+    "durationMs": 3.4,
+    "rowCount": 1
+  },
+  "correlation": { "id": "76aa301a-0ab9-4c5e-9509-0b490c1c74b6" }
+}

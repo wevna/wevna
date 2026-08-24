@@ -1,0 +1,7 @@
+{
+  "id": "fwd",
+  "kind": "custom.event",
+  "occurredAt": 1755043200000,
+  "attributes": {},
+  "someFutureField": "a consumer predating this field must still accept the event"
+}

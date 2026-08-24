@@ -1,0 +1,13 @@
+{
+  "id": "a1",
+  "kind": "http.client",
+  "occurredAt": 1755043200456,
+  "attributes": {
+    "method": "GET",
+    "url": "http://localhost:4901/rates/usd",
+    "status": 200,
+    "durationMs": 124
+  },
+  "correlation": { "id": "76aa301a-0ab9-4c5e-9509-0b490c1c74b6" },
+  "source": "@wevna/plugin-fetch"
+}

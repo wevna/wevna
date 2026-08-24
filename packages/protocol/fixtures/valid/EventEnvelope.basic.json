@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "sessionId": "s-1",
+  "sequence": 0,
+  "payload": {
+    "id": "e-1",
+    "kind": "http.request",
+    "occurredAt": 1755043200000,
+    "attributes": { "method": "GET", "route": "/orders/:id", "statusCode": 200 }
+  }
+}
