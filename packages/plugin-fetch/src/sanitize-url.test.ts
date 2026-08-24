@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { describeFetchTarget, REDACTED, sanitizeUrl } from "./sanitize-url.js";
 
@@ -133,4 +135,25 @@ describe("sanitizeUrl false positives", () => {
       expect(sanitizeUrl(`https://api.example.com/d?${name}=leaked`)).not.toContain("leaked");
     },
   );
+});
+
+describe("cross-language conformance", () => {
+  // This file is authoritative for both SDKs: the Python sanitizer asserts
+  // against the same fixture. Redaction that differs by language is a
+  // suggestion rather than a property, and this is what makes it a property.
+  //
+  // If a rule changes here, regenerate the fixture and both suites move
+  // together. If only one moves, one of them goes red.
+  const fixture = JSON.parse(
+    readFileSync(path.join(import.meta.dirname, "..", "fixtures", "sanitize-url.json"), "utf8"),
+  ) as { cases: { url: string; sanitized: string }[] };
+
+  it("has cases to check", () => {
+    // A wrong path would make the loop below assert nothing.
+    expect(fixture.cases.length).toBeGreaterThanOrEqual(14);
+  });
+
+  it.each(fixture.cases)("$url", ({ url, sanitized }) => {
+    expect(sanitizeUrl(url)).toBe(sanitized);
+  });
 });
