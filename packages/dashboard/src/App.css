@@ -20,6 +20,7 @@
   --wf-color-http: light-dark(#2a78d6, #5b9bef);
   --wf-color-sql: light-dark(#eb6834, #ff8b52);
   --wf-color-redis: light-dark(#1baf7a, #34c98a);
+  --wf-color-database: light-dark(#8a5cd6, #a98af0);
   /* Reserved status colour (dataviz skill's fixed status palette, not the
      categorical set above) — an exception is a state ("this failed"), not
      another kind of operation, so it never competes with http/sql/redis
@@ -988,6 +989,10 @@
   background: var(--wf-color-redis);
 }
 
+.time-attribution__fill[data-category="database"] {
+  background: var(--wf-color-database);
+}
+
 .time-attribution__fill[data-category="http"],
 .time-attribution__fill[data-category="httpClient"] {
   background: var(--wf-color-http);
@@ -1098,6 +1103,10 @@
   background: var(--wf-color-redis);
 }
 
+.execution-graph__row[data-kind-category="database"] .execution-graph__bar {
+  background: var(--wf-color-database);
+}
+
 .execution-graph__row[data-kind-category="exception"] .execution-graph__marker,
 .execution-graph__row[data-kind-category="exception"] .execution-graph__bar {
   background: var(--wf-color-exception);
@@ -1183,6 +1192,11 @@
   border-color: var(--wf-color-redis);
 }
 
+.waterfall-row__bar[data-kind-category="database"] {
+  background: color-mix(in srgb, var(--wf-color-database) 55%, transparent);
+  border-color: var(--wf-color-database);
+}
+
 .waterfall-row__marker[data-kind-category="http"] {
   background: var(--wf-color-http);
 }
@@ -1193,6 +1207,10 @@
 
 .waterfall-row__marker[data-kind-category="redis"] {
   background: var(--wf-color-redis);
+}
+
+.waterfall-row__marker[data-kind-category="database"] {
+  background: var(--wf-color-database);
 }
 
 .waterfall-row__bar[data-kind-category="exception"] {

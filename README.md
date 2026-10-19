@@ -494,6 +494,8 @@ reached — record to a file if you need the whole history.
 | [`@wevna/sdk`](https://www.npmjs.com/package/@wevna/sdk) | published | The SDK — what you install and call. Dashboard bundled in. |
 | [`@wevna/protocol`](https://www.npmjs.com/package/@wevna/protocol) | published | The event and recording-file contract |
 | [`@wevna/plugin-fetch`](https://www.npmjs.com/package/@wevna/plugin-fetch) | published | Outgoing HTTP capture, and the reference plugin |
+| [`@wevna/plugin-mongodb`](packages/plugin-mongodb/README.md) | not yet published | MongoDB commands, via the driver's command monitoring |
+| [`@wevna/plugin-prisma`](packages/plugin-prisma/README.md) | not yet published | Prisma Client operations, via a client extension |
 | [`wevna`](python/wevna/README.md) (Python) | alpha | The Python SDK — ASGI, SQLAlchemy, redis-py, httpx, `logging`, dashboard |
 | `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDKs — don't depend on these |
 
