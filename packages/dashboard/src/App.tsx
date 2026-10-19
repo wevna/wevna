@@ -66,6 +66,12 @@ function App() {
   }
 
   useKeyboardShortcuts((action) => {
+    // A modal owns the keyboard while it is open: the only shortcut that
+    // still applies is the one that closes it. Otherwise `j` quietly moves
+    // the selection behind the overlay.
+    if (helpOpen && action !== "toggle-help") {
+      return;
+    }
     switch (action) {
       case "next-request":
       case "previous-request": {

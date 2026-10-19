@@ -315,9 +315,7 @@ describe("PerformanceSection runtime intelligence", () => {
     );
 
     expect(screen.getByText("Where The Time Went")).toBeInTheDocument();
-    expect(
-      screen.getByText(/80% of this request \(80ms\) was spent on PostgreSQL/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/80% of this request \(80ms\) was spent on SQL/)).toBeInTheDocument();
   });
 
   it("reports the same query run repeatedly, with its shape and total time", () => {
