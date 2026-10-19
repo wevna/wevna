@@ -50,6 +50,14 @@ export function PerformanceSection({ request }: PerformanceSectionProps) {
             {metrics.redisCommandCount} · {formatMs(metrics.cumulativeRedisTimeMs)} total
           </dd>
         </div>
+        {metrics.databaseOperationCount > 0 && (
+          <div>
+            <dt>Database Operations</dt>
+            <dd>
+              {metrics.databaseOperationCount} · {formatMs(metrics.cumulativeDatabaseTimeMs)} total
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Console Events</dt>
           <dd>{metrics.consoleEventCount}</dd>

@@ -68,3 +68,10 @@ describe("categorizeEvent outgoing HTTP", () => {
     expect(categorizeEvent("logic.step")).toBe("other");
   });
 });
+
+describe("categorizeEvent datastores", () => {
+  it("groups mongodb.* and prisma.* kinds as database", () => {
+    expect(categorizeEvent("mongodb.command")).toBe("database");
+    expect(categorizeEvent("prisma.query")).toBe("database");
+  });
+});

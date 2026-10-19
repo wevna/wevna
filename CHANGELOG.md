@@ -8,6 +8,15 @@ what each version number covers.
 
 ### Added
 
+- **`@wevna/plugin-mongodb` and `@wevna/plugin-prisma`** (`0.1.0`) — MongoDB
+  commands (via the driver's command monitoring) and Prisma Client operations
+  (via a client extension), as `mongodb.command` / `prisma.query` events.
+  Neither records filters, arguments or values.
+- **A `database` event category** for datastores that are neither SQL nor
+  Redis: its own colour, a Database filter on the session timeline, a
+  Database Operations stat, inclusion in the Multiple Database Calls insight,
+  and a Repeated Database Operation insight (the N+1 shape, on
+  `collection.operation`).
 - **Endpoint ranking** — a cross-request view that ranks every endpoint in the
   session by latency and error rate, rather than showing one request at a time.
 - **Error boundary** — a plugin emitting an unexpected event shape now shows a
