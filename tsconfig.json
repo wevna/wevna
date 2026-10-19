@@ -21,6 +21,9 @@
     },
     {
       "path": "packages/plugin-prisma"
+    },
+    {
+      "path": "packages/plugin-mysql"
     }
   ]
 }
