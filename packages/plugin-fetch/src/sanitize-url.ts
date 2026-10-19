@@ -16,15 +16,17 @@ const SENSITIVE_SUBSTRINGS = [
   "passwd",
   "credential",
   "signature",
-  "auth",
+  "authorization",
+  "authentication",
 ];
 
 // Too short or too common to match as substrings — "key" would redact
-// `keyboard_layout` and `monkey_id`, "sig" would redact `sight`. Matched
+// `keyboard_layout` and `monkey_id`, "sig" would redact `sight`, "auth" would
+// redact `author`. Matched
 // only as a whole word within the name, after splitting on separators and
 // camelCase, so `x-api-key`, `apiKey` and `API_KEY` are all covered while
 // `keyboard_layout` is not.
-const SENSITIVE_WORDS = new Set(["key", "keys", "sig", "apikey", "pwd"]);
+const SENSITIVE_WORDS = new Set(["key", "keys", "sig", "apikey", "pwd", "auth"]);
 
 export const REDACTED = "[redacted]";
 
