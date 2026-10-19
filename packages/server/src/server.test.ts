@@ -237,7 +237,11 @@ describe("POST /api/ingest", () => {
     // 200 SQL statements of ~10 KiB is a plausible batch from a busy app; with
     // the framework default this was a 413 that dropped every event in it.
     let received = 0;
-    const app = await createServer({ ingest: (events) => void (received += events.length) });
+    const app = await createServer({
+      ingest: (events) => {
+        received += events.length;
+      },
+    });
     const events = Array.from({ length: 200 }, () => ({
       kind: "sql.query",
       attributes: { query: "select ".padEnd(10_000, "x") },
