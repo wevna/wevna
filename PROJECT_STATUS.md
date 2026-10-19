@@ -3,7 +3,11 @@
 A complete handoff document. Everything a reviewer needs to know about where
 Wevna is, how it got here, what was decided and why, and what's left.
 
-Current state: **v1.0.0, release-ready, not yet published.** `main` is green.
+Current state: **`@wevna/sdk` 1.1.2 is published**, with `@wevna/protocol` and
+`@wevna/plugin-fetch` at 1.0.0. Since this document was written the project
+has grown past what the sections below describe — see
+[§12](#12-since-v10) for what was added, and `CHANGELOG.md` for detail. The
+sections below are the 1.0 handoff and are left as written.
 
 ---
 
@@ -30,12 +34,13 @@ tsup, Biome.
 | 3 | Runtime protocol & live inspection | ✅ |
 | 4 | Runtime intelligence (correlation → replay) | ✅ |
 | 5 | Replay & time travel | ✅ |
-| 6 | Extensibility (Plugin SDK + official plugins) | ✅ core, 3 of 5 plugins |
-| 7 | Better understanding (graph, attribution, N+1) | ✅ per-request; cross-request not started |
+| 6 | Extensibility (Plugin SDK + official plugins) | ✅ core, 6 plugins (fetch, mongodb, prisma, mysql + built-in pg/redis) |
+| 7 | Better understanding (graph, attribution, N+1) | ✅ per-request and cross-request (endpoint ranking) |
 | 10 | V1 hardening | ✅ |
 
-Phases 8 (better replay) and 9 (dashboard UX) were **deliberately not built**.
-See [§8](#8-what-was-deliberately-not-built).
+Phase 8 (better replay) was **deliberately not built**, and phase 9 (dashboard UX)
+is now partly done (keyboard shortcuts, command palette). See
+[§8](#8-what-was-deliberately-not-built) and [§12](#12-since-v10).
 
 ---
 
@@ -312,7 +317,7 @@ If asked "what now", the honest ranking:
 2. **Cross-request views** — slow endpoint ranking and global statistics. Pure
    addition over models that already exist, and the first thing that makes
    Wevna useful *across* requests rather than one at a time.
-3. **Dashboard UX** — keyboard shortcuts and a command palette, which is where
+3. ~~**Dashboard UX**~~ — shortcuts and a command palette are done (§12), which is where
    the DevTools comparison currently feels least earned.
 4. **MongoDB / Prisma plugins** — best done by someone who uses them daily.
 
@@ -320,3 +325,46 @@ Documentation reference: [README.md](README.md) for usage,
 [STABILITY.md](STABILITY.md) for what's guaranteed,
 [TESTING.md](TESTING.md) for verification, [CHANGELOG.md](CHANGELOG.md) for what
 changed in 1.0.0.
+
+---
+
+## 12. Since v1.0
+
+Everything below shipped after the 1.0 handoff above. `CHANGELOG.md` has the
+detail; this is the shape of it.
+
+- **Dashboard redesign** (1.1.0): session timeline, design tokens, light/dark
+  theme, tabbed inspector, kind filters.
+- **Cross-request endpoint ranking** — the first post-1.0 item §11 named.
+- **Keyboard shortcuts, a help overlay and a command palette** (Cmd/Ctrl+K).
+  A shortcut never claims a modifier chord or a key typed into a text field.
+- **A `database` event category** for datastores that are neither SQL nor
+  Redis, carried through the intelligence layer (metrics, insights, N+1
+  detection on `collection.operation`) and the dashboard.
+- **Three more official plugins:** `@wevna/plugin-mongodb` (driver command
+  monitoring, no patching), `@wevna/plugin-prisma` (client extension),
+  `@wevna/plugin-mysql` (mysql2 promise API, emits `sql.query` so all SQL
+  analysis applies unchanged). §8 deferred Mongo and Prisma for want of real
+  drivers to test against; they are built against structural fakes, the same
+  way the `pg` support is, and still want a check against the real drivers
+  (see `TODO.md`).
+- **An ingest endpoint and a `wevna` CLI.** `POST /api/ingest` lets another
+  process feed events to the dashboard. JSON-only, which is the entire
+  cross-site defence (a web page cannot send `application/json` to localhost
+  without a preflight the server never answers); the receiving runtime
+  assigns event ids and sequence numbers, so a sender cannot forge ordering.
+  Off by default in-process (`wevna.start({ ingest: true })`), always on in
+  `npx @wevna/sdk`.
+- **A Python SDK** (`python/`, zero dependencies): ASGI and WSGI middleware,
+  Flask and Django route patterns, requests/httpx/redis/logging
+  auto-instrumentation, DB-API and SQLAlchemy SQL capture. Same never-record
+  rules as the Node SDK. Delivery is a bounded queue and a background thread,
+  so it cannot raise into or wait on the application.
+- **A real bug found by testing against a real framework:** the Python WSGI
+  middleware was a generator, so it reported a request only once the body was
+  exhausted and held context state across yields. It is now a response
+  wrapper in its own copied context.
+
+What still needs a human is in `TODO.md`: credentials, trusted-publisher setup,
+the demo recording, and checking the new plugins and the Python SDK against
+the real drivers and frameworks.

@@ -132,6 +132,29 @@ execution graph.
 
 ---
 
+### Keyboard
+
+| Key | |
+| --- | --- |
+| `J` / `K` | Next / previous request |
+| `/` | Search events |
+| `T` | Toggle light / dark |
+| `P` | Pause or resume capture |
+| `Esc` | Clear selection |
+| `Ctrl/⌘ K` | Command palette: jump to any request or run an action |
+| `?` | Show the list |
+
+## Other databases and languages
+
+- **MySQL / MariaDB, MongoDB, Prisma** have official plugins:
+  [`@wevna/plugin-mysql`](packages/plugin-mysql/README.md),
+  [`@wevna/plugin-mongodb`](packages/plugin-mongodb/README.md),
+  [`@wevna/plugin-prisma`](packages/plugin-prisma/README.md).
+- **Python** (FastAPI, Flask, Django, SQLAlchemy, requests, httpx, redis) has
+  its own SDK that feeds this same dashboard: see
+  [python/README.md](python/README.md). Run `npx @wevna/sdk` for the
+  dashboard on its own.
+
 ## Adding your database and cache
 
 There's no global "every `pg.Pool`" hook to patch, so these are opt-in. Hand
