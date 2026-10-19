@@ -43,10 +43,14 @@ export function registerDashboard(app: FastifyInstance, dashboardDir?: string): 
   const resolvedDir = dashboardDir ?? resolveDashboardDir();
 
   if (!resolvedDir) {
-    app.log.warn(
+    // Not app.log: createServer builds Fastify with logging off, so that
+    // would discard the only diagnostic for a missing bundle. emitWarning
+    // writes to stderr without going through console, which Wevna patches.
+    process.emitWarning(
       "Wevna dashboard assets were not found. Build the dashboard package " +
         "(`pnpm --filter @wevna/dashboard build`) to serve the UI; the health " +
         "endpoint will keep working regardless.",
+      "WevnaWarning",
     );
     return;
   }

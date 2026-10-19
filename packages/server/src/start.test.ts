@@ -17,6 +17,13 @@ describe("startServer", () => {
     expect(started.url).toBe(`http://localhost:${started.port}`);
   });
 
+  it("prints a browsable url when bound to all interfaces", async () => {
+    started = await startServer({ port: 0, host: "0.0.0.0" });
+
+    expect(started.host).toBe("0.0.0.0");
+    expect(started.url).toBe(`http://localhost:${started.port}`);
+  });
+
   it("throws a meaningful error when the port is already in use", async () => {
     started = await startServer({ port: 0 });
 

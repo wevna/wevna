@@ -750,6 +750,10 @@
   border-bottom: 1px solid var(--color-divider);
 }
 
+.request-inspector__summary > div {
+  min-width: 0;
+}
+
 .request-inspector__summary dt {
   font-size: 0.625rem;
   text-transform: uppercase;
@@ -888,6 +892,10 @@
   grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
   gap: var(--space-2) var(--space-4);
   margin: 0;
+}
+
+.performance-section__summary > div {
+  min-width: 0;
 }
 
 .performance-section__summary dt {
@@ -1219,6 +1227,15 @@
   position: relative;
   flex: 1;
   height: 100%;
+  container-type: inline-size;
+}
+
+/* On a narrow track the penultimate label would run into the right-anchored
+   final one (the total duration, the longest string on the axis). */
+@container (max-width: 400px) {
+  .timeline-axis__tick:nth-last-child(2):not(:first-child) {
+    display: none;
+  }
 }
 
 .timeline-axis__tick {
@@ -1343,4 +1360,24 @@
   .dashboard-header__status[data-mode="live"] .dashboard-header__status-dot {
     animation: none;
   }
+}
+
+.error-boundary {
+  max-width: 36rem;
+  margin: var(--space-8, 4rem) auto;
+  padding: 0 var(--space-4);
+}
+
+.error-boundary__title {
+  font-size: 1.125rem;
+  margin: 0 0 var(--space-2);
+}
+
+.error-boundary__message {
+  padding: var(--space-3);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
 }

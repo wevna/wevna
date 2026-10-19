@@ -55,6 +55,10 @@ describe("sanitizeUrl", () => {
     expect(sanitizeUrl("https://api.example.com/d?keyboard_layout=qwerty")).toContain("qwerty");
   });
 
+  it('does not redact `author`, which only contains "auth" as a substring', () => {
+    expect(sanitizeUrl("https://api.example.com/books?author=tolkien")).toContain("tolkien");
+  });
+
   it("redacts every occurrence when a sensitive key repeats", () => {
     const sanitized = sanitizeUrl("https://api.example.com/d?token=one&token=two");
 
