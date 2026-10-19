@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { OfflineSessionSource } from "./offline-session-source.js";
-import { createServer } from "./server.js";
+import { createServer, type IngestedEvent } from "./server.js";
 import type { EventSource } from "./websocket-transport.js";
 
 export const DEFAULT_PORT = 4123;
@@ -12,6 +12,7 @@ export interface StartServerOptions {
   dashboardDir?: string;
   eventSource?: EventSource;
   session?: OfflineSessionSource;
+  ingest?: (events: IngestedEvent[]) => void;
 }
 
 export interface StartedServer {
@@ -29,6 +30,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     dashboardDir: options.dashboardDir,
     eventSource: options.eventSource,
     session: options.session,
+    ingest: options.ingest,
   });
 
   try {

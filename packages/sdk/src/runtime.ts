@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   type CapturedEvent,
   type Correlation,
@@ -5,7 +6,7 @@ import {
   PROTOCOL_VERSION,
   type Session,
 } from "@wevna/protocol";
-import { type StartedServer, startServer } from "@wevna/server";
+import { type IngestedEvent, type StartedServer, startServer } from "@wevna/server";
 import { ConsoleInstrumentation } from "./console-instrumentation.js";
 import * as correlationContext from "./correlation-context.js";
 import { EventBus } from "./event-bus.js";
@@ -121,6 +122,24 @@ export class Runtime {
   // state anywhere else.
   get session(): Session | undefined {
     return this.#session;
+  }
+
+  // Events arriving from another process. Stamped here, like every other
+  // producer's, so they get this session's id and next sequence number and
+  // cannot choose their own event id. The correlation is the sender's: a
+  // Python request has no AsyncLocalStorage context in this process, so it
+  // travels with the event instead.
+  #ingest(events: IngestedEvent[]): void {
+    for (const event of events) {
+      this.publish({
+        id: randomUUID(),
+        kind: event.kind,
+        occurredAt: event.occurredAt ?? Date.now(),
+        attributes: event.attributes,
+        ...(event.correlation ? { correlation: event.correlation } : {}),
+        ...(event.source ? { source: event.source } : {}),
+      });
+    }
   }
 
   // Internal-only: lets other Runtime-owned subsystems publish and
@@ -307,6 +326,7 @@ export class Runtime {
         host: options?.host,
         dashboardDir: options?.dashboardDir,
         eventSource: this.#eventBus,
+        ...(options?.ingest ? { ingest: (events) => this.#ingest(events) } : {}),
       });
     } catch (error) {
       this.#state = "stopped";

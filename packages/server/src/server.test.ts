@@ -171,3 +171,87 @@ describe("createServer with an event source", () => {
     await app.close();
   });
 });
+
+describe("POST /api/ingest", () => {
+  const post = (app: Awaited<ReturnType<typeof createServer>>, payload: unknown) =>
+    app.inject({ method: "POST", url: "/api/ingest", payload: payload as object });
+
+  it("does not exist unless the host opted in", async () => {
+    const app = await createServer();
+
+    const response = await post(app, { events: [] });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("hands valid events to the host and reports how many it accepted", async () => {
+    const received: unknown[] = [];
+    const app = await createServer({ ingest: (events) => received.push(...events) });
+
+    const response = await post(app, {
+      events: [
+        {
+          kind: "sql.query",
+          occurredAt: 5,
+          attributes: { query: "select 1", durationMs: 2 },
+          correlation: { id: "req-1" },
+          source: "wevna-python",
+          id: "forged-id",
+          sequence: 99,
+        },
+      ],
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({ accepted: 1 });
+    // The sender cannot choose the event id or its position in the stream.
+    expect(received).toEqual([
+      {
+        kind: "sql.query",
+        occurredAt: 5,
+        attributes: { query: "select 1", durationMs: 2 },
+        correlation: { id: "req-1" },
+        source: "wevna-python",
+      },
+    ]);
+  });
+
+  it.each([
+    [{}, /events/],
+    [{ events: [{ attributes: {} }] }, /kind/],
+    [{ events: [{ kind: "x" }] }, /attributes/],
+    [{ events: [{ kind: "x", attributes: [] }] }, /attributes/],
+    [{ events: [{ kind: "x", attributes: {}, occurredAt: "now" }] }, /occurredAt/],
+    [{ events: [{ kind: "x", attributes: {}, correlation: { id: 4 } }] }, /correlation/],
+    [{ events: [null] }, /not an object/],
+  ])("rejects a malformed batch %j with a 400", async (payload, message) => {
+    const app = await createServer({ ingest: () => {} });
+
+    const response = await post(app, payload);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatch(message);
+  });
+
+  it("rejects a batch over the size limit", async () => {
+    const app = await createServer({ ingest: () => {} });
+    const events = Array.from({ length: 1001 }, () => ({ kind: "x", attributes: {} }));
+
+    const response = await post(app, { events });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("refuses a non-JSON body, which is what a cross-site form post would send", async () => {
+    const app = await createServer({ ingest: () => {} });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/ingest",
+      headers: { "content-type": "text/plain" },
+      payload: '{"events":[]}',
+    });
+
+    expect(response.statusCode).toBe(415);
+  });
+});

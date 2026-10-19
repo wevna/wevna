@@ -23,4 +23,10 @@ export interface WevnaStartOptions {
   // Directory to serve the dashboard's built assets from. Only useful when
   // developing Wevna itself — the published package ships its own.
   dashboardDir?: string;
+  // Accept events from other processes over POST /api/ingest, so an SDK for
+  // another language (the Python one) can feed this dashboard. Off by
+  // default: a Node app that only observes itself has no reason to open a
+  // write path into its own event stream. Still bound to `host`, localhost
+  // unless changed.
+  ingest?: boolean;
 }

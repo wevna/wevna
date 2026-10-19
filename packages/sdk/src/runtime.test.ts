@@ -1261,3 +1261,62 @@ describe("Runtime built-in producers as plugins", () => {
     await expect(queryable.query()).resolves.toEqual({ rowCount: 1 });
   });
 });
+
+describe("Runtime ingest", () => {
+  let runtime: Runtime | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+  });
+
+  async function post(url: string, body: unknown): Promise<Response> {
+    return fetch(`${url}/api/ingest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("publishes events from another process into this session, stamped by the runtime", async () => {
+    runtime = new Runtime();
+    const received: { sequence: number; sessionId: string; payload: CapturedEvent }[] = [];
+    await runtime.start({ port: 0, ingest: true });
+    runtime.eventBus.subscribe((event) => {
+      if (event.payload.kind === "sql.query") {
+        received.push(event);
+      }
+    });
+
+    const response = await post(runtime.url as string, {
+      events: [
+        {
+          kind: "sql.query",
+          occurredAt: 123,
+          attributes: { query: "select 1" },
+          correlation: { id: "py-req-1" },
+          source: "wevna-python",
+        },
+      ],
+    });
+
+    expect(response.status).toBe(202);
+    expect(received).toHaveLength(1);
+    expect(received[0]?.sessionId).toBe(runtime.session?.id);
+    expect(received[0]?.payload).toMatchObject({
+      kind: "sql.query",
+      occurredAt: 123,
+      correlation: { id: "py-req-1" },
+      source: "wevna-python",
+    });
+    expect(received[0]?.payload.id).toEqual(expect.any(String));
+  });
+
+  it("has no ingest endpoint unless asked for", async () => {
+    runtime = new Runtime();
+    await runtime.start({ port: 0 });
+
+    const response = await post(runtime.url as string, { events: [] });
+
+    expect(response.status).toBe(404);
+  });
+});
