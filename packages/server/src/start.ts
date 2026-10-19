@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { allowedHostsFor } from "./host-guard.js";
 import type { OfflineSessionSource } from "./offline-session-source.js";
 import { createServer, type IngestedEvent } from "./server.js";
 import type { EventSource } from "./websocket-transport.js";
@@ -31,6 +32,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     eventSource: options.eventSource,
     session: options.session,
     ingest: options.ingest,
+    allowedHosts: allowedHostsFor(host),
   });
 
   try {

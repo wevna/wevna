@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerDashboard } from "./dashboard.js";
+import { allowedHostsFor, isAllowedHost, isAllowedOrigin } from "./host-guard.js";
 import type { OfflineSessionSource } from "./offline-session-source.js";
 import { type EventSource, WebSocketTransport } from "./websocket-transport.js";
 
@@ -18,6 +19,10 @@ export interface CreateServerOptions {
   // them (Runtime stamps session and sequence); the server only parses the
   // request and enforces its shape.
   ingest?: (events: IngestedEvent[]) => void;
+  // Hostnames a request may address this server by, `["*"]` for any. Defaults
+  // to the loopback names; startServer widens it to match the host it binds.
+  // See host-guard.ts for the attacks this exists to stop.
+  allowedHosts?: readonly string[];
 }
 
 // What a foreign SDK may send. Deliberately a subset of CapturedEvent: the id
@@ -86,6 +91,16 @@ function parseIngestBody(body: unknown): IngestedEvent[] | string {
 export async function createServer(options: CreateServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify();
   const session = options.session;
+  const allowedHosts = options.allowedHosts ?? allowedHostsFor("localhost");
+
+  // Every route, including the WebSocket upgrade, recordings and ingest: a
+  // page that rebinds its own hostname to 127.0.0.1 must not be able to read
+  // or write any of them.
+  app.addHook("onRequest", async (request, reply) => {
+    if (!isAllowedHost(request.headers.host, allowedHosts)) {
+      return reply.code(403).send({ error: "host not allowed" });
+    }
+  });
 
   app.get("/health", async () => ({
     status: "running",
@@ -128,6 +143,9 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
       // Checked explicitly: Fastify also parses text/plain, and that is
       // precisely the content type a cross-site page can send without a
       // preflight.
+      if (!isAllowedOrigin(request.headers.origin, allowedHosts)) {
+        return reply.code(403).send({ error: "origin not allowed" });
+      }
       if (!String(request.headers["content-type"] ?? "").startsWith("application/json")) {
         return reply.code(415).send({ error: "content-type must be application/json" });
       }
@@ -141,7 +159,7 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
   }
 
   if (options.eventSource) {
-    await new WebSocketTransport().register(app, options.eventSource);
+    await new WebSocketTransport(allowedHosts).register(app, options.eventSource);
   }
 
   // Registered after /health (and the websocket route) so the dashboard's

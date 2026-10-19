@@ -22,6 +22,15 @@ manage. You'll get an acknowledgement within 72 hours and an assessment
 within a week. We'll credit you in the advisory unless you'd rather we
 didn't.
 
+## Known issues fixed
+
+- **Cross-site WebSocket hijacking and DNS rebinding** (fixed after 1.1.2): while
+  a Wevna process was running, any web page open in the developer's browser
+  could connect to `ws://localhost:4123/ws` and read the live event stream
+  (SQL, requests, logs). Fixed by validating `Host` and `Origin` on the
+  server. **Upgrade to the release that follows 1.1.2**; versions up to and
+  including 1.1.2 are affected. See `CHANGELOG.md`.
+
 ## Wevna's threat model
 
 Wevna is a **local-first development tool**. It runs inside a developer's own

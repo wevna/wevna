@@ -385,7 +385,10 @@ staging**, and two things matter before you reach for it in production:
 
 - **The dashboard is unauthenticated.** Anything that can reach port 4123 can
   read the captured stream. It binds to `localhost` by default for exactly
-  this reason.
+  this reason, and refuses requests whose `Host` or (for the WebSocket and
+  ingest) `Origin` is not local, so a web page you happen to visit cannot read
+  it either. Binding to `0.0.0.0` turns those checks off: you have chosen to
+  be reachable.
 - **Everything is in memory**, bounded by a retention cap. It's sized for a
   debugging session, not for continuous operation.
 

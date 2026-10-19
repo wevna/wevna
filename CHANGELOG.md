@@ -6,6 +6,19 @@ what each version number covers.
 
 ## Unreleased
 
+### Security
+
+- **A web page you visit could read the dashboard's event stream.** Browsers
+  do not apply the same-origin policy to WebSockets, so any site could open
+  `ws://localhost:4123/ws` and receive every SQL query, request and log line
+  Wevna captured (cross-site WebSocket hijacking), and a page that rebinds its
+  own hostname to `127.0.0.1` could reach every route the same way (DNS
+  rebinding). The server now refuses a foreign `Host` on every route and a
+  foreign `Origin` on the WebSocket and on `/api/ingest`. Non-browser clients
+  (which send no `Origin`) and the dashboard itself are unaffected. Binding to
+  `0.0.0.0`/`::` is treated as an explicit decision to be reachable and allows
+  any host. **Affects every published `@wevna/sdk` version before this one.**
+
 ### Added
 
 - **Python SDK** (`wevna` on PyPI, `0.1.0`, in `python/`) — ASGI and WSGI

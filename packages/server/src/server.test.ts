@@ -275,3 +275,105 @@ describe("POST /api/ingest", () => {
     expect(response.statusCode).toBe(415);
   });
 });
+
+describe("POST /api/ingest host validation (DNS rebinding)", () => {
+  const send = async (
+    headers: Record<string, string>,
+    options: Parameters<typeof createServer>[0] = {},
+  ) => {
+    let received = 0;
+    const app = await createServer({
+      ingest: (events) => {
+        received += events.length;
+      },
+      ...options,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/ingest",
+      headers: { "content-type": "application/json", ...headers },
+      payload: { events: [{ kind: "x", attributes: {} }] },
+    });
+    return { status: response.statusCode, received };
+  };
+
+  it.each(["localhost:4123", "127.0.0.1:4123", "[::1]:4123", "localhost"])(
+    "accepts the loopback Host %s",
+    async (host) => {
+      expect(await send({ host })).toEqual({ status: 202, received: 1 });
+    },
+  );
+
+  it("refuses a rebound hostname, which is how a web page reaches localhost same-origin", async () => {
+    expect(await send({ host: "evil.example.com:4123" })).toEqual({ status: 403, received: 0 });
+  });
+
+  it("refuses a cross-site Origin even when the Host looks local", async () => {
+    expect(await send({ host: "localhost:4123", origin: "https://evil.example.com" })).toEqual({
+      status: 403,
+      received: 0,
+    });
+  });
+
+  it("accepts a loopback Origin", async () => {
+    expect(await send({ host: "localhost:4123", origin: "http://localhost:4123" })).toEqual({
+      status: 202,
+      received: 1,
+    });
+  });
+
+  it("accepts a host the operator explicitly bound to", async () => {
+    expect(
+      await send({ host: "devbox.internal:4123" }, { allowedHosts: ["devbox.internal"] }),
+    ).toEqual({ status: 202, received: 1 });
+  });
+
+  it("allows any host when the operator bound to every interface on purpose", async () => {
+    expect(await send({ host: "10.0.0.5:4123" }, { allowedHosts: ["*"] })).toEqual({
+      status: 202,
+      received: 1,
+    });
+  });
+});
+
+describe("WebSocket and dashboard routes against hostile pages", () => {
+  const sourceOf = () => ({ subscribe: () => () => {} });
+
+  it("refuses a rebound Host on every route, not only ingest", async () => {
+    const app = await createServer({ eventSource: sourceOf(), dashboardDir: fixtureDashboardDir });
+
+    for (const url of ["/health", "/api/session", "/"]) {
+      const response = await app.inject({
+        method: "GET",
+        url,
+        headers: { host: "evil.example.com" },
+      });
+      expect(response.statusCode, url).toBe(403);
+    }
+  });
+
+  it("closes a WebSocket opened from a foreign Origin (cross-site hijacking)", async () => {
+    const app = await createServer({ eventSource: sourceOf() });
+    await app.ready();
+
+    const socket = await app.injectWS("/ws", { headers: { origin: "https://evil.example.com" } });
+    const code = await new Promise<number>((resolve) => socket.on("close", resolve));
+
+    expect(code).toBe(1008);
+  });
+
+  it("keeps a WebSocket from a local dashboard origin open", async () => {
+    const app = await createServer({ eventSource: sourceOf() });
+    await app.ready();
+
+    const socket = await app.injectWS("/ws", { headers: { origin: "http://localhost:4123" } });
+    let closed = false;
+    socket.on("close", () => {
+      closed = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(closed).toBe(false);
+    socket.terminate();
+  });
+});
