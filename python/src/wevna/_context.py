@@ -53,3 +53,17 @@ def request_scope() -> Iterator[Dict[str, object]]:
     finally:
         _request_info.reset(info_token)
         _correlation_id.reset(id_token)
+
+
+def begin_request() -> Dict[str, object]:
+    """Open a correlation scope that is never closed.
+
+    For callers that have already moved into a context of their own to discard
+    (the WSGI middleware runs each request, and its streamed body, in one
+    copied context) — there is nothing to reset, and a reset across the yields
+    of a lazily-consumed response would fail.
+    """
+    info: Dict[str, object] = {}
+    _correlation_id.set(uuid.uuid4().hex)
+    _request_info.set(info)
+    return info

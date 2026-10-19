@@ -327,3 +327,49 @@ def instrument_connection(connection: Any) -> Any:
     if isinstance(connection, _WevnaConnection):
         return connection
     return _WevnaConnection(connection)
+
+
+# --------------------------------------------------------------------------
+# SQLAlchemy
+# --------------------------------------------------------------------------
+
+
+def instrument_sqlalchemy(engine: Any) -> None:
+    """Capture every statement an Engine (or AsyncEngine) executes.
+
+        wevna.instrument_sqlalchemy(engine)
+
+    Uses SQLAlchemy's own event hooks, so it sees ORM and Core alike and needs
+    no wrapping. The statement is the parameterised text; the bound values are
+    never read.
+    """
+    from sqlalchemy import event  # type: ignore[import-not-found]
+
+    # An AsyncEngine delegates events to the engine underneath it.
+    target = getattr(engine, "sync_engine", engine)
+    if getattr(target, "_wevna_instrumented", False):
+        return
+    target._wevna_instrumented = True
+
+    @event.listens_for(target, "before_cursor_execute")
+    def _before(conn: Any, cursor: Any, statement: Any, parameters: Any, context: Any, many: Any) -> None:
+        conn.info.setdefault("_wevna_started", []).append(time.perf_counter())
+
+    @event.listens_for(target, "after_cursor_execute")
+    def _after(conn: Any, cursor: Any, statement: Any, parameters: Any, context: Any, many: Any) -> None:
+        started = _pop_started(conn)
+        if started is not None:
+            _publish_sql(statement, started, getattr(cursor, "rowcount", None), None)
+
+    @event.listens_for(target, "handle_error")
+    def _error(exception_context: Any) -> None:
+        conn = exception_context.connection
+        started = _pop_started(conn) if conn is not None else None
+        if started is not None:
+            original = exception_context.original_exception
+            _publish_sql(exception_context.statement or "", started, None, original)
+
+
+def _pop_started(conn: Any) -> Optional[float]:
+    stack = conn.info.get("_wevna_started")
+    return stack.pop() if stack else None

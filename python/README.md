@@ -43,9 +43,12 @@ wevna.flask.install(app)   # also records the route pattern, /orders/<int:id>
 ## Django, or any other WSGI app
 
 ```python
+# wsgi.py
 from wevna.wsgi import WevnaWSGIMiddleware
-
 application = WevnaWSGIMiddleware(get_wsgi_application())
+
+# settings.py — records the route pattern (articles/<int:pk>/), not the URL
+MIDDLEWARE = ["wevna.django.WevnaDjangoMiddleware", ...]
 ```
 
 (Django's ASGI entry point works with `WevnaMiddleware` the same way.)
@@ -57,6 +60,7 @@ application = WevnaWSGIMiddleware(get_wsgi_application())
 | Requests (`http.request`) | the middleware above |
 | Outgoing HTTP (`http.client`) | `requests` and `httpx`, sync and async, if installed |
 | Redis (`redis.command`) | `redis-py`, sync and asyncio, if installed |
+| SQL (`sql.query`) | `instrument_sqlalchemy(engine)` or `instrument_connection(conn)` |
 | Logs (`console.log`) | the standard `logging` module |
 | Exceptions (`exception.captured`) | raised out of a request |
 
@@ -65,6 +69,12 @@ SQL is explicit, because DB-API connections are C types that can't be patched:
 ```python
 import sqlite3
 conn = wevna.instrument_connection(sqlite3.connect("app.db"))   # or psycopg, psycopg2, ...
+```
+
+SQLAlchemy has its own hook and sees ORM and Core alike (sync and async engines):
+
+```python
+wevna.instrument_sqlalchemy(engine)
 ```
 
 Anything not installed is skipped silently. `wevna.start(instrument=False)`

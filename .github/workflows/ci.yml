@@ -62,7 +62,7 @@ jobs:
       # The optional libraries are installed so their instrumentation is
       # tested for real rather than skipped.
       - name: Install optional dependencies
-        run: pip install requests redis httpx
+        run: pip install requests redis httpx flask fastapi sqlalchemy
 
       - name: Test
         env:

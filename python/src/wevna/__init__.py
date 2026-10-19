@@ -18,7 +18,7 @@ from typing import Any, Optional
 from . import _client, asgi, instrumentation, wsgi
 from ._context import current_correlation_id, request_scope, set_route
 from ._patching import unpatch_all
-from .instrumentation import instrument_connection
+from .instrumentation import instrument_connection, instrument_sqlalchemy
 
 __version__ = "0.1.0"
 
@@ -28,6 +28,7 @@ __all__ = [
     "current_correlation_id",
     "emit",
     "instrument_connection",
+    "instrument_sqlalchemy",
     "request_scope",
     "set_route",
     "start",

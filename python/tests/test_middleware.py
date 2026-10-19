@@ -107,7 +107,12 @@ def run_wsgi(app, path="/ping", query=""):
     def start_response(status, headers, exc_info=None):
         captured["status"] = status
 
-    body = b"".join(WevnaWSGIMiddleware(app)(environ, start_response))
+    result = WevnaWSGIMiddleware(app)(environ, start_response)
+    try:
+        body = b"".join(result)
+    finally:
+        # A WSGI server must call close(); the event is emitted when it does.
+        result.close()
     return captured, body
 
 
@@ -176,3 +181,43 @@ class WsgiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WsgiStreamingTests(unittest.TestCase):
+    def test_a_streamed_body_stays_correlated_and_reports_once(self):
+        def app(environ, start_response):
+            start_response("200 OK", [])
+
+            def body():
+                emit("sql.query", {"query": "select 1"})  # runs while streaming
+                yield b"a"
+                yield b"b"
+
+            return body()
+
+        with Capture() as capture:
+            _, body = run_wsgi(app)
+            [request] = capture.of_kind("http.request")
+            [sql] = capture.of_kind("sql.query")
+
+        self.assertEqual(body, b"ab")
+        self.assertEqual(sql["correlation"], request["correlation"])
+
+    def test_an_error_raised_while_streaming_is_recorded(self):
+        def app(environ, start_response):
+            start_response("200 OK", [])
+
+            def body():
+                yield b"a"
+                raise RuntimeError("mid-stream")
+
+            return body()
+
+        with Capture() as capture:
+            with self.assertRaises(RuntimeError):
+                run_wsgi(app)
+            [exception] = capture.of_kind("exception.captured")
+            [request] = capture.of_kind("http.request")
+
+        self.assertEqual(exception["attributes"]["message"], "mid-stream")
+        self.assertEqual(request["attributes"]["statusCode"], 500)

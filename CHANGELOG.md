@@ -10,7 +10,8 @@ what each version number covers.
 
 - **Python SDK** (`wevna` on PyPI, `0.1.0`, in `python/`) — ASGI and WSGI
   middleware plus `requests`, `httpx`, `redis`, `logging` and DB-API SQL
-  instrumentation, sending to the same dashboard. Zero dependencies.
+  instrumentation, sending to the same dashboard. Zero dependencies. Django
+  route middleware and SQLAlchemy (`instrument_sqlalchemy`) included.
 - **`POST /api/ingest` and a `wevna` CLI** (`npx @wevna/sdk`) — the dashboard
   on its own, accepting events from other-language SDKs. In-process, opt in
   with `wevna.start({ ingest: true })`; the CLI always has it on. Accepts only

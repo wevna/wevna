@@ -159,3 +159,46 @@ class StartStopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SqlAlchemyTests(unittest.TestCase):
+    def setUp(self):
+        try:
+            import sqlalchemy
+        except ImportError:
+            self.skipTest("sqlalchemy not installed")
+        self.sa = sqlalchemy
+        self.engine = sqlalchemy.create_engine("sqlite://")
+        self.addCleanup(self.engine.dispose)
+        wevna.instrument_sqlalchemy(self.engine)
+
+    def test_records_statement_and_rows_but_never_bound_values(self):
+        with Capture() as capture:
+            with self.engine.begin() as conn:
+                conn.execute(self.sa.text("create table t (email text)"))
+                conn.execute(
+                    self.sa.text("insert into t values (:email)"), {"email": "secret@example.com"}
+                )
+            events = capture.of_kind("sql.query")
+
+        self.assertEqual(len(events), 2)
+        insert = events[1]["attributes"]
+        self.assertIn("insert into t", insert["query"])
+        self.assertEqual(insert["rows"], 1)
+        self.assertNotIn("secret@example.com", repr(events))
+
+    def test_a_failing_statement_is_recorded_and_reraised(self):
+        with Capture() as capture:
+            with self.assertRaises(self.sa.exc.OperationalError):
+                with self.engine.connect() as conn:
+                    conn.execute(self.sa.text("select * from missing"))
+            [event] = capture.of_kind("sql.query")
+
+        self.assertEqual(event["attributes"]["error"], "OperationalError")
+
+    def test_instrumenting_twice_does_not_double_count(self):
+        wevna.instrument_sqlalchemy(self.engine)
+        with Capture() as capture:
+            with self.engine.connect() as conn:
+                conn.execute(self.sa.text("select 1"))
+            self.assertEqual(len(capture.of_kind("sql.query")), 1)
