@@ -5,7 +5,7 @@ actions. Everything else is tracked in issues and `PROJECT_STATUS.md`.
 
 ## Publishing
 
-- [ ] **Merge the stacked PRs in order:** #75 → #76 → #77 (each is based on the previous).
+- [ ] **Merge the stacked PRs in order:** #75 → #76 → #77 → #78 → #79 (each is based on the previous).
 - [ ] **npm — new packages need a trusted publisher** (npmjs.com → package → Settings → Trusted publisher, pinned to `wevna/wevna` + `release.yml`), same as the existing three:
   - [ ] `@wevna/plugin-mongodb`
   - [ ] `@wevna/plugin-prisma`
