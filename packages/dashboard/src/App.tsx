@@ -5,6 +5,7 @@ import { EndpointStatsSection } from "./EndpointStatsSection.tsx";
 import { EventDetails } from "./EventDetails.tsx";
 import { EventList } from "./EventList.tsx";
 import { findTimelineEntry } from "./find-timeline-entry.ts";
+import { adjacentRequestId } from "./keyboard-shortcuts.ts";
 import { ReplayControls } from "./ReplayControls.tsx";
 import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
@@ -12,6 +13,7 @@ import { formatEventCount } from "./request-format.ts";
 import { SessionTimeline } from "./SessionTimeline.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useEventSource } from "./use-event-source.ts";
+import { SEARCH_INPUT_ID, useKeyboardShortcuts } from "./use-keyboard-shortcuts.ts";
 import { useRequestSelection } from "./use-request-selection.ts";
 import { useSelection } from "./use-selection.ts";
 import { useTheme } from "./use-theme.ts";
@@ -56,6 +58,44 @@ function App() {
     clearRequests?.();
     clearRequestSelection();
   }
+
+  useKeyboardShortcuts((action) => {
+    switch (action) {
+      case "next-request":
+      case "previous-request": {
+        const id = adjacentRequestId(
+          requests,
+          selectedRequestId,
+          action === "next-request" ? "next" : "previous",
+        );
+        if (id !== undefined) {
+          selectRequest(id);
+        }
+        break;
+      }
+      case "clear-selection":
+        clearRequestSelection();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        break;
+      case "focus-search":
+        document.getElementById(SEARCH_INPUT_ID)?.focus();
+        break;
+      case "toggle-theme":
+        toggleTheme();
+        break;
+      case "toggle-pause":
+        if (paused) {
+          resume();
+        } else {
+          pause();
+        }
+        break;
+      default:
+        break;
+    }
+  });
 
   return (
     <main className="app">
