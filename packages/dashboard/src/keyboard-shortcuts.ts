@@ -39,6 +39,12 @@ export const SHORTCUTS: readonly (ShortcutDescription & { key: string })[] = [
   { key: "?", keys: "?", description: "Show this help", action: "toggle-help" },
 ];
 
+// Chords are handled separately from SHORTCUTS (which never claims a
+// modifier combination) but belong in the same help listing.
+export const CHORD_SHORTCUTS: readonly { keys: string; description: string }[] = [
+  { keys: "Ctrl/⌘ K", description: "Command palette" },
+];
+
 const TEXT_ENTRY_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 export function isTextEntry(target: ShortcutTarget | null | undefined): boolean {
