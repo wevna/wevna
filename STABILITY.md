@@ -104,6 +104,19 @@ it would be worse: `ExceptionInstrumentation` registers process-level
 `uncaughtException` / `unhandledRejection` listeners, which affects Node's
 default crash behaviour. See `exception-instrumentation.ts`.
 
+Two more side effects that are deliberate and worth knowing before you run
+Wevna next to other tooling:
+
+- **`http.Server.prototype.emit` is patched** to observe incoming requests.
+  OpenTelemetry, Datadog and New Relic patch the same method. Each wraps
+  whatever was there before it, so they generally compose, but load order
+  decides the nesting, and two tools that both replace rather than wrap will
+  clash. If request capture or your APM's spans go missing, start by
+  changing which one initialises first.
+- **The `pg` wrapper stays installed after `wevna.stop()`.** Unwrapping a
+  client other code may have since wrapped again is unsafe, so `stop()` stops
+  publishing events instead; the wrapper becomes a pass-through.
+
 ## Memory and retention
 
 The live dashboard keeps a **bounded** amount of history: the most recent

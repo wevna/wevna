@@ -64,6 +64,33 @@ describe("PluginManager", () => {
       ]);
     });
 
+    it("sets up a plugin registered during another's setup only after that one finishes", async () => {
+      const order: string[] = [];
+      const manager = new PluginManager(makeHost());
+      const late = makePlugin({
+        name: "late",
+        setup: async () => {
+          order.push("late:start");
+          order.push("late:end");
+        },
+      });
+      manager.register(
+        makePlugin({
+          name: "early",
+          setup: async () => {
+            order.push("early:start");
+            manager.register(late);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            order.push("early:end");
+          },
+        }),
+      );
+
+      await manager.startAll();
+
+      expect(order).toEqual(["early:start", "early:end", "late:start", "late:end"]);
+    });
+
     it("does not call setup() until the runtime starts", () => {
       const setup = vi.fn();
       const manager = new PluginManager(makeHost());

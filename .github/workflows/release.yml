@@ -40,7 +40,7 @@ jobs:
       # The full gate, not just a build: a release must not be the one path
       # that skips the checks every pull request has to pass.
       - name: Verify
-        run: pnpm turbo run build check test lint
+        run: pnpm turbo run build check test && pnpm lint
 
       # pnpm, not npm: the published packages depend on @wevna/protocol via
       # `workspace:^`, and only pnpm rewrites that to a real semver range at
