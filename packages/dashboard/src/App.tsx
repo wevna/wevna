@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./design-system.css";
 import "./App.css";
+import { CommandPalette } from "./CommandPalette.tsx";
+import type { Command } from "./command-palette.ts";
 import { DashboardHeader } from "./DashboardHeader.tsx";
 import { EndpointStatsSection } from "./EndpointStatsSection.tsx";
 import { EventDetails } from "./EventDetails.tsx";
@@ -23,6 +25,7 @@ import { useTimeline } from "./use-timeline.ts";
 
 function App() {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { events, requests, clearRequests, sessionMode, replay } = useEventSource();
   const { selectedId, select } = useSelection();
   // Selection resolves against the full live list, not the
@@ -103,6 +106,42 @@ function App() {
     }
   });
 
+  // Cmd/Ctrl+K opens the palette. A chord, so it is not part of the plain-key
+  // SHORTCUTS table (which deliberately never claims modifier combinations);
+  // it works from inside a text field too, as in every launcher.
+  useEffect(() => {
+    const listener = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
+
+  const paletteCommands: Command[] = [
+    ...requests.map((request) => ({
+      id: `request:${request.id}`,
+      label: [request.method, request.route].filter(Boolean).join(" ") || request.correlationId,
+      hint: String(request.statusCode ?? request.status),
+      run: () => selectRequest(request.id),
+    })),
+    { id: "theme", label: "Toggle light / dark theme", run: toggleTheme },
+    {
+      id: "pause",
+      label: paused ? "Resume capture" : "Pause capture",
+      run: paused ? resume : pause,
+    },
+    {
+      id: "search",
+      label: "Search events",
+      run: () => document.getElementById(SEARCH_INPUT_ID)?.focus(),
+    },
+    { id: "help", label: "Show keyboard shortcuts", run: () => setHelpOpen(true) },
+    ...(clearRequests ? [{ id: "clear", label: "Clear requests", run: handleClearRequests }] : []),
+  ];
+
   return (
     <main className="app">
       <DashboardHeader
@@ -113,6 +152,9 @@ function App() {
         onToggleTheme={toggleTheme}
         onShowHelp={() => setHelpOpen(true)}
       />
+      {paletteOpen ? (
+        <CommandPalette commands={paletteCommands} onClose={() => setPaletteOpen(false)} />
+      ) : null}
       {helpOpen ? <ShortcutsHelp onClose={() => setHelpOpen(false)} /> : null}
 
       {/* Purely informational — no replay controls here, just exposing

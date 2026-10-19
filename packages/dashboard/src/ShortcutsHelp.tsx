@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { SHORTCUTS } from "./keyboard-shortcuts.ts";
+import { CHORD_SHORTCUTS, SHORTCUTS } from "./keyboard-shortcuts.ts";
 
 export interface ShortcutsHelpProps {
   onClose: () => void;
@@ -39,6 +39,14 @@ export function ShortcutsHelp({ onClose }: ShortcutsHelpProps) {
         <dl className="shortcuts-help__list">
           {SHORTCUTS.map((shortcut) => (
             <div key={shortcut.action} className="shortcuts-help__row">
+              <dt>
+                <kbd>{shortcut.keys}</kbd>
+              </dt>
+              <dd>{shortcut.description}</dd>
+            </div>
+          ))}
+          {CHORD_SHORTCUTS.map((shortcut) => (
+            <div key={shortcut.keys} className="shortcuts-help__row">
               <dt>
                 <kbd>{shortcut.keys}</kbd>
               </dt>
