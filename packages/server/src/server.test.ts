@@ -171,3 +171,45 @@ describe("createServer with an event source", () => {
     await app.close();
   });
 });
+
+describe("WebSocket and dashboard routes against hostile pages", () => {
+  const sourceOf = () => ({ subscribe: () => () => {} });
+
+  it("refuses a rebound Host on every route, not only ingest", async () => {
+    const app = await createServer({ eventSource: sourceOf(), dashboardDir: fixtureDashboardDir });
+
+    for (const url of ["/health", "/api/session", "/"]) {
+      const response = await app.inject({
+        method: "GET",
+        url,
+        headers: { host: "evil.example.com" },
+      });
+      expect(response.statusCode, url).toBe(403);
+    }
+  });
+
+  it("closes a WebSocket opened from a foreign Origin (cross-site hijacking)", async () => {
+    const app = await createServer({ eventSource: sourceOf() });
+    await app.ready();
+
+    const socket = await app.injectWS("/ws", { headers: { origin: "https://evil.example.com" } });
+    const code = await new Promise<number>((resolve) => socket.on("close", resolve));
+
+    expect(code).toBe(1008);
+  });
+
+  it("keeps a WebSocket from a local dashboard origin open", async () => {
+    const app = await createServer({ eventSource: sourceOf() });
+    await app.ready();
+
+    const socket = await app.injectWS("/ws", { headers: { origin: "http://localhost:4123" } });
+    let closed = false;
+    socket.on("close", () => {
+      closed = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(closed).toBe(false);
+    socket.terminate();
+  });
+});

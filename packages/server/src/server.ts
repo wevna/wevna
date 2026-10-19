@@ -1,6 +1,7 @@
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerDashboard } from "./dashboard.js";
+import { allowedHostsFor, isAllowedHost } from "./host-guard.js";
 import type { OfflineSessionSource } from "./offline-session-source.js";
 import { type EventSource, WebSocketTransport } from "./websocket-transport.js";
 
@@ -12,11 +13,24 @@ export interface CreateServerOptions {
   // practice (a caller wires up one or the other), though nothing here
   // enforces that; each is simply registered independently if given.
   session?: OfflineSessionSource;
+  // Hostnames a request may address this server by, `["*"]` for any. Defaults
+  // to the loopback names; startServer widens it to match the host it binds.
+  // See host-guard.ts for the attacks this exists to stop.
+  allowedHosts?: readonly string[];
 }
 
 export async function createServer(options: CreateServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify();
   const session = options.session;
+  const allowedHosts = options.allowedHosts ?? allowedHostsFor("localhost");
+
+  // Every route, including the WebSocket upgrade and recordings: a page that
+  // rebinds its own hostname to 127.0.0.1 must not be able to read any of them.
+  app.addHook("onRequest", async (request, reply) => {
+    if (!isAllowedHost(request.headers.host, allowedHosts)) {
+      return reply.code(403).send({ error: "host not allowed" });
+    }
+  });
 
   app.get("/health", async () => ({
     status: "running",
@@ -53,7 +67,7 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
   }
 
   if (options.eventSource) {
-    await new WebSocketTransport().register(app, options.eventSource);
+    await new WebSocketTransport(allowedHosts).register(app, options.eventSource);
   }
 
   // Registered after /health (and the websocket route) so the dashboard's

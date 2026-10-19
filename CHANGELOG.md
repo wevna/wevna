@@ -4,6 +4,21 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## Unreleased — `@wevna/sdk`
+
+### Security
+
+- **A web page you visit could read the dashboard's event stream.** Browsers
+  do not apply the same-origin policy to WebSockets, so any site could open
+  `ws://localhost:4123/ws` and receive every SQL query, request and log line
+  Wevna captured (cross-site WebSocket hijacking), and a page that rebinds its
+  own hostname to `127.0.0.1` could reach every route the same way (DNS
+  rebinding). The server now refuses a foreign `Host` on every route and a
+  foreign `Origin` on the WebSocket. Non-browser clients (which send no
+  `Origin`) and the dashboard itself are unaffected. Binding to
+  `0.0.0.0`/`::` is treated as an explicit decision to be reachable and allows
+  any host. **Affects every published `@wevna/sdk` version before this one.**
+
 ## Unreleased — Python SDK (`wevna`, alpha)
 
 ### Added — Phase 2: databases and outgoing HTTP
