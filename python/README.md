@@ -105,4 +105,4 @@ raises into your code, and nothing waits on the network.
 
 ## Status
 
-`0.1.0`, pre-release. Python 3.9+.
+`0.1.0`, pre-release. Python 3.9+. Typed (`py.typed`).

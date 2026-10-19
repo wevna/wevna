@@ -12,7 +12,7 @@ actions. Everything else is tracked in issues and `PROJECT_STATUS.md`.
   - [ ] `@wevna/plugin-mysql`
   - Until configured, the first publish falls back to a token and ships **without provenance** (see the comment in `release.yml`).
 - [ ] **npm — release `@wevna/sdk` 1.2.0** (ingest endpoint, `wevna` CLI, endpoint ranking, error boundary). Bump the version and tag.
-- [ ] **PyPI — create the `wevna` project and a trusted publisher** (pypi.org → Publishing), then add a `python/` release workflow. Not written yet because it needs that account to exist; ask and it will be drafted.
+- [ ] **PyPI — create the `wevna` project and a trusted publisher** (pypi.org → Publishing → add a pending publisher: owner `wevna`, repo `wevna`, workflow `release-python.yml`, environment `pypi`), and create a `pypi` environment in the GitHub repo settings. Then publish with `git tag python-v0.1.0 && git push origin python-v0.1.0`. The workflow tests, builds and `twine check`s first, and refuses a tag that doesn't match `pyproject.toml`.
 - [ ] Confirm the PyPI name `wevna` is free before announcing it.
 
 ## Verification only a human can do
