@@ -27,6 +27,7 @@ export interface InsightContext {
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   sql: "PostgreSQL",
   redis: "Redis",
+  database: "database operations",
   httpClient: "outgoing HTTP calls",
   http: "HTTP",
   console: "console output",
@@ -80,11 +81,18 @@ export function generatePerformanceInsights(
     });
   }
 
-  if (metrics.sqlQueryCount > thresholds.multipleDatabaseCallsCount) {
+  const databaseCalls = metrics.sqlQueryCount + metrics.databaseOperationCount;
+  if (databaseCalls > thresholds.multipleDatabaseCallsCount) {
+    // Names the split only when there is one, so a pure-SQL request reads
+    // exactly as it always has.
+    const breakdown =
+      metrics.databaseOperationCount > 0
+        ? `${databaseCalls} database calls (${metrics.sqlQueryCount} SQL, ${metrics.databaseOperationCount} other) were executed`
+        : `${metrics.sqlQueryCount} SQL queries were executed`;
     insights.push({
       type: "multiple-database-calls",
       title: "Multiple Database Calls",
-      message: `${metrics.sqlQueryCount} SQL queries were executed, exceeding the threshold of ${thresholds.multipleDatabaseCallsCount}.`,
+      message: `${breakdown}, exceeding the threshold of ${thresholds.multipleDatabaseCallsCount}.`,
     });
   }
 
@@ -103,10 +111,16 @@ export function generatePerformanceInsights(
     if (repeated.count < thresholds.repeatedOperationCount) {
       continue;
     }
-    const what = repeated.kind === "sql.query" ? "query" : "command";
+    const isSql = repeated.kind === "sql.query";
+    const isRedis = repeated.kind === "redis.command";
+    const what = isSql ? "query" : isRedis ? "command" : "operation";
     insights.push({
       type: "repeated-operation",
-      title: repeated.kind === "sql.query" ? "Repeated Query" : "Repeated Redis Command",
+      title: isSql
+        ? "Repeated Query"
+        : isRedis
+          ? "Repeated Redis Command"
+          : "Repeated Database Operation",
       // States the shape and the count, and stops there — a repeated query is
       // often an N+1 and sometimes entirely correct. The developer looking at
       // their own code is better placed to tell which.

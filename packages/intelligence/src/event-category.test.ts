@@ -49,3 +49,10 @@ describe("categorizeEvent outgoing HTTP", () => {
     expect(categorizeEvent("http.upgrade")).toBe("http");
   });
 });
+
+describe("categorizeEvent datastores", () => {
+  it("groups mongodb.* and prisma.* kinds as database", () => {
+    expect(categorizeEvent("mongodb.command")).toBe("database");
+    expect(categorizeEvent("prisma.query")).toBe("database");
+  });
+});

@@ -20,6 +20,7 @@ export type EventCategory =
   | "httpClient"
   | "sql"
   | "redis"
+  | "database"
   | "exception"
   | "console"
   | "other";
@@ -32,6 +33,10 @@ const PREFIX_CATEGORIES: readonly (readonly [prefix: string, category: EventCate
   ["http.", "http"],
   ["sql.", "sql"],
   ["redis.", "redis"],
+  // Datastores that are not SQL or Redis: MongoDB, and ORMs whose operations
+  // are model-level rather than a query string (Prisma).
+  ["mongodb.", "database"],
+  ["prisma.", "database"],
   ["exception.", "exception"],
   ["console.", "console"],
 ];
