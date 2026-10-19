@@ -44,12 +44,12 @@ def instrument_logging(level: int = logging.INFO) -> None:
     if _log_handler is not None:
         return
     _log_handler = WevnaLogHandler(level)
+    # Attaches a handler and nothing else. In particular it does not lower the
+    # root logger's level: that would make the application's own handlers start
+    # emitting INFO records they never did before, and an observer must not
+    # change what the app logs. The consequence is documented: records the
+    # app's logging configuration filters out are not seen.
     logging.getLogger().addHandler(_log_handler)
-    # A root logger left at its default WARNING would never hand us the INFO
-    # records we were asked for.
-    root = logging.getLogger()
-    if root.level == logging.NOTSET or root.level > level:
-        root.setLevel(level)
 
 
 def uninstrument_logging() -> None:

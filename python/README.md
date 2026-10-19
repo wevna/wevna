@@ -61,7 +61,7 @@ MIDDLEWARE = ["wevna.django.WevnaDjangoMiddleware", ...]
 | Outgoing HTTP (`http.client`) | `requests` and `httpx`, sync and async, if installed |
 | Redis (`redis.command`) | `redis-py`, sync and asyncio, if installed |
 | SQL (`sql.query`) | `instrument_sqlalchemy(engine)` or `instrument_connection(conn)` |
-| Logs (`console.log`) | the standard `logging` module |
+| Logs (`console.log`) | the standard `logging` module — records your own logging config lets through; Wevna never changes your log levels |
 | Exceptions (`exception.captured`) | raised out of a request |
 
 SQL is explicit, because DB-API connections are C types that can't be patched:

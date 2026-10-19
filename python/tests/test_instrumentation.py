@@ -60,6 +60,10 @@ class SqlTests(unittest.TestCase):
 class LoggingTests(unittest.TestCase):
     def test_log_records_become_console_log_events(self):
         logger = logging.getLogger("wevna-test")
+        root = logging.getLogger()
+        before = root.level
+        root.setLevel(logging.INFO)  # the app's own logging configuration
+        self.addCleanup(root.setLevel, before)
         with Capture() as capture:
             instrumentation.instrument_logging(logging.INFO)
             try:
@@ -69,6 +73,27 @@ class LoggingTests(unittest.TestCase):
                 instrumentation.uninstrument_logging()
 
         self.assertEqual(event["attributes"], {"level": "info", "message": "order 42 created"})
+
+
+class LoggingSideEffectTests(unittest.TestCase):
+    def test_does_not_change_the_root_logger_level(self):
+        root = logging.getLogger()
+        before = root.level
+        try:
+            root.setLevel(logging.WARNING)
+            with Capture() as capture:
+                instrumentation.instrument_logging(logging.INFO)
+                try:
+                    logging.getLogger("quiet").info("filtered out by the app's own config")
+                    logging.getLogger("quiet").warning("kept")
+                    messages = [e["attributes"]["message"] for e in capture.of_kind("console.log")]
+                    self.assertEqual(root.level, logging.WARNING)
+                finally:
+                    instrumentation.uninstrument_logging()
+        finally:
+            root.setLevel(before)
+
+        self.assertEqual(messages, ["kept"])
 
 
 class SanitizeTests(unittest.TestCase):
