@@ -57,6 +57,7 @@ export class PluginManager {
   readonly #host: PluginHost;
   #registrations: Registration[] = [];
   #running = false;
+  #starting = false;
   // In-flight setup() calls, so a caller can await plugins becoming live
   // without register() itself having to be async — see settled().
   #pending = new Set<Promise<void>>();
@@ -103,7 +104,7 @@ export class PluginManager {
 
     // Registered while already running (start() came first): set up now
     // rather than waiting for a restart that may never come.
-    if (this.#running) {
+    if (this.#running && !this.#starting) {
       this.#track(this.#setUp(registration));
     }
   }
@@ -114,10 +115,19 @@ export class PluginManager {
   // answerable instead of a race.
   async startAll(): Promise<void> {
     this.#running = true;
-    for (const registration of this.#registrations) {
-      if (registration.status === "registered") {
-        await this.#setUp(registration);
+    // While this loop runs, a plugin registered from inside another's
+    // setup() is only appended: the loop is iterating the same array and
+    // reaches it in turn, in order. Setting it up from register() as well
+    // would run it concurrently with the plugin that registered it.
+    this.#starting = true;
+    try {
+      for (const registration of this.#registrations) {
+        if (registration.status === "registered") {
+          await this.#setUp(registration);
+        }
       }
+    } finally {
+      this.#starting = false;
     }
   }
 
