@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "./design-system.css";
 import "./App.css";
 import { DashboardHeader } from "./DashboardHeader.tsx";
@@ -11,6 +12,7 @@ import { RequestInspector } from "./RequestInspector.tsx";
 import { RequestList } from "./RequestList.tsx";
 import { formatEventCount } from "./request-format.ts";
 import { SessionTimeline } from "./SessionTimeline.tsx";
+import { ShortcutsHelp } from "./ShortcutsHelp.tsx";
 import { useEventFilter } from "./use-event-filter.ts";
 import { useEventSource } from "./use-event-source.ts";
 import { SEARCH_INPUT_ID, useKeyboardShortcuts } from "./use-keyboard-shortcuts.ts";
@@ -20,6 +22,7 @@ import { useTheme } from "./use-theme.ts";
 import { useTimeline } from "./use-timeline.ts";
 
 function App() {
+  const [helpOpen, setHelpOpen] = useState(false);
   const { events, requests, clearRequests, sessionMode, replay } = useEventSource();
   const { selectedId, select } = useSelection();
   // Selection resolves against the full live list, not the
@@ -92,6 +95,9 @@ function App() {
           pause();
         }
         break;
+      case "toggle-help":
+        setHelpOpen((open) => !open);
+        break;
       default:
         break;
     }
@@ -105,7 +111,9 @@ function App() {
         timeline={{ paused, liveCount, onPause: pause, onResume: resume, onClear: clear }}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onShowHelp={() => setHelpOpen(true)}
       />
+      {helpOpen ? <ShortcutsHelp onClose={() => setHelpOpen(false)} /> : null}
 
       {/* Purely informational — no replay controls here, just exposing
           which recording is being viewed and when it was made. */}
