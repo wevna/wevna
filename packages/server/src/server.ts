@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerDashboard } from "./dashboard.js";
@@ -52,17 +53,12 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
   if (session) {
     // A recording is finite and already fully known, unlike a live
     // stream — there's nothing to "subscribe" to, so this is a plain
-    // request/response fetch rather than a WebSocket. Drains
-    // session.getEvents() (itself typically backed by a streaming
-    // SessionLoader — see @wevna/sdk) into one response; see that
-    // package's own docs for why the *loader* stays streaming even though
-    // this endpoint's response is a single JSON payload.
-    app.get("/api/session/events", async () => {
-      const events: Envelope<CapturedEvent>[] = [];
-      for await (const event of session.getEvents()) {
-        events.push(event);
-      }
-      return { events };
+    // request/response fetch rather than a WebSocket. The body is still one
+    // JSON document, `{"events":[...]}`, but it is written as the loader
+    // yields rather than built up first, so the server never holds the whole
+    // recording (or its serialized form) in memory at once.
+    app.get("/api/session/events", async (_request, reply) => {
+      return reply.type("application/json").send(Readable.from(streamEventsJson(session)));
     });
   }
 
@@ -72,7 +68,17 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
 
   // Registered after /health (and the websocket route) so the dashboard's
   // static assets never shadow them.
-  registerDashboard(app, options.dashboardDir);
+  await registerDashboard(app, options.dashboardDir);
 
   return app;
+}
+
+async function* streamEventsJson(session: OfflineSessionSource): AsyncGenerator<string> {
+  yield '{"events":[';
+  let first = true;
+  for await (const event of session.getEvents()) {
+    yield (first ? "" : ",") + JSON.stringify(event satisfies Envelope<CapturedEvent>);
+    first = false;
+  }
+  yield "]}";
 }

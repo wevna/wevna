@@ -39,7 +39,10 @@ function resolveDashboardDir(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-export function registerDashboard(app: FastifyInstance, dashboardDir?: string): void {
+export async function registerDashboard(
+  app: FastifyInstance,
+  dashboardDir?: string,
+): Promise<void> {
   const resolvedDir = dashboardDir ?? resolveDashboardDir();
 
   if (!resolvedDir) {
@@ -55,7 +58,7 @@ export function registerDashboard(app: FastifyInstance, dashboardDir?: string): 
     return;
   }
 
-  app.register(fastifyStatic, {
+  await app.register(fastifyStatic, {
     root: resolvedDir,
     index: ["index.html"],
   });
