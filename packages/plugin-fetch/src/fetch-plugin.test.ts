@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { PLUGIN_API_VERSION, type PluginContext, type PluginEvent } from "@wevna/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFetchPlugin } from "./fetch-plugin.js";
@@ -217,5 +218,15 @@ describe("createFetchPlugin", () => {
       expect(context.logger.warn).toHaveBeenCalledWith(expect.stringContaining("fetch"));
       expect(teardown).toBeUndefined();
     });
+  });
+});
+
+describe("createFetchPlugin version", () => {
+  it("reports the version the package is published at", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+
+    expect(createFetchPlugin().version).toBe(manifest.version);
   });
 });

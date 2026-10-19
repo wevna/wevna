@@ -4,6 +4,26 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## Unreleased — `@wevna/sdk`
+
+### Added
+
+- **Endpoint ranking** — a cross-request view that ranks every endpoint in the
+  session by latency and error rate, rather than showing one request at a time.
+- **Error boundary** — a plugin emitting an unexpected event shape now shows a
+  message in the dashboard instead of unmounting the whole UI.
+
+### Fixed
+
+- Inspector stat grid keeps each label next to its own value; the timeline
+  axis no longer overlaps its last two tick labels on narrow tracks. ([#54](https://github.com/wevna/wevna/issues/54))
+- The "dashboard assets not found" warning is now actually printed (it was
+  routed to a disabled logger), so a missing bundle no longer fails silently.
+- `startServer().url` prints `localhost` when bound to `0.0.0.0`/`::`.
+- `@wevna/plugin-fetch` reports its real version to `wevna.plugins`.
+- URL sanitizing no longer redacts `?author=…` (`auth` is now matched as a
+  whole word, not a substring).
+
 ## Unreleased — Python SDK (`wevna`, alpha)
 
 ### Added — Phase 2: databases and outgoing HTTP

@@ -37,7 +37,7 @@ export function createFetchPlugin(options: FetchPluginOptions = {}): WevnaPlugin
 
   return {
     name: "@wevna/plugin-fetch",
-    version: "0.0.1",
+    version: "1.0.0",
     apiVersion: PLUGIN_API_VERSION,
     eventKinds: ["http.client"],
 

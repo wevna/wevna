@@ -39,7 +39,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   }
 
   const boundPort = getBoundPort(app) ?? port;
-  const url = `http://${host}:${boundPort}`;
+  const url = `http://${displayHost(host)}:${boundPort}`;
 
   return {
     app,
@@ -48,6 +48,15 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     url,
     stop: () => app.close(),
   };
+}
+
+// A wildcard bind address is where to listen, not somewhere a browser can
+// go — http://0.0.0.0:4123 is not a link worth printing.
+function displayHost(host: string): string {
+  if (host === "0.0.0.0" || host === "::") {
+    return "localhost";
+  }
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
 function getBoundPort(app: FastifyInstance): number | undefined {
