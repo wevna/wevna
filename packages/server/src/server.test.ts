@@ -233,6 +233,22 @@ describe("POST /api/ingest", () => {
     expect(response.json().error).toMatch(message);
   });
 
+  it("accepts a batch bigger than Fastify's default 1 MiB body limit", async () => {
+    // 200 SQL statements of ~10 KiB is a plausible batch from a busy app; with
+    // the framework default this was a 413 that dropped every event in it.
+    let received = 0;
+    const app = await createServer({ ingest: (events) => void (received += events.length) });
+    const events = Array.from({ length: 200 }, () => ({
+      kind: "sql.query",
+      attributes: { query: "select ".padEnd(10_000, "x") },
+    }));
+
+    const response = await post(app, { events });
+
+    expect(response.statusCode).toBe(202);
+    expect(received).toBe(200);
+  });
+
   it("rejects a batch over the size limit", async () => {
     const app = await createServer({ ingest: () => {} });
     const events = Array.from({ length: 1001 }, () => ({ kind: "x", attributes: {} }));
