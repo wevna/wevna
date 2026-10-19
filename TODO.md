@@ -9,6 +9,7 @@ actions. Everything else is tracked in issues and `PROJECT_STATUS.md`.
 - [ ] **npm — new packages need a trusted publisher** (npmjs.com → package → Settings → Trusted publisher, pinned to `wevna/wevna` + `release.yml`), same as the existing three:
   - [ ] `@wevna/plugin-mongodb`
   - [ ] `@wevna/plugin-prisma`
+  - [ ] `@wevna/plugin-mysql`
   - Until configured, the first publish falls back to a token and ships **without provenance** (see the comment in `release.yml`).
 - [ ] **npm — release `@wevna/sdk` 1.2.0** (ingest endpoint, `wevna` CLI, endpoint ranking, error boundary). Bump the version and tag.
 - [ ] **PyPI — create the `wevna` project and a trusted publisher** (pypi.org → Publishing), then add a `python/` release workflow. Not written yet because it needs that account to exist; ask and it will be drafted.
@@ -18,7 +19,7 @@ actions. Everything else is tracked in issues and `PROJECT_STATUS.md`.
 
 - [ ] Look at the timeline axis fix (#54) in a real browser at a narrow width — it is a CSS container query and jsdom cannot test it.
 - [ ] Run the Python SDK against a real Django project (FastAPI and Flask are covered by tests that use the real frameworks; Django's middleware is tested with a stand-in request).
-- [ ] Try `@wevna/plugin-mongodb` against a real MongoDB and `@wevna/plugin-prisma` against a real Prisma client — the tests use structural fakes, as the pg plugin's do.
+- [ ] Try `@wevna/plugin-mongodb` against a real MongoDB, `@wevna/plugin-prisma` against a real Prisma client and `@wevna/plugin-mysql` against a real MySQL — the tests use structural fakes, as the pg plugin's do.
 
 ## Adoption
 

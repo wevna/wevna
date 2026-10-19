@@ -17,6 +17,9 @@ what each version number covers.
   with `wevna.start({ ingest: true })`; the CLI always has it on. Accepts only
   `application/json`, so a web page cannot inject events cross-site, and the
   receiving runtime assigns event ids and sequence numbers.
+- **`@wevna/plugin-mysql`** (`0.1.0`) — MySQL / MariaDB queries through
+  `mysql2/promise`, as `sql.query` events, so N+1 detection and SQL timing
+  work unchanged. Parameter values are never read.
 - **`@wevna/plugin-mongodb` and `@wevna/plugin-prisma`** (`0.1.0`) — MongoDB
   commands (via the driver's command monitoring) and Prisma Client operations
   (via a client extension), as `mongodb.command` / `prisma.query` events.
