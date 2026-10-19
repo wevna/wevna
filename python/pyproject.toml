@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wevna"
+version = "0.1.0"
+description = "See what your Python backend is actually doing: requests, SQL, Redis, outgoing HTTP and logs in a live local dashboard."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Boluwatife Ajayi" }]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["observability", "debugging", "wevna", "asgi", "wsgi", "fastapi", "flask", "django"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Debuggers",
+]
+
+[project.urls]
+Homepage = "https://github.com/wevna/wevna#readme"
+Issues = "https://github.com/wevna/wevna/issues"
+Repository = "https://github.com/wevna/wevna"
+
+[tool.setuptools.packages.find]
+where = ["src"]

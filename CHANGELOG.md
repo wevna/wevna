@@ -8,6 +8,14 @@ what each version number covers.
 
 ### Added
 
+- **Python SDK** (`wevna` on PyPI, `0.1.0`, in `python/`) — ASGI and WSGI
+  middleware plus `requests`, `httpx`, `redis`, `logging` and DB-API SQL
+  instrumentation, sending to the same dashboard. Zero dependencies.
+- **`POST /api/ingest` and a `wevna` CLI** (`npx @wevna/sdk`) — the dashboard
+  on its own, accepting events from other-language SDKs. In-process, opt in
+  with `wevna.start({ ingest: true })`; the CLI always has it on. Accepts only
+  `application/json`, so a web page cannot inject events cross-site, and the
+  receiving runtime assigns event ids and sequence numbers.
 - **`@wevna/plugin-mongodb` and `@wevna/plugin-prisma`** (`0.1.0`) — MongoDB
   commands (via the driver's command monitoring) and Prisma Client operations
   (via a client extension), as `mongodb.command` / `prisma.query` events.

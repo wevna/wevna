@@ -40,3 +40,31 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  python:
+    name: Python SDK (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.13"]
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # The optional libraries are installed so their instrumentation is
+      # tested for real rather than skipped.
+      - name: Install optional dependencies
+        run: pip install requests redis httpx
+
+      - name: Test
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -t .

@@ -454,6 +454,7 @@ reached — record to a file if you need the whole history.
 | [`@wevna/plugin-fetch`](https://www.npmjs.com/package/@wevna/plugin-fetch) | published | Outgoing HTTP capture, and the reference plugin |
 | [`@wevna/plugin-mongodb`](packages/plugin-mongodb/README.md) | not yet published | MongoDB commands, via the driver's command monitoring |
 | [`@wevna/plugin-prisma`](packages/plugin-prisma/README.md) | not yet published | Prisma Client operations, via a client extension |
+| [`wevna`](python/README.md) (Python) | not yet published | The Python SDK: ASGI/WSGI, requests, httpx, redis, SQL, logging |
 | `@wevna/server` · `@wevna/dashboard` · `@wevna/intelligence` | internal | Bundled into the SDK — don't depend on these |
 
 ---
