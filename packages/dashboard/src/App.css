@@ -1362,26 +1362,6 @@
   }
 }
 
-.error-boundary {
-  max-width: 36rem;
-  margin: var(--space-8, 4rem) auto;
-  padding: 0 var(--space-4);
-}
-
-.error-boundary__title {
-  font-size: 1.125rem;
-  margin: 0 0 var(--space-2);
-}
-
-.error-boundary__message {
-  padding: var(--space-3);
-  overflow-x: auto;
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-}
-
 /* ══════════════════════════════════════════════════════════════════════
    Keyboard shortcuts overlay
    ══════════════════════════════════════════════════════════════════ */

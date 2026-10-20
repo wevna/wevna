@@ -159,6 +159,18 @@ execution graph.
 
 ---
 
+### Keyboard
+
+| Key | |
+| --- | --- |
+| `J` / `K` | Next / previous request |
+| `/` | Search events |
+| `T` | Toggle light / dark |
+| `P` | Pause or resume capture |
+| `Esc` | Clear selection |
+| `Ctrl/⌘ K` | Command palette: jump to any request or run an action |
+| `?` | Show the list |
+
 ## Adding your database and cache
 
 There's no global "every `pg.Pool`" hook to patch, so these are opt-in. Hand

@@ -21,6 +21,11 @@ what each version number covers.
 
 ### Added
 
+- **Keyboard shortcuts** in the dashboard — `J`/`K` between requests, `/` to
+  search, `T` theme, `P` pause, `Esc` to clear — a `?` help overlay, and a
+  **command palette** (`Ctrl/⌘ K`) to jump to any request or run an action. A
+  shortcut never claims a modifier chord or a key typed into a text field, and
+  an open overlay owns the keyboard.
 - **Endpoint ranking** — a cross-request view that ranks every endpoint in the
   session by latency and error rate, rather than showing one request at a time.
 - **Error boundary** — a plugin emitting an unexpected event shape now shows a
