@@ -9,8 +9,11 @@ a rebound ``Host``. These mirror the Node SDK's tests of the same name.
 from __future__ import annotations
 
 import http.client
+import json
 import socket
 import time
+from pathlib import Path
+from typing import Any
 
 import pytest
 from websockets.exceptions import InvalidStatus
@@ -27,6 +30,42 @@ from wevna.protocol import CapturedEvent, Envelope
 from wevna.server import DashboardServer
 
 LOCAL = allowed_hosts_for("localhost")
+
+# The same file the Node server asserts against
+# (packages/server/src/host-guard.test.ts). The TypeScript is authoritative: two
+# servers that disagree about what a hostile web page may do are one server with
+# a hole in it.
+FIXTURE = json.loads(
+    (Path(__file__).parents[3] / "packages/server/fixtures/host-guard.json").read_text()
+)
+
+
+class TestSharedConformanceFixture:
+    @pytest.mark.parametrize("case", FIXTURE["hostnames"], ids=lambda c: c["header"])
+    def test_hostname_of(self, case: dict[str, Any]) -> None:
+        assert hostname_of(case["header"]) == case["hostname"]
+
+    @pytest.mark.parametrize("case", FIXTURE["allowedHosts"], ids=lambda c: repr(c["bound"]))
+    def test_allowed_hosts_for(self, case: dict[str, Any]) -> None:
+        assert allowed_hosts_for(case["bound"]) == tuple(case["hosts"])
+
+    @pytest.mark.parametrize(
+        "case", FIXTURE["hostChecks"], ids=lambda c: f"{c['bound']}-{c['host']}"
+    )
+    def test_host_checks(self, case: dict[str, Any]) -> None:
+        allowed = allowed_hosts_for(str(case["bound"]))
+        host = case["host"]
+        assert is_allowed_host(None if host is None else str(host), allowed) is case["allowed"]
+
+    @pytest.mark.parametrize(
+        "case", FIXTURE["originChecks"], ids=lambda c: f"{c['bound']}-{c['origin']}"
+    )
+    def test_origin_checks(self, case: dict[str, Any]) -> None:
+        allowed = allowed_hosts_for(str(case["bound"]))
+        origin = case["origin"]
+        assert (
+            is_allowed_origin(None if origin is None else str(origin), allowed) is case["allowed"]
+        )
 
 
 @pytest.mark.parametrize(
