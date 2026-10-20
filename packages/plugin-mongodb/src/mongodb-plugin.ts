@@ -66,7 +66,13 @@ const DEFAULT_IGNORED_COMMANDS: ReadonlySet<string> = new Set([
 function targetOf(event: MongoCommandStartedEvent): string | undefined {
   const value = event.command?.[event.commandName];
   // `find: "users"` carries the collection; admin commands carry `1`.
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+  // `getMore` (the next batch of a cursor) carries the cursor id as its value
+  // and names the collection separately.
+  const collection = event.command?.collection;
+  return typeof collection === "string" && collection.length > 0 ? collection : undefined;
 }
 
 // MongoDB instrumentation through the driver's own command monitoring rather
