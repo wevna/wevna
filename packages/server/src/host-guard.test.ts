@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { allowedHostsFor, hostnameOf, isAllowedHost, isAllowedOrigin } from "./host-guard.js";
 
@@ -65,4 +66,40 @@ describe("isAllowedOrigin", () => {
     expect(isAllowedOrigin("null", local)).toBe(false);
     expect(isAllowedOrigin("not a url", local)).toBe(false);
   });
+});
+
+// The same file the Python SDK asserts against (python/wevna/tests/test_host_guard.py).
+// Two servers that disagree about what a hostile page may do are one server with
+// a hole in it.
+describe("shared conformance fixture", () => {
+  const fixture = JSON.parse(
+    readFileSync(new URL("../fixtures/host-guard.json", import.meta.url), "utf8"),
+  ) as {
+    hostnames: { header: string; hostname: string }[];
+    allowedHosts: { bound: string; hosts: string[] }[];
+    hostChecks: { bound: string; host: string | null; allowed: boolean }[];
+    originChecks: { bound: string; origin: string | null; allowed: boolean }[];
+  };
+
+  it.each(fixture.hostnames)("hostnameOf($header) is $hostname", ({ header, hostname }) => {
+    expect(hostnameOf(header)).toBe(hostname);
+  });
+
+  it.each(fixture.allowedHosts)("allowedHostsFor('$bound')", ({ bound, hosts }) => {
+    expect(allowedHostsFor(bound)).toEqual(hosts);
+  });
+
+  it.each(fixture.hostChecks)(
+    "host $host bound to $bound -> $allowed",
+    ({ bound, host, allowed }) => {
+      expect(isAllowedHost(host ?? undefined, allowedHostsFor(bound))).toBe(allowed);
+    },
+  );
+
+  it.each(fixture.originChecks)(
+    "origin $origin bound to $bound -> $allowed",
+    ({ bound, origin, allowed }) => {
+      expect(isAllowedOrigin(origin ?? undefined, allowedHostsFor(bound))).toBe(allowed);
+    },
+  );
 });

@@ -17,7 +17,7 @@
 // a local Host, and pass both.
 
 const LOOPBACK_HOSTNAMES = ["localhost", "127.0.0.1", "::1"];
-const WILDCARD_BIND_ADDRESSES = new Set(["0.0.0.0", "::", "[::]"]);
+const WILDCARD_BIND_ADDRESSES = new Set(["0.0.0.0", "::", "[::]", ""]);
 
 // The hostnames a request may address the server by, given what it was bound
 // to. Loopback names always; the bound host too if the operator chose
