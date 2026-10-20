@@ -152,3 +152,61 @@ def test_a_failing_subscriber_does_not_reach_the_publisher() -> None:
     runtime.start_session()
     runtime.subscribe(lambda _: (_ for _ in ()).throw(RuntimeError("boom")))
     runtime.publish(event())
+
+
+class TestConcurrentPublishing:
+    """Sync endpoints run in a threadpool, so publish() is called concurrently.
+
+    The Node SDK is single-threaded and never had to think about this: assigning
+    a sequence number read the counter, built the envelope, then incremented it,
+    and a thread switch between the read and the increment gave two events the
+    same sequence number. On a free-threaded build (3.13t+) that is routine
+    rather than rare, and sequence is what ordering and recordings rest on.
+    """
+
+    def test_every_event_gets_a_unique_sequence_number_in_delivery_order(self) -> None:
+        import sys
+        import threading
+
+        runtime = Runtime()
+        runtime.start_session()
+        delivered: list[int] = []
+        runtime.subscribe(lambda envelope: delivered.append(envelope.sequence))
+
+        # Make the race show up in milliseconds instead of once a month.
+        previous = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        try:
+
+            def hammer() -> None:
+                for _ in range(1500):
+                    runtime.publish(event())
+
+            threads = [threading.Thread(target=hammer) for _ in range(8)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        finally:
+            sys.setswitchinterval(previous)
+
+        assert len(delivered) == 12000
+        assert len(set(delivered)) == 12000, "duplicate sequence numbers"
+        assert delivered == sorted(delivered), "delivered out of sequence order"
+
+    def test_a_listener_that_publishes_does_not_deadlock(self) -> None:
+        # Logging capture publishes from inside the application's own work, and a
+        # listener can reasonably log. Re-entrancy must work.
+        runtime = Runtime()
+        runtime.start_session()
+        seen: list[str] = []
+
+        def listener(envelope: Envelope) -> None:
+            seen.append(envelope.payload.kind)
+            if envelope.payload.kind == "outer":
+                runtime.publish(event("inner"))
+
+        runtime.subscribe(listener)
+        runtime.publish(event("outer"))
+
+        assert seen == ["outer", "inner"]
