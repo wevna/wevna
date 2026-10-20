@@ -25,7 +25,9 @@ export interface InsightContext {
 // name. Kept here rather than on EventCategory itself: the category is a
 // classification, and how it is worded to a developer is presentation.
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
-  sql: "PostgreSQL",
+  // Not "PostgreSQL": sql.query also comes from MySQL, SQLite and the Python
+  // SDK (SQLAlchemy), as well as pg.
+  sql: "SQL",
   redis: "Redis",
   database: "database operations",
   httpClient: "outgoing HTTP calls",

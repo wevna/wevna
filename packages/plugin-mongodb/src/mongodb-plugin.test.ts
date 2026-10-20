@@ -121,6 +121,27 @@ describe("createMongoDbPlugin", () => {
     expect(context.published).toEqual([]);
   });
 
+  it("takes the collection of a getMore from command.collection, not the cursor id", async () => {
+    const plugin = createMongoDbPlugin();
+    const context = makeContext();
+    const client = new EventEmitter();
+    await plugin.setup(context);
+    plugin.instrument(client);
+
+    client.emit("commandStarted", {
+      requestId: 1,
+      commandName: "getMore",
+      databaseName: "app",
+      command: { getMore: 123456789n, collection: "users", batchSize: 101 },
+    });
+    client.emit("commandSucceeded", { requestId: 1, duration: 1 });
+
+    expect(context.published[0]?.attributes).toMatchObject({
+      operation: "getMore",
+      target: "users",
+    });
+  });
+
   it("omits the target for a command that is not about a collection", async () => {
     const plugin = createMongoDbPlugin();
     const context = makeContext();
