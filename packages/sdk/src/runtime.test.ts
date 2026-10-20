@@ -1320,3 +1320,51 @@ describe("Runtime ingest", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("Runtime ingest and recording", () => {
+  let runtime: Runtime | undefined;
+  let directory: string | undefined;
+
+  afterEach(async () => {
+    await runtime?.stop();
+    if (directory) {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("records events that arrived from another process, so they can be replayed", async () => {
+    directory = await mkdtemp(join(tmpdir(), "wevna-ingest-"));
+    const filePath = join(directory, "session.jsonl");
+    runtime = new Runtime();
+    await runtime.start({ port: 0, ingest: true });
+    await runtime.startRecording(filePath);
+
+    const response = await fetch(`${runtime.url}/api/ingest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        events: [
+          {
+            kind: "http.request",
+            occurredAt: 1000,
+            attributes: { method: "GET", url: "/x", statusCode: 200, durationMs: 4 },
+            correlation: { id: "py-1" },
+            source: "wevna-python",
+          },
+        ],
+      }),
+    });
+    expect(response.status).toBe(202);
+    await runtime.stopRecording();
+
+    const lines = await readRecordingLines(filePath);
+    const event = lines.find((line) => line.type === "event");
+    expect(event).toMatchObject({
+      type: "event",
+      envelope: {
+        payload: { kind: "http.request", correlation: { id: "py-1" }, source: "wevna-python" },
+      },
+    });
+    expect(lines.at(-1)).toMatchObject({ type: "footer" });
+  });
+});

@@ -221,3 +221,33 @@ class ForkTests(unittest.TestCase):
 
         self.assertIn("child", received)
         self.assertEqual(received.count("parent-unsent"), 1)
+
+
+class BindContextTests(unittest.TestCase):
+    def test_work_run_in_a_pool_stays_attached_to_the_submitting_request(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        import wevna
+
+        with Capture() as capture:
+            with ThreadPoolExecutor(1) as pool:
+                with request_scope():
+                    pool.submit(lambda: _client.emit("sql.query", {"v": "bare"})).result()
+                    pool.submit(wevna.bind_context(lambda: _client.emit("sql.query", {"v": "bound"}))).result()
+                    mine = wevna.current_correlation_id()
+            bare, bound = capture.flushed()
+
+        self.assertNotIn("correlation", bare)
+        self.assertEqual(bound["correlation"]["id"], mine)
+
+    def test_preserves_arguments_return_value_and_name(self):
+        import wevna
+
+        def add(a, b=0):
+            return a + b
+
+        with request_scope():
+            wrapped = wevna.bind_context(add)
+
+        self.assertEqual(wrapped(2, b=3), 5)
+        self.assertEqual(wrapped.__name__, "add")

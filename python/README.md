@@ -80,6 +80,16 @@ wevna.instrument_sqlalchemy(engine)
 Anything not installed is skipped silently. `wevna.start(instrument=False)`
 turns the automatic part off.
 
+## Threads
+
+Events are attached to a request through a context variable, which asyncio
+tasks and Starlette's threadpool inherit automatically. A bare
+`ThreadPoolExecutor` or `threading.Thread` does not, so wrap what you hand it:
+
+```python
+pool.submit(wevna.bind_context(work), arg)
+```
+
 ## What it never records
 
 The same rules as the Node SDK, deliberately:

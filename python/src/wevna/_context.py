@@ -9,9 +9,10 @@ sync endpoints), and does not leak between concurrent requests.
 from __future__ import annotations
 
 import contextvars
+import functools
 import uuid
 from contextlib import contextmanager
-from typing import Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 _correlation_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "wevna_correlation_id", default=None
@@ -67,3 +68,22 @@ def begin_request() -> Dict[str, object]:
     _correlation_id.set(uuid.uuid4().hex)
     _request_info.set(info)
     return info
+
+
+def bind_context(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Return `fn` bound to the request that is current *now*.
+
+    Work handed to a thread pool or another thread does not inherit the
+    caller's context (asyncio tasks and Starlette's threadpool do; a bare
+    `ThreadPoolExecutor` and `threading.Thread` do not), so its queries would
+    appear under no request. Wrap the callable where you submit it:
+
+        pool.submit(wevna.bind_context(work), arg)
+    """
+    context = contextvars.copy_context()
+
+    @functools.wraps(fn)
+    def bound(*args: Any, **kwargs: Any) -> Any:
+        return context.run(fn, *args, **kwargs)
+
+    return bound

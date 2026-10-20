@@ -362,7 +362,7 @@ everything immediately rather than an empty screen.
 
 | Call | Does |
 | --- | --- |
-| `wevna.start(options?)` | Starts the runtime and dashboard. Idempotent. |
+| `wevna.start(options?)` | Starts the runtime and dashboard. Idempotent. Options: `port`, `host`, `ingest` (accept events from other-language SDKs, off by default). |
 | `wevna.stop()` | Stops everything, tears down plugins, finalizes any recording. |
 | `wevna.instrumentPg(client)` | Observe a `pg` Pool/Client. Safe to call twice. |
 | `wevna.instrumentRedis(client)` | Observe an `ioredis` client. |
