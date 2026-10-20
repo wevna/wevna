@@ -235,10 +235,24 @@ class DashboardServer:
         step = 0.02
         while waited < timeout:
             if server.started:
+                self._adopt_bound_port(server)
                 return
             deadline.wait(step)
             waited += step
         _log.warning("dashboard server did not report started within %ss", timeout)
+
+    def _adopt_bound_port(self, server: uvicorn.Server) -> None:
+        """Replaces a requested port 0 with the port the OS actually chose.
+
+        ``port=0`` is how a test, or several services on one machine, asks for a
+        free port — and the URL is then useless unless it names that port.
+        """
+        if self.port != 0:
+            return
+        for listener in server.servers:
+            for sock in listener.sockets:
+                self.port = int(sock.getsockname()[1])
+                return
 
     def stop(self, timeout: float = 5.0) -> None:
         """Asks the server to exit and waits for the thread to finish."""

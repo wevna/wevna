@@ -183,3 +183,27 @@ class TestBroadcasterSafety:
             assert "queue is full" in caplog.text
         finally:
             loop.close()
+
+
+class TestPortZero:
+    """``port=0`` asks the OS for a free port. The docs promise the real one comes back."""
+
+    def test_reports_the_port_the_os_chose_not_zero(self) -> None:
+        instance = DashboardServer(port=0)
+        instance.start()
+        try:
+            assert instance.port != 0
+            assert instance.url == f"http://localhost:{instance.port}"
+            assert get(f"{instance.url}/health")[0] == 200
+        finally:
+            instance.stop()
+
+    def test_two_servers_on_port_zero_do_not_collide(self) -> None:
+        first, second = DashboardServer(port=0), DashboardServer(port=0)
+        first.start()
+        second.start()
+        try:
+            assert first.port != second.port
+        finally:
+            first.stop()
+            second.stop()
