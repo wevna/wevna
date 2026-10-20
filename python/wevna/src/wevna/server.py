@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import threading
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -52,8 +53,14 @@ class _Broadcaster:
         self._clients: set[WebSocket] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._queue: asyncio.Queue[str] | None = None
+        # The process that owns the loop. Compared on every publish: a forked
+        # child inherits this object and a copy of the loop, but not the thread
+        # that runs it.
+        self._owner_pid: int | None = None
+        self._warned_forked = False
 
     def bind(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._owner_pid = os.getpid()
         self._loop = loop
         self._queue = asyncio.Queue(maxsize=10_000)
 
@@ -66,6 +73,21 @@ class _Broadcaster:
         """
         loop, queue = self._loop, self._queue
         if loop is None or queue is None or loop.is_closed():
+            return
+
+        if self._owner_pid is not None and os.getpid() != self._owner_pid:
+            # A forked worker (gunicorn, uvicorn --workers). The thread that
+            # drains this loop did not survive the fork, so scheduling onto it
+            # would grow a deque nobody empties — about 180 MB per 200k events —
+            # while delivering nothing. Drop, and say why once.
+            if not self._warned_forked:
+                self._warned_forked = True
+                _log.warning(
+                    "this process was forked after wevna.start(), so its events are not "
+                    "captured: the dashboard runs in the process that called start(). "
+                    "Run a single worker while developing (for example, one uvicorn "
+                    "process without --workers)."
+                )
             return
 
         try:
