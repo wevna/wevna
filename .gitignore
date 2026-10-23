@@ -69,6 +69,3 @@ __pycache__/
 # The dashboard bundle, copied into the Python package at build time by
 # scripts/copy-dashboard-assets.mjs. Build output, not source.
 python/wevna/src/wevna/dashboard/
-ADVISORY-DRAFT.md
-RELEASE-CHECKLIST.md
-WORK-REPORT.md
