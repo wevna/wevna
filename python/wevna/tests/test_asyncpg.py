@@ -5,13 +5,15 @@ a temp directory (``initdb`` plus ``postgres``, no Docker, no system service) an
 talk to it with real asyncpg, so the behaviors that matter are the real ones:
 which statements asyncpg's query logger reports, when, and with what.
 
-Skipped, with a reason, if PostgreSQL's server binaries cannot be found.
+Skipped, with a reason, if PostgreSQL's server binaries cannot be found, or when
+running as root, which ``initdb`` and ``postgres`` refuse (containers often do).
 """
 
 from __future__ import annotations
 
 import asyncio
 import glob
+import os
 import shutil
 import socket
 import subprocess
@@ -60,6 +62,8 @@ def dsn() -> Iterator[str]:
     if binaries is None:
         pytest.skip("PostgreSQL server binaries (initdb, postgres) not found")
     assert binaries is not None
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("initdb and postgres refuse to run as root")
 
     directory = Path(tempfile.mkdtemp(prefix="wevna-pg-"))
     port = free_port()
