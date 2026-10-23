@@ -57,13 +57,14 @@ a deliberate N+1 in it — see
 | **Uncaught exceptions** | attached to the request that caused them |
 | **The dashboard** | served from your process, on its own thread |
 | **SQLAlchemy** | sync and async engines, ORM and Core alike |
+| **asyncpg** | connections and pools, used directly |
 | **redis-py** | sync and async clients |
 | **Outgoing HTTP** | `httpx`, sync and async, with URL redaction |
 
 Install only what you use:
 
 ```bash
-pip install "wevna[sqlalchemy,redis,httpx]"
+pip install "wevna[sqlalchemy,redis,httpx,asyncpg]"
 ```
 
 Each integration is an optional extra. Instrumentation for a library you don't
@@ -83,6 +84,7 @@ chosen to be reachable. Same rules as the Node SDK.
 | | Recorded | **Never** recorded |
 | --- | --- | --- |
 | SQLAlchemy | Statement text, duration, row count | **Bound parameters** |
+| asyncpg | Statement text, duration, SQLSTATE on failure | **Query arguments** |
 | redis-py | Command name, duration | **Arguments. Return values.** |
 | httpx | Method, sanitized URL, status, duration | **Headers. Bodies.** |
 | `logging` | Formatted message, level, logger | **`record.args`** |
@@ -92,14 +94,53 @@ captured more than its Node counterpart would make the protocol a lie, and the
 [URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
 are literally the same fixture both languages test against.
 
+### asyncpg, used directly
+
+For code that calls asyncpg itself (`await conn.fetch(...)`, `pool.execute(...)`).
+SQLAlchemy over asyncpg is covered by `instrument(engine)` above.
+
+```python
+conn = await asyncpg.connect(dsn)
+wevna.asyncpg.instrument(conn)
+
+pool = await asyncpg.create_pool(dsn, init=wevna.asyncpg.init)
+# or, if the pool already has an init:
+pool = await asyncpg.create_pool(dsn, init=wevna.asyncpg.init_with(my_init))
+```
+
+It uses asyncpg's own `Connection.add_query_logger` (asyncpg 0.29 or newer), so
+nothing is wrapped or patched. That hook exists on connections but not on pools,
+and a `Connection` cannot have methods replaced (it uses `__slots__`), which is why
+a pool is instrumented through the `init=` argument asyncpg provides for
+per-connection setup.
+
+What you get is a `sql.query` event per statement with its text, duration and, on
+failure, the SQLSTATE (`23505` for a unique violation). The query arguments are never
+read. The SQLSTATE is recorded instead of the message because Postgres puts the
+offending value in the message (`Key (email)=(a@b.com) already exists`). Statements
+that fail to prepare (a missing table, a syntax error) are captured too.
+
+Things worth knowing, all checked against a real PostgreSQL:
+
+- asyncpg also logs statements that are not yours, and these are filtered out: the
+  reset a pool sends when it takes a connection back (it would follow every pooled
+  query) and the type introspection it runs the first time an enum or composite type
+  is used.
+- `BEGIN`, `COMMIT` and `ROLLBACK` are reported, because they are statements sent to
+  the server.
+- `copy_records_to_table` and the other `copy_*` methods are not logged by asyncpg,
+  so they are not captured.
+- asyncpg calls the logger a moment after the statement completes, so the event is
+  published slightly after it, not during it.
+- Do not instrument the asyncpg connections underneath a SQLAlchemy engine you have
+  already instrumented: every statement would be reported twice.
+
 ### Known gaps
 
 - **Redis pipelines are not captured.** A pipeline sends through its own object
   rather than the client's `execute_command`. Reporting a batch as one
   misleading event would be worse than reporting nothing, so nothing is
   reported. There is a test that fails if this ever changes silently.
-- **Raw `asyncpg` is not instrumented.** SQLAlchemy over asyncpg is, which
-  covers most of it.
 - **`requests` is not instrumented.** `httpx` is.
 
 ## What's next
@@ -107,7 +148,7 @@ are literally the same fixture both languages test against.
 | | |
 | --- | --- |
 | Recording and replay | Phase 3 |
-| Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
+| `requests`, Redis pipelines | unscheduled |
 
 Phase 3 is the interesting one: the recording format is shared, so a session
 recorded from a Python app will open in the same viewer as one recorded from

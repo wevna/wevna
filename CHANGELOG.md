@@ -56,6 +56,19 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added: raw `asyncpg`
+
+- **`wevna.asyncpg.instrument(connection)`, `init` and `init_with`** capture asyncpg
+  used directly, through asyncpg's own `add_query_logger`, so nothing is wrapped. A
+  pool is instrumented through `create_pool(init=...)`, because the hook exists on
+  connections and not on pools. Events are `sql.query` with the statement text, the
+  duration and, on failure, the SQLSTATE. Query arguments are never read. Optional
+  extra: `wevna[asyncpg]`.
+- asyncpg's own housekeeping statements (the pool's reset on release, and type
+  introspection) are filtered out.
+- The tests run against a real PostgreSQL started in a temp directory, and are
+  skipped with a reason if the server binaries are not found.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
