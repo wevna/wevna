@@ -37,7 +37,11 @@ dependencies = [
 # Instrumentation for a library you do not use should not make you install it.
 # Each extra pulls in only what its own integration imports.
 [project.optional-dependencies]
-sqlalchemy = ["sqlalchemy>=2.0"]
+# [asyncio] rather than bare sqlalchemy: async engines need greenlet, which
+# SQLAlchemy only installs itself on some platforms (not Apple Silicon macOS),
+# so a plain install imports fine there and then fails the first time an async
+# engine is instrumented.
+sqlalchemy = ["sqlalchemy[asyncio]>=2.0"]
 redis = ["redis>=5.0"]
 httpx = ["httpx>=0.27"]
 dev = [

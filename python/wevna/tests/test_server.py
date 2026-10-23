@@ -9,6 +9,7 @@ exercises that.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import urllib.error
 import urllib.request
@@ -183,3 +184,106 @@ class TestBroadcasterSafety:
             assert "queue is full" in caplog.text
         finally:
             loop.close()
+
+
+class TestPortZero:
+    """``port=0`` asks the OS for a free port. The docs promise the real one comes back."""
+
+    def test_reports_the_port_the_os_chose_not_zero(self) -> None:
+        instance = DashboardServer(port=0)
+        instance.start()
+        try:
+            assert instance.port != 0
+            assert instance.url == f"http://localhost:{instance.port}"
+            assert get(f"{instance.url}/health")[0] == 200
+        finally:
+            instance.stop()
+
+    def test_two_servers_on_port_zero_do_not_collide(self) -> None:
+        first, second = DashboardServer(port=0), DashboardServer(port=0)
+        first.start()
+        second.start()
+        try:
+            assert first.port != second.port
+        finally:
+            first.stop()
+            second.stop()
+
+
+class _SpyLoop:
+    """Stands in for the server's loop and records what is scheduled onto it."""
+
+    def __init__(self) -> None:
+        self.scheduled: list[object] = []
+
+    def is_closed(self) -> bool:
+        return False
+
+    def call_soon_threadsafe(self, callback: object, *args: object) -> None:
+        self.scheduled.append(callback)
+
+
+class TestForkedWorkers:
+    """The dashboard thread exists only in the process that called ``start()``.
+
+    A pre-fork server (gunicorn, ``uvicorn --workers``) forks afterwards. The
+    child inherits a copy of the loop, but the thread running it is gone — so
+    every ``call_soon_threadsafe`` just appends to a deque nobody drains. Events
+    vanish *and* memory grows without bound: 200k small events cost ~180 MB in a
+    measurement. The right behaviour is to drop them, say why once, and cost nothing.
+    """
+
+    def test_events_from_a_different_process_are_dropped_not_queued(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        broadcaster = _Broadcaster()
+        spy = _SpyLoop()
+        broadcaster._loop = spy  # type: ignore[assignment]
+        broadcaster._queue = object()  # type: ignore[assignment]
+        broadcaster._owner_pid = -1  # "a process that is not this one"
+
+        with caplog.at_level("WARNING", logger="wevna.server"):
+            for sequence in range(1000):
+                broadcaster.publish(envelope(sequence=sequence))
+
+        assert spy.scheduled == []
+        # Once, not a thousand times: a warning per event would drown the log.
+        assert caplog.text.count("forked") == 1
+
+    def test_the_owning_process_still_delivers(self) -> None:
+        broadcaster = _Broadcaster()
+        spy = _SpyLoop()
+        broadcaster._loop = spy  # type: ignore[assignment]
+        broadcaster._queue = object()  # type: ignore[assignment]
+        broadcaster._owner_pid = os.getpid()
+
+        broadcaster.publish(envelope())
+
+        assert len(spy.scheduled) == 1
+
+    @pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+    def test_a_really_forked_child_schedules_nothing(self) -> None:
+        import warnings
+
+        broadcaster = _Broadcaster()
+        spy = _SpyLoop()
+        broadcaster._loop = spy  # type: ignore[assignment]
+        broadcaster._queue = object()  # type: ignore[assignment]
+        broadcaster._owner_pid = os.getpid()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)  # fork() in a threaded process
+            pid = os.fork()
+        if pid == 0:
+            code = 1
+            try:
+                for sequence in range(1000):
+                    broadcaster.publish(envelope(sequence=sequence))
+                code = 0 if spy.scheduled == [] else 2
+            finally:
+                os._exit(code)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+        broadcaster.publish(envelope())  # and the parent is unaffected
+        assert len(spy.scheduled) == 1

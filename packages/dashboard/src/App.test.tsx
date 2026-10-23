@@ -767,6 +767,118 @@ describe("App", () => {
       expect(screen.getByText("message 3")).toBeInTheDocument();
     });
   });
+
+  describe("keyboard", () => {
+    function press(key: string, init: KeyboardEventInit = {}): void {
+      fireEvent.keyDown(document.body, { key, ...init });
+    }
+
+    function selectedRow(): string | null {
+      return document.querySelector(".request-row--selected")?.textContent ?? null;
+    }
+
+    function seedTwoRequests(): void {
+      receiveCorrelatedEvent(1, "corr-1");
+      receiveHttpEvent(2, "corr-1");
+      receiveCorrelatedEvent(3, "corr-2");
+      receiveHttpEvent(4, "corr-2");
+    }
+
+    it("moves the request selection with j and k, and clears it with Escape", () => {
+      render(<App />);
+      seedTwoRequests();
+
+      press("j");
+      expect(selectedRow()).not.toBeNull();
+      const first = selectedRow();
+      press("j");
+      expect(selectedRow()).not.toBeNull();
+      press("k");
+      expect(selectedRow()).toBe(first);
+      press("Escape");
+      expect(selectedRow()).toBeNull();
+    });
+
+    it("does not treat a j typed in the search box as a shortcut", () => {
+      render(<App />);
+      seedTwoRequests();
+
+      fireEvent.keyDown(screen.getByLabelText("Search events"), { key: "j" });
+
+      expect(selectedRow()).toBeNull();
+    });
+
+    it("focuses the search box on /", () => {
+      render(<App />);
+
+      press("/");
+
+      expect(document.activeElement).toBe(screen.getByLabelText("Search events"));
+    });
+
+    it("pauses and resumes capture on p", () => {
+      render(<App />);
+      receiveEventWithKind(1, "console.log");
+
+      press("p");
+      expect(screen.getByRole("button", { name: /resume/i })).toBeInTheDocument();
+      press("p");
+      expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
+    });
+
+    it("opens the help on ? and closes it on Escape without clearing the selection", () => {
+      render(<App />);
+      seedTwoRequests();
+      press("j");
+      const selected = selectedRow();
+
+      press("?");
+      expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+      press("Escape");
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(selectedRow()).toBe(selected);
+    });
+
+    it("lets the help overlay own the keyboard: j does nothing behind it", () => {
+      render(<App />);
+      seedTwoRequests();
+      press("?");
+
+      press("j");
+
+      expect(selectedRow()).toBeNull();
+    });
+
+    it("opens the command palette on Ctrl+K and Cmd+K, from inside a text field too", () => {
+      render(<App />);
+
+      fireEvent.keyDown(screen.getByLabelText("Search events"), { key: "k", ctrlKey: true });
+      expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+      fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("selects a request chosen in the palette", () => {
+      render(<App />);
+      seedTwoRequests();
+
+      press("k", { ctrlKey: true });
+      fireEvent.click(screen.getAllByRole("option", { name: /GET \/widgets/ })[0] as HTMLElement);
+
+      expect(selectedRow()).not.toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("never claims a browser chord such as Ctrl+T", () => {
+      render(<App />);
+      const before = document.documentElement.dataset.theme;
+
+      press("t", { ctrlKey: true });
+
+      expect(document.documentElement.dataset.theme).toBe(before);
+    });
+  });
 });
 
 // These tests source events from a mocked /api/session + /api/session/events

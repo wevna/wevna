@@ -75,22 +75,38 @@ export function RequestInspector({
 
       <div className="request-inspector__panel" data-active={activeTab === "overview"}>
         <dl className="request-inspector__summary">
-          <dt>Method</dt>
-          <dd>{request.method ?? "—"}</dd>
-          <dt>Route</dt>
-          <dd>{request.route ?? "—"}</dd>
-          <dt>Status</dt>
-          <dd data-status={request.status}>{request.status}</dd>
-          <dt>Status Code</dt>
-          <dd>{request.statusCode ?? "—"}</dd>
-          <dt>Duration</dt>
-          <dd>{formatRequestDuration(request.durationMs)}</dd>
-          <dt>Correlation ID</dt>
-          <dd>{request.correlationId}</dd>
-          <dt>Started At</dt>
-          <dd>{new Date(request.startedAt).toLocaleString()}</dd>
-          <dt>Event Count</dt>
-          <dd>{formatEventCount(request.events.length)}</dd>
+          <div>
+            <dt>Method</dt>
+            <dd>{request.method ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Route</dt>
+            <dd>{request.route ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd data-status={request.status}>{request.status}</dd>
+          </div>
+          <div>
+            <dt>Status Code</dt>
+            <dd>{request.statusCode ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Duration</dt>
+            <dd>{formatRequestDuration(request.durationMs)}</dd>
+          </div>
+          <div>
+            <dt>Correlation ID</dt>
+            <dd>{request.correlationId}</dd>
+          </div>
+          <div>
+            <dt>Started At</dt>
+            <dd>{new Date(request.startedAt).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Event Count</dt>
+            <dd>{formatEventCount(request.events.length)}</dd>
+          </div>
         </dl>
 
         <h3 className="request-inspector__section-heading">Events</h3>

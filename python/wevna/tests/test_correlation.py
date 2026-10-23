@@ -85,3 +85,53 @@ async def test_sibling_tasks_do_not_see_each_others_correlation() -> None:
     await asyncio.gather(handle("a"), handle("b"))
 
     assert observed == {"a": "a", "b": "b"}
+
+
+class TestBind:
+    """Work handed to a bare thread does not inherit the caller's context."""
+
+    def test_work_in_a_thread_pool_stays_attached_to_the_submitting_request(self) -> None:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=1) as pool, correlation.start("req-1"):
+            bare = pool.submit(correlation.current).result()
+            bound = pool.submit(correlation.bind(correlation.current)).result()
+
+        assert bare is None  # the gap this exists to close
+        assert bound is not None
+        assert bound.id == "req-1"
+
+    def test_the_binding_is_taken_at_wrap_time_not_call_time(self) -> None:
+        with correlation.start("first"):
+            wrapped = correlation.bind(correlation.current)
+        with correlation.start("second"):
+            result = wrapped()
+
+        assert result is not None
+        assert result.id == "first"
+
+    def test_the_wrapped_call_does_not_leak_the_correlation_afterwards(self) -> None:
+        def work() -> None:
+            return None
+
+        with correlation.start("req-1"):
+            wrapped = correlation.bind(work)
+        wrapped()
+
+        assert correlation.current() is None
+
+    def test_without_a_correlation_the_function_is_returned_unchanged(self) -> None:
+        def work() -> int:
+            return 1
+
+        assert correlation.bind(work) is work
+
+    def test_arguments_return_value_and_name_survive(self) -> None:
+        def add(a: int, b: int = 0) -> int:
+            return a + b
+
+        with correlation.start("req-1"):
+            wrapped = correlation.bind(add)
+
+        assert wrapped(2, b=3) == 5
+        assert wrapped.__name__ == "add"

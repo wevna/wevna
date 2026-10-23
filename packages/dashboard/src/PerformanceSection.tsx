@@ -26,26 +26,46 @@ export function PerformanceSection({ request }: PerformanceSectionProps) {
   return (
     <div className="performance-section">
       <dl className="performance-section__summary">
-        <dt>Request Duration</dt>
-        <dd>{formatRequestDuration(metrics.totalDurationMs)}</dd>
-        <dt>Longest Operation</dt>
-        <dd>
-          {metrics.slowestOperation
-            ? `${metrics.slowestOperation.kind} · ${formatMs(metrics.slowestOperation.durationMs)}`
-            : "—"}
-        </dd>
-        <dt>SQL Queries</dt>
-        <dd>
-          {metrics.sqlQueryCount} · {formatMs(metrics.cumulativeSqlTimeMs)} total
-        </dd>
-        <dt>Redis Operations</dt>
-        <dd>
-          {metrics.redisCommandCount} · {formatMs(metrics.cumulativeRedisTimeMs)} total
-        </dd>
-        <dt>Console Events</dt>
-        <dd>{metrics.consoleEventCount}</dd>
-        <dt>Exceptions</dt>
-        <dd>{metrics.exceptionCount}</dd>
+        <div>
+          <dt>Request Duration</dt>
+          <dd>{formatRequestDuration(metrics.totalDurationMs)}</dd>
+        </div>
+        <div>
+          <dt>Longest Operation</dt>
+          <dd>
+            {metrics.slowestOperation
+              ? `${metrics.slowestOperation.kind} · ${formatMs(metrics.slowestOperation.durationMs)}`
+              : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt>SQL Queries</dt>
+          <dd>
+            {metrics.sqlQueryCount} · {formatMs(metrics.cumulativeSqlTimeMs)} total
+          </dd>
+        </div>
+        <div>
+          <dt>Redis Operations</dt>
+          <dd>
+            {metrics.redisCommandCount} · {formatMs(metrics.cumulativeRedisTimeMs)} total
+          </dd>
+        </div>
+        {metrics.databaseOperationCount > 0 && (
+          <div>
+            <dt>Database Operations</dt>
+            <dd>
+              {metrics.databaseOperationCount} · {formatMs(metrics.cumulativeDatabaseTimeMs)} total
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Console Events</dt>
+          <dd>{metrics.consoleEventCount}</dd>
+        </div>
+        <div>
+          <dt>Exceptions</dt>
+          <dd>{metrics.exceptionCount}</dd>
+        </div>
       </dl>
 
       {/* Shown whenever there is anything to attribute, not only when one

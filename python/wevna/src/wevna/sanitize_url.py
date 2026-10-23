@@ -20,7 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 REDACTED = "[redacted]"
 
 # Distinctive enough that appearing anywhere in the name is proof of intent.
-# "authorization" and "refreshToken" are caught here without being listed.
+# "refreshToken" is caught here without being listed.
 _SENSITIVE_SUBSTRINGS = (
     "token",
     "secret",
@@ -28,15 +28,17 @@ _SENSITIVE_SUBSTRINGS = (
     "passwd",
     "credential",
     "signature",
-    "auth",
+    "authorization",
+    "authentication",
 )
 
 # Too short or too common to match as substrings — "key" would redact
-# `keyboard_layout` and `monkey_id`, "sig" would redact `sight`. Matched only as
+# `keyboard_layout` and `monkey_id`, "sig" would redact `sight`, "auth" would
+# redact `author`. Matched only as
 # a whole word within the name, after splitting on separators and camelCase, so
 # `x-api-key`, `apiKey` and `API_KEY` are all covered while `keyboard_layout`
 # is not.
-_SENSITIVE_WORDS = frozenset({"key", "keys", "sig", "apikey", "pwd"})
+_SENSITIVE_WORDS = frozenset({"key", "keys", "sig", "apikey", "pwd", "auth"})
 
 _CAMEL_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")

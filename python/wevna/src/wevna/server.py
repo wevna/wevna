@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import threading
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -25,11 +26,13 @@ from typing import Any
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from wevna.host_guard import HostGuardMiddleware, allowed_hosts_for
 from wevna.protocol import Envelope
 
 _log = logging.getLogger("wevna.server")
@@ -50,8 +53,14 @@ class _Broadcaster:
         self._clients: set[WebSocket] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._queue: asyncio.Queue[str] | None = None
+        # The process that owns the loop. Compared on every publish: a forked
+        # child inherits this object and a copy of the loop, but not the thread
+        # that runs it.
+        self._owner_pid: int | None = None
+        self._warned_forked = False
 
     def bind(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._owner_pid = os.getpid()
         self._loop = loop
         self._queue = asyncio.Queue(maxsize=10_000)
 
@@ -64,6 +73,21 @@ class _Broadcaster:
         """
         loop, queue = self._loop, self._queue
         if loop is None or queue is None or loop.is_closed():
+            return
+
+        if self._owner_pid is not None and os.getpid() != self._owner_pid:
+            # A forked worker (gunicorn, uvicorn --workers). The thread that
+            # drains this loop did not survive the fork, so scheduling onto it
+            # would grow a deque nobody empties — about 180 MB per 200k events —
+            # while delivering nothing. Drop, and say why once.
+            if not self._warned_forked:
+                self._warned_forked = True
+                _log.warning(
+                    "this process was forked after wevna.start(), so its events are not "
+                    "captured: the dashboard runs in the process that called start(). "
+                    "Run a single worker while developing (for example, one uvicorn "
+                    "process without --workers)."
+                )
             return
 
         try:
@@ -121,7 +145,7 @@ class _Broadcaster:
         return len(self._clients)
 
 
-def build_app(broadcaster: _Broadcaster) -> Starlette:
+def build_app(broadcaster: _Broadcaster, allowed_hosts: tuple[str, ...] | None = None) -> Starlette:
     """The dashboard's own ASGI app — unrelated to the application being watched."""
 
     async def health(_request: Any) -> JSONResponse:
@@ -177,7 +201,19 @@ def build_app(broadcaster: _Broadcaster) -> Starlette:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
-    return Starlette(routes=routes, lifespan=lifespan)
+    # Outermost, so it sees every route including the WebSocket upgrade. Without
+    # it any web page the developer visits could connect to /ws and read the
+    # whole event stream — see host_guard.py.
+    return Starlette(
+        routes=routes,
+        lifespan=lifespan,
+        middleware=[
+            Middleware(
+                HostGuardMiddleware,
+                allowed_hosts=allowed_hosts or allowed_hosts_for("localhost"),
+            )
+        ],
+    )
 
 
 class DashboardServer:
@@ -212,7 +248,7 @@ class DashboardServer:
             return
 
         config = uvicorn.Config(
-            build_app(self._broadcaster),
+            build_app(self._broadcaster, allowed_hosts_for(self.host)),
             host=self.host,
             port=self.port,
             log_level="warning",
@@ -235,10 +271,24 @@ class DashboardServer:
         step = 0.02
         while waited < timeout:
             if server.started:
+                self._adopt_bound_port(server)
                 return
             deadline.wait(step)
             waited += step
         _log.warning("dashboard server did not report started within %ss", timeout)
+
+    def _adopt_bound_port(self, server: uvicorn.Server) -> None:
+        """Replaces a requested port 0 with the port the OS actually chose.
+
+        ``port=0`` is how a test, or several services on one machine, asks for a
+        free port — and the URL is then useless unless it names that port.
+        """
+        if self.port != 0:
+            return
+        for listener in server.servers:
+            for sock in listener.sockets:
+                self.port = int(sock.getsockname()[1])
+                return
 
     def stop(self, timeout: float = 5.0) -> None:
         """Asks the server to exit and waits for the thread to finish."""

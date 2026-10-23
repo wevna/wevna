@@ -247,3 +247,25 @@ describe("detectRepeatedOperations", () => {
     expect(build()).toEqual(build());
   });
 });
+
+describe("detectRepeatedOperations for non-SQL datastores", () => {
+  const mongo = (target: string, operation: string) =>
+    makeEntry({ kind: "mongodb.command", attributes: { target, operation }, durationMs: 3 });
+
+  it("groups the same operation on the same collection", () => {
+    const result = detectRepeatedOperations(
+      requestOf([mongo("users", "find"), mongo("users", "find"), mongo("orders", "find")]),
+      2,
+    );
+
+    expect(result).toEqual([
+      { kind: "mongodb.command", signature: "users.find", count: 2, totalDurationMs: 6 },
+    ]);
+  });
+
+  it("ignores an event with no operation", () => {
+    const entry = makeEntry({ kind: "prisma.query", attributes: {}, durationMs: 1 });
+
+    expect(detectRepeatedOperations(requestOf([entry, entry]), 2)).toEqual([]);
+  });
+});

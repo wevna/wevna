@@ -4,6 +4,56 @@ All notable changes to Wevna are documented here. This project follows
 [semver](https://semver.org/); see [STABILITY.md](STABILITY.md) for exactly
 what each version number covers.
 
+## Unreleased — `@wevna/sdk`
+
+### Security
+
+- **A web page you visit could read the dashboard's event stream.** Browsers
+  do not apply the same-origin policy to WebSockets, so any site could open
+  `ws://localhost:4123/ws` and receive every SQL query, request and log line
+  Wevna captured (cross-site WebSocket hijacking), and a page that rebinds its
+  own hostname to `127.0.0.1` could reach every route the same way (DNS
+  rebinding). The server now refuses a foreign `Host` on every route and a
+  foreign `Origin` on the WebSocket. Non-browser clients (which send no
+  `Origin`) and the dashboard itself are unaffected. Binding to
+  `0.0.0.0`/`::` is treated as an explicit decision to be reachable and allows
+  any host. **Affects every published `@wevna/sdk` version before this one.**
+
+### Added
+
+- **`@wevna/plugin-mysql`** (`0.1.0`) — MySQL / MariaDB queries through
+  `mysql2/promise`, as `sql.query` events, so N+1 detection and SQL timing
+  work unchanged. Parameter values are never read.
+- **`@wevna/plugin-mongodb` and `@wevna/plugin-prisma`** (`0.1.0`) — MongoDB
+  commands (via the driver's command monitoring) and Prisma Client operations
+  (via a client extension), as `mongodb.command` / `prisma.query` events.
+  Neither records filters, arguments or values.
+- **A `database` event category** for datastores that are neither SQL nor
+  Redis: its own colour, a Database filter on the session timeline, a
+  Database Operations stat, inclusion in the Multiple Database Calls insight,
+  and a Repeated Database Operation insight (the N+1 shape, on
+  `collection.operation`).
+- **Keyboard shortcuts** in the dashboard — `J`/`K` between requests, `/` to
+  search, `T` theme, `P` pause, `Esc` to clear — a `?` help overlay, and a
+  **command palette** (`Ctrl/⌘ K`) to jump to any request or run an action. A
+  shortcut never claims a modifier chord or a key typed into a text field, and
+  an open overlay owns the keyboard.
+- **Endpoint ranking** — a cross-request view that ranks every endpoint in the
+  session by latency and error rate, rather than showing one request at a time.
+- **Error boundary** — a plugin emitting an unexpected event shape now shows a
+  message in the dashboard instead of unmounting the whole UI.
+
+### Fixed
+
+- Inspector stat grid keeps each label next to its own value; the timeline
+  axis no longer overlaps its last two tick labels on narrow tracks. ([#54](https://github.com/wevna/wevna/issues/54))
+- The "dashboard assets not found" warning is now actually printed (it was
+  routed to a disabled logger), so a missing bundle no longer fails silently.
+- `startServer().url` prints `localhost` when bound to `0.0.0.0`/`::`.
+- `@wevna/plugin-fetch` reports its real version to `wevna.plugins`.
+- URL sanitizing no longer redacts `?author=…` (`auth` is now matched as a
+  whole word, not a substring).
+
 ## Unreleased — Python SDK (`wevna`, alpha)
 
 ### Added — Phase 2: databases and outgoing HTTP

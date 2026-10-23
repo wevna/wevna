@@ -39,19 +39,26 @@ function resolveDashboardDir(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-export function registerDashboard(app: FastifyInstance, dashboardDir?: string): void {
+export async function registerDashboard(
+  app: FastifyInstance,
+  dashboardDir?: string,
+): Promise<void> {
   const resolvedDir = dashboardDir ?? resolveDashboardDir();
 
   if (!resolvedDir) {
-    app.log.warn(
+    // Not app.log: createServer builds Fastify with logging off, so that
+    // would discard the only diagnostic for a missing bundle. emitWarning
+    // writes to stderr without going through console, which Wevna patches.
+    process.emitWarning(
       "Wevna dashboard assets were not found. Build the dashboard package " +
         "(`pnpm --filter @wevna/dashboard build`) to serve the UI; the health " +
         "endpoint will keep working regardless.",
+      "WevnaWarning",
     );
     return;
   }
 
-  app.register(fastifyStatic, {
+  await app.register(fastifyStatic, {
     root: resolvedDir,
     index: ["index.html"],
   });
