@@ -64,7 +64,7 @@ dev = [
   "fastapi>=0.115",
   # Phase 2 targets. SQLAlchemy is tested against both its sync and async
   # engines, which take different code paths through the event system.
-  "sqlalchemy>=2.0",
+  "sqlalchemy[asyncio]>=2.0",
   "aiosqlite>=0.20",
   "redis>=5.0",
   # A real redis-py-compatible server in memory. The point is to exercise
