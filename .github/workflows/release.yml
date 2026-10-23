@@ -61,8 +61,8 @@ jobs:
       # pnpm exchanges the `id-token: write` OIDC token above for a
       # short-lived registry credential at publish time. A package without one
       # fails to publish here, and packages published earlier in the same run
-      # stay published. Configure all six before tagging (RELEASE-CHECKLIST.md). There is no long-
-      # lived secret to rotate, leak, or lose, and it sidesteps npm's
+      # stay published, so configure all six before tagging. There is no
+      # long-lived secret to rotate, leak, or lose, and it sidesteps npm's
       # deprecation of 2FA-bypass tokens for direct publishing (Jan 2027).
       #
       # This is also what makes the provenance attestation work. v1.0.0
@@ -71,6 +71,7 @@ jobs:
       # provenance despite publishConfig.provenance being set — silently. If
       # a future run logs "Skipped OIDC", the attestation is missing again
       # and the trusted publisher config is what to check.
+      #
       # Prints which packages the Publish step below would try to publish,
       # without publishing anything (--dry-run). It exists so the list is in the
       # run log before the real step starts, since `-r` decides it implicitly.
