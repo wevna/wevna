@@ -139,7 +139,7 @@ Headers, bodies and `auth=` credentials are never recorded.
 | | |
 | --- | --- |
 | Recording and replay | Phase 3 |
-| Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
+| Raw `asyncpg`, Redis pipelines | unscheduled |
 
 Phase 3 is the interesting one: the recording format is shared, so a session
 recorded from a Python app will open in the same viewer as one recorded from
