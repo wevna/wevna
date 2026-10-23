@@ -135,3 +135,41 @@ class TestBind:
 
         assert wrapped(2, b=3) == 5
         assert wrapped.__name__ == "add"
+
+
+class TestBegin:
+    """``begin`` is for a context that is discarded with the request."""
+
+    def test_sets_a_correlation_for_the_rest_of_that_context_only(self) -> None:
+        import contextvars
+
+        context = contextvars.copy_context()
+
+        def inside() -> str:
+            started = correlation.begin()
+            current = correlation.current()
+            assert current is not None
+            assert current.id == started.id
+            return started.id
+
+        request_id = context.run(inside)
+
+        assert correlation.current() is None  # the caller's context is untouched
+        later = context.run(correlation.current)
+        assert later is not None
+        assert later.id == request_id  # still there on the next step of the same context
+
+    def test_an_explicit_id_is_used(self) -> None:
+        import contextvars
+
+        assert (
+            contextvars.copy_context().run(correlation.begin, "from-a-header").id == "from-a-header"
+        )
+
+    def test_each_context_gets_its_own_id(self) -> None:
+        import contextvars
+
+        first = contextvars.copy_context().run(correlation.begin)
+        second = contextvars.copy_context().run(correlation.begin)
+
+        assert first.id != second.id

@@ -44,6 +44,8 @@ dependencies = [
 sqlalchemy = ["sqlalchemy[asyncio]>=2.0"]
 redis = ["redis>=5.0"]
 httpx = ["httpx>=0.27"]
+flask = ["flask>=3.0"]
+django = ["django>=4.2"]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.24",
@@ -64,6 +66,9 @@ dev = [
   "sqlalchemy>=2.0",
   "aiosqlite>=0.20",
   "redis>=5.0",
+  # WSGI integrations, tested against the real frameworks rather than stand-ins.
+  "flask>=3.0",
+  "django>=4.2",
   # A real redis-py-compatible server in memory. The point is to exercise
   # redis-py's own client code paths rather than a stub of them, since what is
   # being instrumented is redis-py's method, not Redis itself.
@@ -91,6 +96,12 @@ python_version = "3.10"
 strict = true
 warn_unreachable = true
 files = ["src", "tests", "examples"]
+
+# Django ships no type information. It is only imported by the tests that run the
+# integration against the real framework; the package itself never imports it.
+[[tool.mypy.overrides]]
+module = ["django", "django.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

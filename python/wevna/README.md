@@ -52,6 +52,7 @@ a deliberate N+1 in it — see
 | | |
 | --- | --- |
 | **HTTP requests** via ASGI middleware | FastAPI, Starlette, and anything ASGI |
+| **HTTP requests** via WSGI middleware | Flask, Django, and anything WSGI |
 | **Per-request correlation** via `contextvars` | automatic; handlers pass nothing |
 | **`logging` capture** | levels, logger names, exceptions |
 | **Uncaught exceptions** | attached to the request that caused them |
@@ -63,11 +64,60 @@ a deliberate N+1 in it — see
 Install only what you use:
 
 ```bash
-pip install "wevna[sqlalchemy,redis,httpx]"
+pip install "wevna[sqlalchemy,redis,httpx,flask,django]"
 ```
 
 Each integration is an optional extra. Instrumentation for a library you don't
 use shouldn't make you install it.
+
+### Flask, Django and other WSGI apps
+
+```python
+from wevna.wsgi import WevnaMiddleware
+import wevna.flask
+
+wevna.start()
+app.wsgi_app = WevnaMiddleware(app.wsgi_app)  # Flask
+wevna.flask.instrument(app)  # the route pattern, and unhandled exceptions
+```
+
+```python
+# Django: wsgi.py
+application = WevnaMiddleware(get_wsgi_application())
+
+# settings.py
+MIDDLEWARE = ["wevna.django.WevnaDjangoMiddleware", ...]
+```
+
+`WevnaMiddleware` works on its own for any WSGI app and records
+`http.request` with method, path, status and duration, plus an
+`exception.captured` if the application raises. The Flask and Django hooks add
+what only those frameworks know, and are a few lines each:
+
+- **The route pattern** (`/orders/<int:order_id>`), so requests to one endpoint
+  group as one. WSGI has no notion of a route, so the framework hook writes it
+  into the `environ` dict, which the middleware and the framework share. Without
+  a hook the request is still recorded, with its path and no route.
+- **Exceptions the framework turns into a 500.** Flask and Django catch an
+  unhandled exception and return an error page, so the WSGI layer never sees it
+  raised. The hooks report it, as `framework: "flask"` or `"django"`. A
+  deliberate `abort(404)` is not an exception and is not reported.
+
+Two properties worth knowing, because WSGI makes them easy to get wrong:
+
+- **Streamed responses stay correlated.** The server pulls a WSGI response body
+  after the application has returned, so a generator that runs queries while
+  streaming is still running application code. Each request, and every step of
+  its body, runs in a context of its own, so that work belongs to its request
+  even when one thread is partway through several responses. The
+  `http.request` event is published when the response ends (read to the end, or
+  closed), so its duration includes the streaming.
+- **`close()` is honoured.** If the application's response has a `close()`, it is
+  called exactly once, even if the server never read the body.
+
+The query string is not recorded, the same as for ASGI. Django under ASGI has no
+shared `environ`, so use `wevna.asgi.WevnaMiddleware` there. Under Django's
+WSGI handler the route is recorded.
 
 ### The dashboard is not readable by websites
 
@@ -86,6 +136,14 @@ chosen to be reachable. Same rules as the Node SDK.
 | redis-py | Command name, duration | **Arguments. Return values.** |
 | httpx | Method, sanitized URL, status, duration | **Headers. Bodies.** |
 | `logging` | Formatted message, level, logger | **`record.args`** |
+
+One boundary to know about: the redaction above applies to what Wevna records
+itself. `logging` capture records what *your* loggers write, and some libraries
+log full URLs. `httpx` logs `HTTP Request: GET <url>` at INFO, and Werkzeug's
+access log writes the request line, both with the query string. An `api_key` in
+that URL is redacted in the `http.client` event and still present in the log
+message. Quiet those loggers (`logging.getLogger("httpx").setLevel(logging.WARNING)`)
+or keep secrets out of URLs. The Flask example does the former.
 
 These are the Node SDK's boundaries, not new ones. A Python event stream that
 captured more than its Node counterpart would make the protocol a lie, and the
