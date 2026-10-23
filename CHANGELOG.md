@@ -61,6 +61,9 @@ Also released with this version: `@wevna/protocol` 1.1.0, `@wevna/plugin-fetch`
 - `/api/session/events` streams a recording instead of buffering all of it.
 - The "where the time went" insight says "SQL" rather than "PostgreSQL", since
   `sql.query` also comes from MySQL and the Python SDK.
+- `instrumentRedis(new Redis(url))` type-checks in TypeScript. The parameter
+  type rejected a real ioredis client, whose `sendCommand` takes its own
+  `Command` class. No runtime change.
 
 ### `@wevna/protocol` 1.1.0
 
