@@ -3,7 +3,18 @@
 from __future__ import annotations
 
 from wevna import correlation
-from wevna.api import StartResult, is_running, start, stop, url
+from wevna.api import (
+    OpenedRecording,
+    StartResult,
+    is_recording,
+    is_running,
+    open_recording,
+    start,
+    start_recording,
+    stop,
+    stop_recording,
+    url,
+)
 from wevna.asgi import WevnaMiddleware
 from wevna.event_bus import EventBus
 from wevna.protocol import (
@@ -17,6 +28,7 @@ from wevna.protocol import (
     new_id,
     now_ms,
 )
+from wevna.recording import RecordingError, SessionLoader, SessionRecorder
 from wevna.runtime import Runtime, default_runtime
 from wevna.server import DashboardServer
 
@@ -30,18 +42,26 @@ __all__ = [
     "DashboardServer",
     "Envelope",
     "EventBus",
+    "OpenedRecording",
+    "RecordingError",
     "Runtime",
     "Session",
+    "SessionLoader",
+    "SessionRecorder",
     "SessionStatus",
     "StartResult",
     "WevnaMiddleware",
     "__version__",
     "correlation",
     "default_runtime",
+    "is_recording",
     "is_running",
     "new_id",
     "now_ms",
+    "open_recording",
     "start",
+    "start_recording",
     "stop",
+    "stop_recording",
     "url",
 ]

@@ -19,20 +19,21 @@ import contextlib
 import logging
 import os
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
 
 import uvicorn
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from wevna.host_guard import HostGuardMiddleware, allowed_hosts_for
 from wevna.protocol import Envelope, dumps_wire
+from wevna.recording import SessionLoader
 
 _log = logging.getLogger("wevna.server")
 
@@ -144,13 +145,47 @@ class _Broadcaster:
         return len(self._clients)
 
 
-def build_app(broadcaster: _Broadcaster, allowed_hosts: tuple[str, ...] | None = None) -> Starlette:
-    """The dashboard's own ASGI app — unrelated to the application being watched."""
+def build_app(
+    broadcaster: _Broadcaster,
+    allowed_hosts: tuple[str, ...] | None = None,
+    recording: SessionLoader | None = None,
+) -> Starlette:
+    """The dashboard's own ASGI app — unrelated to the application being watched.
+
+    With ``recording`` the dashboard is served against a file instead of a live
+    session: ``/api/session`` says so, ``/api/session/events`` serves the file,
+    and there is no WebSocket, because a recording is finite and already known.
+    """
 
     async def health(_request: Any) -> JSONResponse:
         # Deliberately identical to the Node SDK's response. Anything checking
         # whether Wevna is up should not have to know which language it is.
         return JSONResponse({"status": "running", "product": "wevna"})
+
+    async def session_info(_request: Any) -> JSONResponse:
+        # The one thing the dashboard asks before it knows which event source to
+        # use. Identical to the Node server's response.
+        if recording is not None and recording.metadata is not None:
+            return JSONResponse({"mode": "recording", "metadata": recording.metadata.to_wire()})
+        return JSONResponse({"mode": "live"})
+
+    def session_events(_request: Any) -> StreamingResponse:
+        assert recording is not None
+
+        def stream() -> Iterator[str]:
+            # A fresh loader per request: loading is a stream over the file, so
+            # a recording of any size is never held in memory, and the response
+            # is still one JSON document, {"events": [...]}, as the Node server's is.
+            loader = SessionLoader(recording.path)
+            loader.open()
+            yield '{"events":['
+            first = True
+            for recorded in loader.events():
+                yield ("" if first else ",") + dumps_wire(recorded.envelope.to_wire())
+                first = False
+            yield "]}"
+
+        return StreamingResponse(stream(), media_type="application/json")
 
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.accept()
@@ -169,8 +204,12 @@ def build_app(broadcaster: _Broadcaster, allowed_hosts: tuple[str, ...] | None =
 
     routes: list[Route | WebSocketRoute | Mount] = [
         Route("/health", health),
-        WebSocketRoute("/ws", websocket_endpoint),
+        Route("/api/session", session_info),
     ]
+    if recording is not None:
+        routes.append(Route("/api/session/events", session_events))
+    else:
+        routes.append(WebSocketRoute("/ws", websocket_endpoint))
 
     if DASHBOARD_DIR.is_dir():
         routes.append(Mount("/", app=StaticFiles(directory=DASHBOARD_DIR, html=True)))
@@ -218,9 +257,15 @@ def build_app(broadcaster: _Broadcaster, allowed_hosts: tuple[str, ...] | None =
 class DashboardServer:
     """Runs the dashboard on a background thread."""
 
-    def __init__(self, host: str = "localhost", port: int = 4123) -> None:
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 4123,
+        recording: SessionLoader | None = None,
+    ) -> None:
         self.host = host
         self.port = port
+        self._recording = recording
         self._broadcaster = _Broadcaster()
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
@@ -247,7 +292,7 @@ class DashboardServer:
             return
 
         config = uvicorn.Config(
-            build_app(self._broadcaster, allowed_hosts_for(self.host)),
+            build_app(self._broadcaster, allowed_hosts_for(self.host), self._recording),
             host=self.host,
             port=self.port,
             log_level="warning",
