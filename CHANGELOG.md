@@ -56,6 +56,24 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added: WSGI support (Flask, Django)
+
+- **`wevna.wsgi.WevnaMiddleware`** captures `http.request` (and
+  `exception.captured` when the application raises) for any WSGI app, with
+  correlation through `contextvars`. Each request, and every step of its response
+  body, runs in a context of its own, so work done while a response streams stays
+  correlated even when one thread is partway through several responses. The event
+  is published when the response ends, and `close()` is passed on and honoured.
+- **`wevna.flask.instrument(app)`** and **`wevna.django.WevnaDjangoMiddleware`**
+  record the route pattern and report the exceptions each framework turns into a
+  500 before the WSGI layer could see them. Optional extras: `wevna[flask]`,
+  `wevna[django]`.
+- `correlation.begin()`, for a context that is discarded with the request.
+- A runnable Flask example (`pnpm --filter @wevna/python example:flask`).
+- Documented a boundary: log capture records what an application's loggers write,
+  and `httpx` and Werkzeug log full URLs at INFO. Redaction applies to the events
+  Wevna records itself.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM

@@ -58,6 +58,27 @@ def start(correlation_id: str | None = None) -> Iterator[Correlation]:
         _current.reset(token)
 
 
+def begin(correlation_id: str | None = None) -> Correlation:
+    """Starts a correlation that lasts for the rest of the current context.
+
+    ``start()`` is a block: it sets the correlation, runs the code, and puts the
+    previous one back. That is right when the whole request runs inside one
+    ``with``. A WSGI response is different. The application returns an iterable,
+    and the server pulls the body out of it later, outside any block that was
+    open when the call returned, so queries and logs made while streaming would
+    lose their request.
+
+    The WSGI middleware therefore runs each request, and every step of its body,
+    in a context of its own (``contextvars.copy_context().run``) and calls this
+    once inside it. There is nothing to put back, because that context is thrown
+    away with the request. Do not call it on a long-lived context: nothing ends
+    the correlation.
+    """
+    correlation = Correlation(id=correlation_id or str(uuid.uuid4()))
+    _current.set(correlation)
+    return correlation
+
+
 @contextmanager
 def run_with(correlation: Correlation) -> Iterator[Correlation]:
     """Runs a block inside an existing correlation.
