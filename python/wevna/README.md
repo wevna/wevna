@@ -58,12 +58,12 @@ a deliberate N+1 in it — see
 | **The dashboard** | served from your process, on its own thread |
 | **SQLAlchemy** | sync and async engines, ORM and Core alike |
 | **redis-py** | sync and async clients |
-| **Outgoing HTTP** | `httpx`, sync and async, with URL redaction |
+| **Outgoing HTTP** | `httpx` (sync and async) and `requests`, with URL redaction |
 
 Install only what you use:
 
 ```bash
-pip install "wevna[sqlalchemy,redis,httpx]"
+pip install "wevna[sqlalchemy,redis,httpx,requests]"
 ```
 
 Each integration is an optional extra. Instrumentation for a library you don't
@@ -84,13 +84,46 @@ chosen to be reachable. Same rules as the Node SDK.
 | --- | --- | --- |
 | SQLAlchemy | Statement text, duration, row count | **Bound parameters** |
 | redis-py | Command name, duration | **Arguments. Return values.** |
-| httpx | Method, sanitized URL, status, duration | **Headers. Bodies.** |
+| httpx, requests | Method, sanitized URL, status, duration | **Headers. Bodies.** |
 | `logging` | Formatted message, level, logger | **`record.args`** |
 
 These are the Node SDK's boundaries, not new ones. A Python event stream that
 captured more than its Node counterpart would make the protocol a lie, and the
 [URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
 are literally the same fixture both languages test against.
+
+### Outgoing HTTP with `requests`
+
+```python
+session = requests.Session()
+wevna.requests.instrument(session)  # this session only
+
+wevna.requests.instrument_all()  # every Session, and requests.get()
+```
+
+`requests.get(url)` and its siblings build a throwaway `Session` for each call, so
+there is no instance to instrument. `instrument_all()` covers them by patching
+`Session.send` on the class. That is a global change (the Node plugin makes the
+same trade for the global `fetch`), so it is opt-in, and it returns a function that
+undoes it. It also reports calls made by libraries that use `requests` internally.
+It has `ignore_hosts`, like the httpx integration.
+
+Three things behave differently from httpx, each for a reason:
+
+- **Errors are recorded by class, never by message.** A `requests` exception
+  message contains the full URL, query string included
+  (`Max retries exceeded with url: /charge?api_key=...`), so recording it would put
+  back the secret the `url` field just had redacted. The event says
+  `ConnectionError (ConnectionRefusedError)` or `ReadTimeout`. An `httpx` message
+  describes the transport and is recorded as written.
+- **A redirect is one event.** `Session.send` calls itself once per hop, so
+  reporting every call would nest the follow-up inside the original and count its
+  time twice. One event is reported per call you made: the URL you asked for, the
+  final status, the total duration, and `redirects` when any were followed.
+- **Duration is time to the response headers.** With `stream=True` the body is read
+  later and is not included.
+
+Headers, bodies and `auth=` credentials are never recorded.
 
 ### Known gaps
 
@@ -100,14 +133,13 @@ are literally the same fixture both languages test against.
   reported. There is a test that fails if this ever changes silently.
 - **Raw `asyncpg` is not instrumented.** SQLAlchemy over asyncpg is, which
   covers most of it.
-- **`requests` is not instrumented.** `httpx` is.
 
 ## What's next
 
 | | |
 | --- | --- |
 | Recording and replay | Phase 3 |
-| Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
+| Raw `asyncpg`, Redis pipelines | unscheduled |
 
 Phase 3 is the interesting one: the recording format is shared, so a session
 recorded from a Python app will open in the same viewer as one recorded from
