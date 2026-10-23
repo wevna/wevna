@@ -4,11 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wevna"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Local-first runtime dashboard for Python backends. Watch HTTP, SQL, Redis and log activity live, correlated per request."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+license-files = ["LICENSE"]
 authors = [{ name = "Boluwatife Ajayi" }]
 keywords = [
   "observability", "debugging", "devtools", "fastapi", "asgi", "starlette",
@@ -16,6 +17,8 @@ keywords = [
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
+  "Framework :: AsyncIO",
+  "Framework :: FastAPI",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.10",
@@ -61,7 +64,7 @@ dev = [
   "fastapi>=0.115",
   # Phase 2 targets. SQLAlchemy is tested against both its sync and async
   # engines, which take different code paths through the event system.
-  "sqlalchemy>=2.0",
+  "sqlalchemy[asyncio]>=2.0",
   "aiosqlite>=0.20",
   "redis>=5.0",
   # A real redis-py-compatible server in memory. The point is to exercise
@@ -78,6 +81,13 @@ Homepage = "https://github.com/wevna/wevna"
 Repository = "https://github.com/wevna/wevna"
 Issues = "https://github.com/wevna/wevna/issues"
 Changelog = "https://github.com/wevna/wevna/blob/main/CHANGELOG.md"
+Security = "https://github.com/wevna/wevna/blob/main/SECURITY.md"
+
+# One source of truth for the version. It used to be written in both this file
+# and __init__.py, and a release that updated only one would publish a package
+# whose wevna.__version__ disagreed with its metadata.
+[tool.hatch.version]
+path = "src/wevna/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wevna"]

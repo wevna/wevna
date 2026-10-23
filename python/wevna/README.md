@@ -45,7 +45,7 @@ pnpm --filter @wevna/python example
 
 Then `curl localhost:8000/orders/42` and watch the dashboard. That endpoint has
 a deliberate N+1 in it — see
-[examples/fastapi](examples/fastapi/README.md).
+[examples/fastapi](https://github.com/wevna/wevna/blob/main/python/wevna/examples/fastapi/README.md).
 
 ## What works today
 
@@ -89,7 +89,7 @@ chosen to be reachable. Same rules as the Node SDK.
 
 These are the Node SDK's boundaries, not new ones. A Python event stream that
 captured more than its Node counterpart would make the protocol a lie, and the
-[URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
+[URL redaction rules](https://github.com/wevna/wevna/blob/main/packages/plugin-fetch/fixtures/sanitize-url.json)
 are literally the same fixture both languages test against.
 
 ### Known gaps
@@ -120,7 +120,7 @@ package framework-agnostic — it works with Quart or Litestar as readily as
 FastAPI — and it means Wevna wraps a callable rather than patching a global.
 This is a real difference from the Node SDK, which has to patch
 `http.Server.prototype.emit` because Node offers no equivalent seam. Several
-of the caveats in [STABILITY.md](../../STABILITY.md) about global patching
+of the caveats in [STABILITY.md](https://github.com/wevna/wevna/blob/main/STABILITY.md) about global patching
 simply do not apply on this side.
 
 **`logging`, not `print`.** `print` has no hook, redirecting `sys.stdout` would
@@ -181,4 +181,4 @@ them going red.
 
 ## License
 
-[MIT](../../LICENSE)
+[MIT](https://github.com/wevna/wevna/blob/main/LICENSE)

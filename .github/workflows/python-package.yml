@@ -1,0 +1,122 @@
+name: Python package
+
+# Builds the Python SDK's wheel and sdist, checks them, and installs the wheel
+# into a fresh virtualenv for a smoke test. It never publishes.
+#
+# Two callers:
+#   - pull requests that touch the Python package (the dry run), and
+#   - release-python.yml, which publishes only if this passes.
+# Sharing one workflow means the dry run is the same code as the real release,
+# not a copy that can drift from it.
+on:
+  pull_request:
+    paths:
+      - "python/**"
+      - "packages/dashboard/**"
+      - "packages/protocol/**"
+      - "scripts/copy-dashboard-assets.mjs"
+      - ".github/workflows/python-package.yml"
+      - ".github/workflows/release-python.yml"
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A release tag that disagrees with the package version would publish a
+      # version nobody asked for. The version lives in src/wevna/__init__.py
+      # (pyproject.toml reads it from there). Only checked on a tag.
+      - name: Check the tag matches the package version
+        if: github.ref_type == 'tag'
+        working-directory: python/wevna
+        run: |
+          version=$(python -c "import re; print(re.search(r'__version__ = \"([^\"]+)\"', open('src/wevna/__init__.py').read()).group(1))")
+          if [ "py-v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match the package version ${version}" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The dashboard bundle is not committed. Without this step the build
+      # still succeeds and produces a wheel that serves a blank page, which is
+      # why verify_dist.py checks for it below.
+      - name: Build the dashboard bundle
+        run: |
+          pnpm turbo run build --filter=@wevna/dashboard
+          node scripts/copy-dashboard-assets.mjs python/wevna/src/wevna/dashboard
+
+      - name: Build the wheel and sdist
+        working-directory: python/wevna
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Verify the contents
+        working-directory: python/wevna
+        run: python scripts/verify_dist.py dist
+
+      - name: Check the metadata
+        working-directory: python/wevna
+        run: twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: python/wevna/dist/
+          if-no-files-found: error
+
+  smoke:
+    name: Install and run (Python ${{ matrix.python }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package's floor and the newest version it classifies.
+        python: ["3.10", "3.13"]
+    steps:
+      # No checkout of the package: the smoke test must import the installed
+      # wheel, not the source tree. Only the script is fetched.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: python/wevna/scripts
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Install the wheel into a fresh virtualenv and run it
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/venv/bin/python" "$GITHUB_WORKSPACE/python/wevna/scripts/smoke_wheel.py"

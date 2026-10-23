@@ -1,0 +1,40 @@
+name: Release (Python)
+
+# Publishes python/wevna to PyPI as `wevna` when a tag like py-v0.1.0 is pushed.
+# Separate from the npm release (release.yml, tags v*): the SDKs version
+# independently.
+#
+# Nothing is published unless the build, the content check and the install
+# smoke test in python-package.yml all pass.
+on:
+  push:
+    tags:
+      - "py-v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    uses: ./.github/workflows/python-package.yml
+
+  publish:
+    name: Publish to PyPI
+    needs: package
+    runs-on: ubuntu-latest
+    # A GitHub environment named `pypi`, so the publish can be given required
+    # reviewers if wanted, and so the PyPI trusted publisher can pin to it.
+    environment: pypi
+    permissions:
+      # Trusted publishing: PyPI exchanges this OIDC token for a short-lived
+      # credential. No API token is stored anywhere. It needs a trusted
+      # publisher configured on PyPI for this repository and this workflow
+      # file (release-python.yml) and the environment name `pypi`.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
