@@ -175,14 +175,14 @@ execution graph.
 
 | | Node (`@wevna/sdk`) | Python (`wevna`, alpha) |
 | --- | --- | --- |
-| **Incoming HTTP** | Any `http` server. Express, Fastify and NestJS add route names | ASGI middleware: FastAPI, Starlette and anything ASGI |
-| **SQL** | `pg`, and MySQL or MariaDB through [`@wevna/plugin-mysql`](packages/plugin-mysql/README.md) | SQLAlchemy, sync and async |
-| **Redis** | `ioredis` | redis-py, sync and async |
+| **Incoming HTTP** | Any `http` server. Express, Fastify and NestJS add route names | ASGI middleware (FastAPI, Starlette) and WSGI middleware (Flask, Django) |
+| **SQL** | `pg`, and MySQL or MariaDB through [`@wevna/plugin-mysql`](packages/plugin-mysql/README.md) | SQLAlchemy (sync and async) and raw asyncpg |
+| **Redis** | `ioredis` | redis-py, sync and async, including pipelines |
 | **Other datastores** | MongoDB ([`@wevna/plugin-mongodb`](packages/plugin-mongodb/README.md)), Prisma ([`@wevna/plugin-prisma`](packages/plugin-prisma/README.md)) | not yet |
-| **Outgoing HTTP** | The global `fetch`, through [`@wevna/plugin-fetch`](packages/plugin-fetch/README.md) | `httpx`, sync and async |
+| **Outgoing HTTP** | The global `fetch`, through [`@wevna/plugin-fetch`](packages/plugin-fetch/README.md) | `httpx` (sync and async) and `requests` |
 | **Logs** | `console.log` | the standard `logging` module |
-| **Exceptions** | Uncaught exceptions, and handler errors in Express, Fastify and NestJS | Uncaught exceptions in a request |
-| **Recording and replay** | yes | not yet |
+| **Exceptions** | Uncaught exceptions, and handler errors in Express, Fastify and NestJS | Uncaught exceptions in a request, and the ones Flask and Django turn into a 500 |
+| **Recording and replay** | yes | yes, the same file format in both directions |
 
 Everything is correlated per request, and the dashboard, the event protocol and the
 recording format are the same for both. SQL parameters, Redis arguments, request and

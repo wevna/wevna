@@ -1,8 +1,10 @@
 # Wevna: Project Status
 
 Where Wevna is, how it got here, what was decided and why, and what is left.
-Written 2026-10-23 against `main` at the merge of #89. Where a section describes
-work that is not on `main` yet, it says so and names the pull request.
+Written 2026-10-23 against `main` at the merge of #100. Where a section describes
+work that is not on `main` yet, it says so and names the pull request. This file is
+meant to merge after the pull requests it lists, so the README table it adds
+describes `main` at that point.
 
 ---
 
@@ -177,7 +179,11 @@ read the same files. Three fixtures keep the two languages from drifting:
 | #96 | Python: the `requests` library |
 | #97 | Python: raw asyncpg |
 | #98 | A demo kit: a Node and a Python service calling each other |
+| #101 | Removes `.pyc` files and an egg-info directory committed by mistake |
+| #102 | A CI check that fails if a draft post, a work report or build output is tracked |
 | #88 | An earlier maintainer TODO, superseded by the `TODO.md` in this change |
+
+The order to merge them in, and why, is in [TODO.md](TODO.md).
 
 ---
 
@@ -209,8 +215,10 @@ runtime and a second write path into the dashboard. What it found was kept as fi
 
 **The same safety rules in both languages.** SQL parameters, Redis arguments, request
 and response bodies and headers are never recorded. Failures are reported by a short
-code (a SQLSTATE, a MySQL or Prisma error code, an exception class) and not by a
-message, because a message often quotes the value that caused it.
+code where the driver has one (a SQLSTATE, a MySQL or Prisma error code, an exception
+class for `requests`), because a message often quotes the value that caused it.
+Redis and httpx errors have no code, so their message is recorded. See section 9 for
+the one case where that matters.
 
 **A recording requires `sequence` to increase along the file.** The dashboard orders
 events by timestamp and uses `sequence` only as a tiebreak, but the loader reports a
@@ -240,6 +248,11 @@ not from the feature under construction.
 | `requests` exception messages contain the URL and query string (Python, #96) | Recording `str(error)` would put back a secret that the `url` field had redacted. |
 | asyncpg logs its own housekeeping (Python, #97) | The pool's reset after every query and type introspection would have appeared as phantom events. |
 | The WSGI body is pulled after the app returns (Python, #93) | A first prototype only reported a request when the body was exhausted and held context state across yields. |
+| A pipeline error recorded the Redis command's arguments (Python, #95) | redis-py rewrites the error a pipeline raises to `Command # 2 (LPUSH key value) of pipeline caused error: ...`. Found by running against a real Redis 7. |
+| Flask in debug mode reported each exception twice (Python, #93) | Flask reports the exception to its signal and then re-raises it to the WSGI middleware. |
+| The WSGI middleware dropped `Content-Length` (Python, #93) | Wrapping the body hid `len()`, which wsgiref and gunicorn use to set the header for a one-item list. |
+| A stuck recording writer got a footer in the middle of its lines (Python, #92) | `stop()` gave up waiting for the writer and wrote the footer anyway, then closed the file under it. |
+| The test suite failed to import on Python 3.11 and newer (#91) | SQLAlchemy 2.1 stopped installing greenlet, and the dev extra used bare `sqlalchemy`. CI runs 3.10, which resolves 2.0, so CI stayed green. |
 
 A row that names a pull request numbered above #89 is fixed in a change that is
 still open, not on `main`.
@@ -271,11 +284,21 @@ packages.
   Python SDK records the path only. Query strings can carry tokens (OAuth callbacks,
   signed URLs), and they reach the live stream and recordings. Needs a decision: the
   same redaction rules as outgoing URLs, or the path only.
-- **The new datastore plugins have not met a real server.** Tests use structural
-  fakes.
+- **A failed MongoDB write is reported as a success.** Checked against MongoDB 7: a
+  duplicate-key insert returns `ok: 1` with `writeErrors` in the reply, and the plugin
+  reads only `commandFailed`. Not fixed. A fix should record the write error's code,
+  not its message, which quotes the duplicate value.
+- **`@wevna/plugin-mysql` does not cover connections from `pool.getConnection()`.**
+  `instrument(pool)` covers `pool.query()` and `pool.execute()`. A connection taken
+  from the pool must be passed to `instrument()` itself. The README does not say so.
+- **A Redis "unknown command" error quotes the start of its arguments.** The server
+  writes `ERR unknown command 'x', with args beginning with: ...`, and Redis errors
+  are recorded by message. Both SDKs.
 - **The Python SDK is alpha.** Its API can change in any release and is not covered
   by `STABILITY.md`, although its protocol is.
 - **`start()` in a second Python worker stalls and misreports** (see section 7).
+  Reproduced under `gunicorn -w 2` without `--preload`: the second worker fails to
+  bind, waits 5 seconds, and prints "Wevna running".
 
 ---
 
@@ -289,11 +312,28 @@ pnpm turbo run build check test lint --force
 - About 1,450 tests, and zero lint warnings.
 - Cross-language contracts are asserted from both sides: the schema and event
   fixtures, URL redaction and the Host and Origin guard.
-- Run against the real thing where possible: `mysql2` and the `mongodb` driver for
-  wrapping and event shapes, a real PostgreSQL for asyncpg (#97), real Flask and
-  Django for WSGI (#93), real `requests` against a real HTTP server (#96).
-- A real browser was used to check the dashboard's shortcuts, command palette,
-  layout fixes and the replay of a Python-written recording.
+- Run against the real thing on 2026-10-23, in addition to the test suites:
+  - `@wevna/plugin-mongodb` against MongoDB 7 and `@wevna/plugin-mysql` against
+    MySQL 8.4, through a Node HTTP server: events correlated per request, no values
+    in the stream, MySQL errors recorded by code.
+  - redis-py pipelines (#95) against Redis 7, sync, async and transactional.
+  - asyncpg (#97) against PostgreSQL 16 (its tests skip when run as root).
+  - The FastAPI example under `gunicorn -w 2 -k uvicorn.workers.UvicornWorker`, with
+    and without `--preload`, 9,000 requests each. With `--preload` each worker logs
+    the forked-worker warning once. Worker memory stayed flat after warm-up.
+  - The Flask example (#93) and a small Django app behind gunicorn, driven by the
+    demo traffic script: every event correlated to its request, routes recorded,
+    exceptions attached once, the example's `api_key` redacted.
+  - The demo kit (#98) with `docker compose`: both services, both dashboards, and
+    the cross-service calls correlated on each side.
+  - A recording written by the FastAPI example (#92), replayed through
+    `wevna.open_recording` in headless Chromium (controls, inspector, endpoint
+    table, no page errors) and loaded by the Node SDK's `openRecording`.
+  - `npm pack --dry-run` for the six public packages and a wheel and sdist build:
+    the dashboard bundle is present, no tests in the npm tarballs or the wheel, no
+    compiled Python or egg-info.
+- A real browser was used earlier to check the dashboard's shortcuts, command
+  palette and layout fixes.
 
 Manual end-to-end checks are in `TESTING.md`.
 
@@ -318,8 +358,8 @@ If asked "what now", the honest ranking:
 3. **Decide the pre-fork story** for the Python SDK (#94), and fix the second-worker
    stall whichever way it goes.
 4. **Decide how incoming query strings are handled** in the Node SDK.
-5. **Run the datastore plugins against real servers** and the Python SDK under a
-   real `gunicorn`.
+5. **Fix the two plugin gaps found against real servers** (section 9): MongoDB
+   write errors, and MySQL pool connections.
 6. **Python to beta:** publish to PyPI, then decide what belongs under `STABILITY.md`.
 
 Reference: [README.md](README.md) for usage, [STABILITY.md](STABILITY.md) for what
