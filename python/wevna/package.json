@@ -8,7 +8,8 @@
     "test": "bash scripts/run.sh pytest -q",
     "check": "bash scripts/run.sh mypy",
     "lint": "bash scripts/run.sh ruff check . && bash scripts/run.sh ruff format --check .",
-    "example": "bash scripts/run.sh python -m examples.fastapi.app"
+    "example": "bash scripts/run.sh python -m examples.fastapi.app",
+    "example:replay": "bash scripts/run.sh python -m examples.fastapi.replay"
   },
   "devDependencies": {
     "@wevna/dashboard": "workspace:*"

@@ -26,12 +26,10 @@ Open `localhost:4123`. That's the setup.
 
 > **Status: alpha (`0.1.0`), not on PyPI yet.**
 >
-> Phases 1 and 2 are done: requests, correlation, logging, the dashboard,
-> SQLAlchemy, redis-py and outgoing HTTP. Recording and replay are next. The
+> Phases 1 to 3 are done: requests, correlation, logging, the dashboard,
+> SQLAlchemy, redis-py, outgoing HTTP, and recording and replay. The
 > [Node SDK](https://www.npmjs.com/package/@wevna/sdk) is the stable one today;
 > this is not.
->
-> Track it on the [Phase 2 milestone](https://github.com/wevna/wevna/milestone/2).
 
 ## Try it
 
@@ -59,6 +57,7 @@ a deliberate N+1 in it — see
 | **SQLAlchemy** | sync and async engines, ORM and Core alike |
 | **redis-py** | sync and async clients |
 | **Outgoing HTTP** | `httpx`, sync and async, with URL redaction |
+| **Recording and replay** | JSON Lines, the same format as the Node SDK |
 
 Install only what you use:
 
@@ -92,6 +91,52 @@ captured more than its Node counterpart would make the protocol a lie, and the
 [URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
 are literally the same fixture both languages test against.
 
+### Recording and replay
+
+Record a session to a file, and open it later in the same dashboard, with
+restart, step, play and a seek bar. The file is JSON Lines in the same format
+the Node SDK writes, so a recording from either SDK opens in either one.
+
+```python
+wevna.start()
+wevna.start_recording("session.jsonl")  # writes until stop_recording() or exit
+...
+wevna.stop_recording()  # optional: stop() and normal exit do it too
+```
+
+```python
+wevna.open_recording("session.jsonl")  # serves it at localhost:4123
+```
+
+- `start_recording()` may be called before `start()`. The request is held and
+  begins when `start()` creates a session, the same as in the Node SDK. If the
+  file cannot be opened at that point the error is logged, since there is no
+  caller left to raise it to. Called after `start()` it raises `OSError`.
+- A second `start_recording()` while recording does nothing. The file is
+  appended to if it already exists.
+- The footer is written on `stop_recording()`, on `wevna.stop()`, and at normal
+  interpreter exit. A recording cut short by a crash has no footer and stays
+  readable up to its last full line; the reader reports it as a missing footer.
+- `open_recording()` raises `RecordingError` for a file it cannot use. Its
+  `type` is one of the Node loader's error types (`empty-file`,
+  `invalid-json`, `invalid-record-shape`, `unsupported-format-version`,
+  `unsupported-protocol-version`, `io-error`). The Node SDK returns these as
+  values instead of raising; this is the same information in the idiom of each
+  language.
+- Events are written by a background thread through a queue limited to 10,000
+  events. In a local measurement it sustained 50,000 events per second with no
+  drops. If the disk cannot keep up, events are dropped, counted, and one
+  warning is logged, and the footer's count matches what was written. A stuck
+  disk therefore costs bounded memory, not a growing queue.
+- Recording stores what the instrumentation already recorded, so the same
+  boundaries hold: no SQL parameters, no Redis arguments, no headers or bodies.
+- A forked worker (gunicorn, `uvicorn --workers`) does not write to the
+  recording its parent started. It drops its events and logs one warning, the
+  same as the dashboard does.
+- Numbers that are not finite (`NaN`, infinity) are written as `null`, as
+  `JSON.stringify` does. Python's default writes them as bare tokens, which are
+  not JSON and which the dashboard and the Node loader reject.
+
 ### Known gaps
 
 - **Redis pipelines are not captured.** A pipeline sends through its own object
@@ -106,12 +151,8 @@ are literally the same fixture both languages test against.
 
 | | |
 | --- | --- |
-| Recording and replay | Phase 3 |
+| WSGI (Flask, Django) | planned |
 | Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
-
-Phase 3 is the interesting one: the recording format is shared, so a session
-recorded from a Python app will open in the same viewer as one recorded from
-Node.
 
 ## Design notes
 

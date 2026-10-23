@@ -44,6 +44,10 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+# What JSON.stringify writes: no spaces after separators.
+_COMPACT = (",", ":")
+
+
 def _without_non_finite(value: Any) -> Any:
     """Copies ``value`` with every NaN and infinity replaced by ``None``."""
     if isinstance(value, float) and not math.isfinite(value):
@@ -69,13 +73,13 @@ def dumps_wire(value: Any) -> str:
     events and say so, rather than letting them reach the application.
     """
     try:
-        return json.dumps(value, allow_nan=False)
+        return json.dumps(value, allow_nan=False, separators=_COMPACT)
     except ValueError as error:
         # The same exception type is raised for a circular reference, which must
         # still propagate: only the non-finite case is repairable.
         if "Out of range float" not in str(error):
             raise
-        return json.dumps(_without_non_finite(value), allow_nan=False)
+        return json.dumps(_without_non_finite(value), allow_nan=False, separators=_COMPACT)
 
 
 def new_id() -> str:

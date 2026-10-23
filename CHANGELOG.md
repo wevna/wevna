@@ -56,6 +56,33 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added: Phase 3, recording and replay
+
+- **`wevna.start_recording(path)` and `wevna.stop_recording()`** write the
+  session to JSON Lines, the same format the Node SDK writes. Calling
+  `start_recording` before `start()` holds the request until a session exists,
+  as in Node. The footer is written on `stop_recording()`, on `wevna.stop()` and
+  at normal exit. Events go through a bounded queue to a writer thread, so a slow
+  disk cannot slow the application or grow memory without limit.
+- **`wevna.open_recording(path)`** serves a recording, from either SDK, in the
+  dashboard with its replay controls. It raises `RecordingError` with the Node
+  loader's error types.
+- **Conformance in both directions.** `packages/protocol/fixtures/recordings/`
+  holds one recording from each SDK. The Python suite reads the Node one and
+  fails if the Python recorder's output stops matching the committed Python one.
+  The TypeScript suite validates both against the schema, loads both through
+  `SessionLoader`, and replays both through `openRecording`.
+- The server answers `/api/session` in live mode, as the Node server does.
+- The FastAPI example can record (`WEVNA_RECORD=session.jsonl`) and replay.
+
+### Fixed
+
+- Non-finite numbers (`NaN`, infinity) in event attributes were sent as bare
+  `NaN` tokens, which are not valid JSON. The dashboard's `JSON.parse` rejects
+  the whole message, so a single `float("nan")` in a duration lost the event.
+  They are now written as `null`, as `JSON.stringify` does, on the live stream
+  and in recordings. JSON on the wire is also compact now.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
