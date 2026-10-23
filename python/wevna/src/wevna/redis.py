@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 from collections.abc import Callable
 from time import perf_counter
 from typing import Any
@@ -42,11 +43,15 @@ def instrument(client: Any, runtime: Runtime | None = None) -> None:
     ``SET session:abc <token>`` — so unlike a parameterised SQL statement there
     is no safe subset of the arguments to keep.
 
-    **Pipelines are not covered.** A pipeline batches commands and sends them
-    through its own object, not through the client's ``execute_command``, so
-    commands issued inside one are invisible here. Reporting the batch as a
-    single misleading event would be worse than reporting nothing, so this
-    reports nothing until pipelines get their own handling.
+    **Pipelines** are covered through ``client.pipeline()``. A pipeline queues
+    commands on its own object and sends them in one round trip, so the client's
+    ``execute_command`` never sees them. Each pipeline the client creates has its
+    ``execute`` wrapped, and every queued command becomes its own
+    ``redis.command`` event, so the counts and the command names stay true. What
+    cannot be known is how long each command took, because they share one round
+    trip. Each event therefore carries an equal share of the batch's real
+    duration (so time attribution still sums to what the round trip cost), and
+    the real total is on every event as ``batchDurationMs``. See ``_publish_batch``.
     """
     if getattr(client, _INSTRUMENTED, False):
         return
@@ -93,6 +98,7 @@ def instrument(client: Any, runtime: Runtime | None = None) -> None:
             return result
 
         _install(client, async_execute_command)
+        _instrument_pipelines(client, runtime)
         return
 
     def execute_command(*args: Any, **kwargs: Any) -> Any:
@@ -107,6 +113,155 @@ def instrument(client: Any, runtime: Runtime | None = None) -> None:
         return result
 
     _install(client, execute_command)
+    _instrument_pipelines(client, runtime)
+
+
+def _instrument_pipelines(client: Any, runtime: Runtime | None) -> None:
+    """Wraps ``client.pipeline`` so every pipeline it creates is observed."""
+    original_pipeline = getattr(client, "pipeline", None)
+    if not callable(original_pipeline):
+        return
+
+    def pipeline(*args: Any, **kwargs: Any) -> Any:
+        created = original_pipeline(*args, **kwargs)
+        try:
+            _wrap_execute(created, runtime)
+        except Exception:
+            # A pipeline we cannot observe is still a working pipeline.
+            _log.warning("could not instrument a pipeline", exc_info=True)
+        return created
+
+    try:
+        client.pipeline = pipeline
+    except Exception:
+        _log.warning(
+            "could not install the pipeline wrapper on %r; pipelines will not be captured",
+            type(client).__name__,
+            exc_info=True,
+        )
+
+
+def _wrap_execute(pipe: Any, runtime: Runtime | None) -> None:
+    original = getattr(pipe, "execute", None)
+    if not callable(original) or getattr(pipe, _INSTRUMENTED, False):
+        return
+
+    if inspect.iscoroutinefunction(original):
+
+        async def async_execute(*args: Any, **kwargs: Any) -> Any:
+            commands = _queued_commands(pipe)
+            started = perf_counter()
+            try:
+                results = await original(*args, **kwargs)
+            except Exception as error:
+                _publish_batch(runtime, pipe, commands, started, None, error)
+                raise
+            _publish_batch(runtime, pipe, commands, started, results, None)
+            return results
+
+        pipe.execute = async_execute
+    else:
+
+        def execute(*args: Any, **kwargs: Any) -> Any:
+            commands = _queued_commands(pipe)
+            started = perf_counter()
+            try:
+                results = original(*args, **kwargs)
+            except Exception as error:
+                _publish_batch(runtime, pipe, commands, started, None, error)
+                raise
+            _publish_batch(runtime, pipe, commands, started, results, None)
+            return results
+
+        pipe.execute = execute
+    pipe._wevna_instrumented = True
+
+
+def _queued_commands(pipe: Any) -> list[str]:
+    """The names of the commands queued right now. Read before ``execute``,
+    which clears the queue. Names only: ``args[0]``, never the payload."""
+    try:
+        return [_command_name(tuple(entry[0])) for entry in pipe.command_stack]
+    except Exception:
+        return []
+
+
+def _publish_batch(
+    runtime: Runtime | None,
+    pipe: Any,
+    commands: list[str],
+    started: float,
+    results: Any,
+    error: BaseException | None,
+) -> None:
+    """Publishes one ``redis.command`` per command in a pipeline, as a batch.
+
+    A pipeline is one round trip, so a per-command duration does not exist. Each
+    command is given an equal share of the real total, tiled across the window the
+    batch occupied, which keeps the timeline readable and keeps time attribution
+    summing to what the round trip actually cost. The total is also written on
+    every event as ``batchDurationMs``, and ``batch`` is a shared id, so an
+    estimate is never mistaken for a measurement.
+
+    Errors: if ``execute`` raised, every command in the batch gets the error. If it
+    returned (``raise_on_error=False``), a result that is an exception marks only
+    that command.
+    """
+    if not commands:
+        return
+    try:
+        active = runtime if runtime is not None else default_runtime()
+        total_ms = (perf_counter() - started) * 1000
+        count = len(commands)
+        share = total_ms / count
+        ended = now_ms()
+        began = ended - total_ms
+        batch_id = new_id()
+        transaction = bool(getattr(pipe, "transaction", False))
+
+        for index, command in enumerate(commands):
+            attributes: dict[str, Any] = {
+                "command": command,
+                "durationMs": share,
+                "batch": batch_id,
+                "batchSize": count,
+                "batchIndex": index,
+                "batchDurationMs": total_ms,
+                "transaction": transaction,
+            }
+            failure: BaseException | None = error
+            if failure is None and isinstance(results, list) and index < len(results):
+                candidate = results[index]
+                if isinstance(candidate, BaseException):
+                    failure = candidate
+            if failure is not None:
+                attributes.update(_describe_pipeline_error(failure))
+            active.publish(
+                CapturedEvent(
+                    id=new_id(),
+                    kind="redis.command",
+                    occurred_at=int(began + share * (index + 1)),
+                    attributes=attributes,
+                )
+            )
+    except Exception:
+        _log.exception("failed to publish the redis.command events for a pipeline")
+
+
+# redis-py rewrites the error a pipeline raises to name the failing command with
+# its arguments: "Command # 2 (LPUSH cart:42 item) of pipeline caused error: ...".
+# The arguments are exactly what redis.command events never record, so the prefix
+# is cut. Greedy on purpose: if the arguments happen to contain the same phrase,
+# more is removed rather than less.
+_PIPELINE_ANNOTATION = re.compile(r"^Command # \d+ \(.*\) of pipeline caused error: ", re.DOTALL)
+
+
+def _describe_pipeline_error(error: BaseException) -> dict[str, Any]:
+    described = describe_error(error)
+    message = described.get("error")
+    if isinstance(message, str):
+        described["error"] = _PIPELINE_ANNOTATION.sub("", message, count=1)
+    return described
 
 
 def _install(client: Any, wrapper: Callable[..., Any]) -> None:

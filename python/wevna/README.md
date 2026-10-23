@@ -57,7 +57,7 @@ a deliberate N+1 in it — see
 | **Uncaught exceptions** | attached to the request that caused them |
 | **The dashboard** | served from your process, on its own thread |
 | **SQLAlchemy** | sync and async engines, ORM and Core alike |
-| **redis-py** | sync and async clients |
+| **redis-py** | sync and async clients, including pipelines and transactions |
 | **Outgoing HTTP** | `httpx`, sync and async, with URL redaction |
 
 Install only what you use:
@@ -92,12 +92,33 @@ captured more than its Node counterpart would make the protocol a lie, and the
 [URL redaction rules](../../packages/plugin-fetch/fixtures/sanitize-url.json)
 are literally the same fixture both languages test against.
 
+### Redis pipelines
+
+A pipeline sends its commands in one round trip, so redis-py never routes them
+through the client's `execute_command`. Wevna wraps `client.pipeline()` instead:
+every queued command becomes its own `redis.command` event, so command counts and
+names stay true, and `MULTI`/`EXEC` (the library's own wrapping of a transaction)
+are not reported.
+
+What cannot be known is how long each command took, because they shared the round
+trip. So:
+
+- each event gets an **equal share** of the batch's real duration, tiled across
+  the window the batch occupied, so the per-request time attribution still sums to
+  what the round trip cost (reporting the full time on each command would count it
+  N times);
+- every event carries `batchDurationMs` (the real total), `batch` (a shared id),
+  `batchSize`, `batchIndex` and `transaction`, so the share is never mistaken for a
+  measurement;
+- if `execute()` raises, every command in the batch carries the error; with
+  `raise_on_error=False`, only the commands whose result is an error do;
+- the dashboard's repeated-command insight skips pipelined commands. Fifty `get`s
+  in one pipeline is the fix for repeated reads, not an instance of them.
+
+Arguments are never recorded, as for any Redis command.
+
 ### Known gaps
 
-- **Redis pipelines are not captured.** A pipeline sends through its own object
-  rather than the client's `execute_command`. Reporting a batch as one
-  misleading event would be worse than reporting nothing, so nothing is
-  reported. There is a test that fails if this ever changes silently.
 - **Raw `asyncpg` is not instrumented.** SQLAlchemy over asyncpg is, which
   covers most of it.
 - **`requests` is not instrumented.** `httpx` is.
@@ -107,7 +128,7 @@ are literally the same fixture both languages test against.
 | | |
 | --- | --- |
 | Recording and replay | Phase 3 |
-| Raw `asyncpg`, `requests`, Redis pipelines | unscheduled |
+| Raw `asyncpg`, `requests` | unscheduled |
 
 Phase 3 is the interesting one: the recording format is shared, so a session
 recorded from a Python app will open in the same viewer as one recorded from
