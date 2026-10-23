@@ -378,6 +378,26 @@ class TestPipelines:
         assert [c["command"] for c in recorded] == ["set", "lpush"]
         assert any("error" in c for c in recorded)
 
+    def test_the_error_from_a_raising_batch_does_not_carry_the_command_arguments(
+        self, runtime: Runtime
+    ) -> None:
+        # redis-py rewrites the raised error to "Command # 2 (LPUSH a secret-value)
+        # of pipeline caused error: ...". The arguments must not reach the event.
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline(transaction=False)
+        pipe.set("a", "1")
+        pipe.lpush("a", "secret-value")
+        with pytest.raises(Exception, match="secret-value"):  # the app still sees it all
+            pipe.execute()
+
+        errors = [str(c["error"]) for c in commands(seen) if "error" in c]
+        assert errors
+        assert all("secret-value" not in e and "Command #" not in e for e in errors)
+        assert all("WRONGTYPE" in e for e in errors)
+
     def test_pipelined_commands_belong_to_the_current_request(self, runtime: Runtime) -> None:
         client = fakeredis.FakeRedis()
         instrument(client, runtime=runtime)

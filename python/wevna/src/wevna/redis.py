@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 from collections.abc import Callable
 from time import perf_counter
 from typing import Any
@@ -234,7 +235,7 @@ def _publish_batch(
                 if isinstance(candidate, BaseException):
                     failure = candidate
             if failure is not None:
-                attributes.update(describe_error(failure))
+                attributes.update(_describe_pipeline_error(failure))
             active.publish(
                 CapturedEvent(
                     id=new_id(),
@@ -245,6 +246,22 @@ def _publish_batch(
             )
     except Exception:
         _log.exception("failed to publish the redis.command events for a pipeline")
+
+
+# redis-py rewrites the error a pipeline raises to name the failing command with
+# its arguments: "Command # 2 (LPUSH cart:42 item) of pipeline caused error: ...".
+# The arguments are exactly what redis.command events never record, so the prefix
+# is cut. Greedy on purpose: if the arguments happen to contain the same phrase,
+# more is removed rather than less.
+_PIPELINE_ANNOTATION = re.compile(r"^Command # \d+ \(.*\) of pipeline caused error: ", re.DOTALL)
+
+
+def _describe_pipeline_error(error: BaseException) -> dict[str, Any]:
+    described = describe_error(error)
+    message = described.get("error")
+    if isinstance(message, str):
+        described["error"] = _PIPELINE_ANNOTATION.sub("", message, count=1)
+    return described
 
 
 def _install(client: Any, wrapper: Callable[..., Any]) -> None:
