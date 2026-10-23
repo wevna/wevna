@@ -1,0 +1,44 @@
+{
+  "note": "Authoritative cases for the dashboard server's Host/Origin guard (packages/server/src/host-guard.ts). The Python SDK's wevna.host_guard asserts against this same file, so the two servers cannot disagree about what a hostile web page is allowed to do.",
+  "hostnames": [
+    { "header": "localhost:4123", "hostname": "localhost" },
+    { "header": "LOCALHOST", "hostname": "localhost" },
+    { "header": "127.0.0.1:80", "hostname": "127.0.0.1" },
+    { "header": "[::1]:4123", "hostname": "::1" },
+    { "header": "[::1]", "hostname": "::1" },
+    { "header": "::1", "hostname": "::1" },
+    { "header": "evil.example.com:4123", "hostname": "evil.example.com" }
+  ],
+  "allowedHosts": [
+    { "bound": "localhost", "hosts": ["localhost", "127.0.0.1", "::1"] },
+    { "bound": "127.0.0.1", "hosts": ["localhost", "127.0.0.1", "::1"] },
+    { "bound": "devbox.internal", "hosts": ["localhost", "127.0.0.1", "::1", "devbox.internal"] },
+    { "bound": "0.0.0.0", "hosts": ["*"] },
+    { "bound": "::", "hosts": ["*"] },
+    { "bound": "", "hosts": ["*"] }
+  ],
+  "hostChecks": [
+    { "bound": "localhost", "host": "localhost:4123", "allowed": true },
+    { "bound": "localhost", "host": "127.0.0.1:4123", "allowed": true },
+    { "bound": "localhost", "host": "[::1]:4123", "allowed": true },
+    { "bound": "localhost", "host": "evil.example.com", "allowed": false },
+    { "bound": "localhost", "host": "evil.example.com:4123", "allowed": false },
+    { "bound": "localhost", "host": "localhost.evil.com", "allowed": false },
+    { "bound": "localhost", "host": "127.0.0.1.evil.com", "allowed": false },
+    { "bound": "localhost", "host": null, "allowed": true },
+    { "bound": "devbox.internal", "host": "devbox.internal:4123", "allowed": true },
+    { "bound": "0.0.0.0", "host": "10.0.0.5:4123", "allowed": true }
+  ],
+  "originChecks": [
+    { "bound": "localhost", "origin": null, "allowed": true },
+    { "bound": "localhost", "origin": "http://localhost:4123", "allowed": true },
+    { "bound": "localhost", "origin": "http://127.0.0.1:5173", "allowed": true },
+    { "bound": "localhost", "origin": "http://[::1]:3000", "allowed": true },
+    { "bound": "localhost", "origin": "https://evil.example.com", "allowed": false },
+    { "bound": "localhost", "origin": "https://localhost.evil.com", "allowed": false },
+    { "bound": "localhost", "origin": "null", "allowed": false },
+    { "bound": "localhost", "origin": "not a url", "allowed": false },
+    { "bound": "localhost", "origin": "", "allowed": false },
+    { "bound": "0.0.0.0", "origin": "https://anything.example.com", "allowed": true }
+  ]
+}

@@ -2,6 +2,7 @@ import websocketPlugin from "@fastify/websocket";
 import type { CapturedEvent, Envelope } from "@wevna/protocol";
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
+import { allowedHostsFor, isAllowedOrigin } from "./host-guard.js";
 
 export type EventListener = (event: Envelope<CapturedEvent>) => void;
 
@@ -22,11 +23,23 @@ export const WEBSOCKET_ROUTE = "/ws";
 // app's own lifecycle, so it tears down automatically when that app closes.
 export class WebSocketTransport {
   #clients = new Set<WebSocket>();
+  readonly #allowedHosts: readonly string[];
+
+  constructor(allowedHosts: readonly string[] = allowedHostsFor("localhost")) {
+    this.#allowedHosts = allowedHosts;
+  }
 
   async register(app: FastifyInstance, eventSource: EventSource): Promise<void> {
     await app.register(websocketPlugin);
 
-    app.get(WEBSOCKET_ROUTE, { websocket: true }, (socket: WebSocket) => {
+    app.get(WEBSOCKET_ROUTE, { websocket: true }, (socket: WebSocket, request) => {
+      // Browsers do not apply the same-origin policy to WebSockets, so without
+      // this any web page could connect and read every event. They always
+      // send an Origin; a non-browser client sends none and is let through.
+      if (!isAllowedOrigin(request.headers.origin, this.#allowedHosts)) {
+        socket.close(1008, "origin not allowed");
+        return;
+      }
       this.#clients.add(socket);
       socket.on("close", () => {
         this.#clients.delete(socket);
