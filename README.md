@@ -171,6 +171,24 @@ execution graph.
 | `Ctrl/⌘ K` | Command palette: jump to any request or run an action |
 | `?` | Show the list |
 
+## What it captures
+
+| | Node (`@wevna/sdk`) | Python (`wevna`, alpha) |
+| --- | --- | --- |
+| **Incoming HTTP** | Any `http` server. Express, Fastify and NestJS add route names | ASGI middleware: FastAPI, Starlette and anything ASGI |
+| **SQL** | `pg`, and MySQL or MariaDB through [`@wevna/plugin-mysql`](packages/plugin-mysql/README.md) | SQLAlchemy, sync and async |
+| **Redis** | `ioredis` | redis-py, sync and async |
+| **Other datastores** | MongoDB ([`@wevna/plugin-mongodb`](packages/plugin-mongodb/README.md)), Prisma ([`@wevna/plugin-prisma`](packages/plugin-prisma/README.md)) | not yet |
+| **Outgoing HTTP** | The global `fetch`, through [`@wevna/plugin-fetch`](packages/plugin-fetch/README.md) | `httpx`, sync and async |
+| **Logs** | `console.log` | the standard `logging` module |
+| **Exceptions** | Uncaught exceptions, and handler errors in Express, Fastify and NestJS | Uncaught exceptions in a request |
+| **Recording and replay** | yes | not yet |
+
+Everything is correlated per request, and the dashboard, the event protocol and the
+recording format are the same for both. SQL parameters, Redis arguments, request and
+response bodies and headers are never recorded. The three datastore plugins are
+`0.x` and not published yet. The Python SDK is [documented here](python/wevna/README.md).
+
 ## Adding your database and cache
 
 There's no global "every `pg.Pool`" hook to patch, so these are opt-in. Hand
@@ -189,6 +207,9 @@ wevna.instrumentPg(pool);      // → sql.query events
 const redis = new Redis();
 wevna.instrumentRedis(redis);  // → redis.command events
 ```
+
+MongoDB, Prisma and MySQL work the same way through their plugins (see the table
+above).
 
 Everything you already do with `pool` / `redis` keeps working **identically**.
 Wevna wraps the method, times the call, and passes the result straight
