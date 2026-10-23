@@ -1,0 +1,66 @@
+{
+  "name": "@wevna/plugin-mongodb",
+  "version": "0.1.0",
+  "description": "Wevna plugin capturing MongoDB commands via the driver's command monitoring.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/tsconfig.tsbuildinfo"
+  ],
+  "scripts": {
+    "build": "tsup && tsc --build",
+    "dev": "tsup --watch",
+    "check": "tsc --build",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "peerDependencies": {
+    "@wevna/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "@wevna/sdk": "workspace:*"
+  },
+  "license": "MIT",
+  "author": "Boluwatife Ajayi",
+  "keywords": [
+    "wevna",
+    "wevna-plugin",
+    "mongodb",
+    "database",
+    "typescript",
+    "observability",
+    "debugging"
+  ],
+  "homepage": "https://github.com/wevna/wevna#readme",
+  "bugs": {
+    "url": "https://github.com/wevna/wevna/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wevna/wevna.git",
+    "directory": "packages/plugin-mongodb"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

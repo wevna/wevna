@@ -11,12 +11,14 @@
 // (which *kind* of operation), this is a status (something *failed*) — per
 // the dataviz skill's palette, status colours are a separate reserved set,
 // never folded into the categorical series order.
-export type EventKindCategory = "http" | "sql" | "redis" | "exception" | "other";
+export type EventKindCategory = "http" | "sql" | "redis" | "database" | "exception" | "other";
 
 const PREFIX_CATEGORIES: readonly (readonly [prefix: string, category: EventKindCategory])[] = [
   ["http.", "http"],
   ["sql.", "sql"],
   ["redis.", "redis"],
+  ["mongodb.", "database"],
+  ["prisma.", "database"],
   ["exception.", "exception"],
 ];
 

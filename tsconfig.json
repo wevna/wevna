@@ -15,6 +15,15 @@
     },
     {
       "path": "packages/plugin-fetch"
+    },
+    {
+      "path": "packages/plugin-mongodb"
+    },
+    {
+      "path": "packages/plugin-prisma"
+    },
+    {
+      "path": "packages/plugin-mysql"
     }
   ]
 }

@@ -27,6 +27,8 @@ export interface RequestPerformanceMetrics {
   sqlQueryCount: number;
   cumulativeSqlTimeMs: number;
   redisCommandCount: number;
+  databaseOperationCount: number;
+  cumulativeDatabaseTimeMs: number;
   cumulativeRedisTimeMs: number;
   consoleEventCount: number;
   exceptionCount: number;
@@ -72,6 +74,8 @@ export function computeRequestPerformanceMetrics(
   let sqlQueryCount = 0;
   let cumulativeSqlTimeMs = 0;
   let redisCommandCount = 0;
+  let databaseOperationCount = 0;
+  let cumulativeDatabaseTimeMs = 0;
   let cumulativeRedisTimeMs = 0;
   let consoleEventCount = 0;
   let exceptionCount = 0;
@@ -104,6 +108,10 @@ export function computeRequestPerformanceMetrics(
       case "redis":
         redisCommandCount += 1;
         cumulativeRedisTimeMs += durationMs;
+        break;
+      case "database":
+        databaseOperationCount += 1;
+        cumulativeDatabaseTimeMs += durationMs;
         break;
       case "console":
         consoleEventCount += 1;
@@ -147,6 +155,8 @@ export function computeRequestPerformanceMetrics(
     cumulativeSqlTimeMs,
     redisCommandCount,
     cumulativeRedisTimeMs,
+    databaseOperationCount,
+    cumulativeDatabaseTimeMs,
     consoleEventCount,
     exceptionCount,
     slowestOperation,

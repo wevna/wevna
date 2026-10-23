@@ -27,6 +27,8 @@ function makeMetrics(
     cumulativeSqlTimeMs: 0,
     redisCommandCount: 0,
     cumulativeRedisTimeMs: 0,
+    databaseOperationCount: 0,
+    cumulativeDatabaseTimeMs: 0,
     consoleEventCount: 0,
     exceptionCount: 0,
     slowestOperation: undefined,
@@ -103,6 +105,18 @@ describe("generatePerformanceInsights", () => {
       const insights = generatePerformanceInsights(makeMetrics({ sqlQueryCount: 5 }));
 
       expect(insights.map((i) => i.type)).not.toContain("multiple-database-calls");
+    });
+  });
+
+  describe("Multiple Database Calls across datastores", () => {
+    it("counts non-SQL operations and names the split", () => {
+      const insight = generatePerformanceInsights(
+        makeMetrics({ sqlQueryCount: 2, databaseOperationCount: 4 }),
+      ).find((i) => i.type === "multiple-database-calls");
+
+      expect(insight?.message).toBe(
+        "6 database calls (2 SQL, 4 other) were executed, exceeding the threshold of 5.",
+      );
     });
   });
 

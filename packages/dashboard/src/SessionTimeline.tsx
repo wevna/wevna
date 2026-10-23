@@ -14,12 +14,13 @@ export interface SessionTimelineProps {
   variant?: "ribbon" | "expanded";
 }
 
-type CategoryFilter = "all" | "sql" | "redis" | "errors";
+type CategoryFilter = "all" | "sql" | "redis" | "database" | "errors";
 
 const FILTERS: readonly { value: CategoryFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "sql", label: "SQL" },
   { value: "redis", label: "Redis" },
+  { value: "database", label: "Database" },
   { value: "errors", label: "Errors" },
 ];
 
