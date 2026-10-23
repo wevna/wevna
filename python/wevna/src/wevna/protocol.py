@@ -13,6 +13,8 @@ rather than aspirational.
 
 from __future__ import annotations
 
+import json
+import math
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -40,6 +42,44 @@ def now_ms() -> int:
     format already uses rather than Python's float seconds.
     """
     return int(time.time() * 1000)
+
+
+# What JSON.stringify writes: no spaces after separators.
+_COMPACT = (",", ":")
+
+
+def _without_non_finite(value: Any) -> Any:
+    """Copies ``value`` with every NaN and infinity replaced by ``None``."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _without_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_without_non_finite(item) for item in value]
+    return value
+
+
+def dumps_wire(value: Any) -> str:
+    """Serializes ``value`` as strict JSON, the way ``JSON.stringify`` would.
+
+    Python's ``json.dumps`` writes ``NaN`` and ``Infinity`` as bare tokens by
+    default. They are not JSON, and the reader is JavaScript: ``JSON.parse``
+    rejects the whole message, so one ``float('nan')`` in a duration lost the
+    entire event. ``JSON.stringify`` writes ``null`` for them, which is what a
+    Node-produced stream contains, so that is what is written here.
+
+    Raises ``TypeError`` or ``ValueError`` for what cannot be represented at all
+    (a circular structure, an object JSON does not know). Callers drop those
+    events and say so, rather than letting them reach the application.
+    """
+    try:
+        return json.dumps(value, allow_nan=False, separators=_COMPACT)
+    except ValueError as error:
+        # The same exception type is raised for a circular reference, which must
+        # still propagate: only the non-finite case is repairable.
+        if "Out of range float" not in str(error):
+            raise
+        return json.dumps(_without_non_finite(value), allow_nan=False, separators=_COMPACT)
 
 
 def new_id() -> str:

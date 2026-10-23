@@ -22,6 +22,18 @@ curl http://localhost:8000/boom        # raises on purpose
 
 No database, no Redis, no containers.
 
+## Record it, then replay it
+
+```bash
+WEVNA_RECORD=session.jsonl pnpm --filter @wevna/python example
+# ... make some requests, then stop it with Ctrl-C
+pnpm --filter @wevna/python example:replay session.jsonl
+```
+
+Open <http://localhost:4123>. The replay has restart, step, play and a seek bar,
+and every panel works at whatever position you are at. A recording made by the
+Node SDK opens the same way.
+
 ## What you should see
 
 `GET /orders/42` produces a request with fourteen events in it — logs, an

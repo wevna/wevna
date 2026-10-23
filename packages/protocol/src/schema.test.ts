@@ -149,3 +149,31 @@ describe("TypeScript types satisfy the schema", () => {
     }
   });
 });
+
+// Recordings written by each SDK, committed as fixtures. Every line of every
+// one must be a valid RecordingLine, so a Python-written recording is held to the
+// same schema as one the Node recorder wrote. The Python suite validates the same
+// files, and also checks that the Python recorder still produces its own.
+describe("recording fixtures", () => {
+  const recordingsDir = path.join(fixturesRoot, "recordings");
+  const files = readdirSync(recordingsDir)
+    .filter((f) => f.endsWith(".jsonl"))
+    .sort();
+
+  it("includes a recording from each SDK", () => {
+    expect(files).toEqual(["node-basic.jsonl", "python-basic.jsonl"]);
+  });
+
+  it.each(files)("%s: every line is a valid RecordingLine", (file) => {
+    const validate = validatorFor("RecordingLine");
+    const lines = readFileSync(path.join(recordingsDir, file), "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0);
+
+    expect(lines.length).toBeGreaterThan(2);
+    for (const [index, line] of lines.entries()) {
+      const ok = validate(JSON.parse(line));
+      expect(ok, `${file} line ${index + 1}: ${JSON.stringify(validate.errors)}`).toBe(true);
+    }
+  });
+});

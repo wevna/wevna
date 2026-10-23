@@ -18,6 +18,7 @@ needs no database, no Redis and no network.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -47,6 +48,11 @@ ORDER_ITEM_IDS = (1, 2, 3, 4)
 # ---------------------------------------------------------------------------
 
 wevna.start()
+
+# Set WEVNA_RECORD=session.jsonl to also record this run, then replay it with
+# `pnpm --filter @wevna/python example:replay session.jsonl`.
+if os.environ.get("WEVNA_RECORD"):
+    wevna.start_recording(os.environ["WEVNA_RECORD"])
 
 engine = create_async_engine("sqlite+aiosqlite:///:memory:")
 instrument_sqlalchemy(engine)
