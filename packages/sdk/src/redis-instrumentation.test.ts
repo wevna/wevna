@@ -1,4 +1,4 @@
-import { Command } from "ioredis";
+import { Command, Redis } from "ioredis";
 import { describe, expect, it, vi } from "vitest";
 import type { PluginEvent } from "./plugin.js";
 import type { RedisCommandLike, RedisSendCommandLike } from "./redis-instrumentation.js";
@@ -152,5 +152,21 @@ describe("RedisInstrumentation", () => {
     // rejection warning from the never-awaited promise.
     realCommand.reject(new Error("not sent in this test"));
     realCommand.promise.catch(() => {});
+  });
+});
+
+describe("RedisSendCommandLike", () => {
+  it("accepts a real ioredis client, which is how it is documented to be used", () => {
+    // A compile-time check as much as a runtime one: `check` (tsc) fails if the
+    // interface stops accepting ioredis's own sendCommand(command: Command, ...).
+    // It did, once: a function-typed property rejected `new Redis(url)`, and no
+    // test noticed because every test used a hand-written stand-in.
+    const redis = new Redis({ lazyConnect: true });
+    const client: RedisSendCommandLike = redis;
+    const publish = vi.fn<(event: PluginEvent) => void>();
+
+    expect(() => new RedisInstrumentation(publish).instrument(client)).not.toThrow();
+
+    redis.disconnect();
   });
 });

@@ -14,8 +14,13 @@ export interface RedisCommandLike {
   promise?: Promise<unknown>;
 }
 
+// Method syntax, not a function-typed property, on purpose. With a property the
+// parameter is compared contravariantly, and a real ioredis client is rejected:
+// its sendCommand takes its own Command class, which has many members this
+// structural stand-in does not. A method's parameters are compared bivariantly,
+// so a real `new Redis(url)` type-checks, which is the documented usage.
 export interface RedisSendCommandLike {
-  sendCommand: (command: RedisCommandLike, ...rest: unknown[]) => unknown;
+  sendCommand(command: RedisCommandLike, ...rest: unknown[]): unknown;
 }
 
 // Wevna's ioredis producer. Wraps sendCommand() so every command still
