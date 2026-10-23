@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // This package's build only type-checks and byte-compiles; it writes no
+    // files. Without this turbo warns on every run that it found no outputs.
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    }
+  }
+}

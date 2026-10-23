@@ -1,0 +1,34 @@
+# Postgres and Redis for the demo. Nothing else is containerised: the two
+# services run on the host so they are easy to read, edit and restart.
+#
+# Ports are offset from the defaults (5433, 6380) so the demo does not collide
+# with a Postgres or Redis you already have running.
+name: wevna-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demo
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # Runs once, on first start of an empty data directory.
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
