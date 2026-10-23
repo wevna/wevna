@@ -19,12 +19,12 @@ from typing import Any
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
 import pytest
-from wsgi_helpers import Call, collect, kinds, run
+from wsgi_helpers import Call, collect, kinds, make_environ, run
 
 from wevna import correlation
 from wevna.protocol import CapturedEvent, Envelope
 from wevna.runtime import Runtime
-from wevna.wsgi import ROUTE_KEY, WevnaMiddleware
+from wevna.wsgi import REPORTED_KEY, ROUTE_KEY, WevnaMiddleware
 
 
 def make() -> tuple[Runtime, list[Envelope]]:
@@ -108,6 +108,35 @@ class TestRequestEvent:
         assert call.read() == b"ab"
         assert call.status == "404 Not Found"
         assert call.headers == [("Content-Type", "text/plain")]
+
+    def test_a_sized_body_keeps_its_length_so_the_server_can_set_content_length(
+        self,
+    ) -> None:
+        # wsgiref and gunicorn set Content-Length from len(body) for a one-item
+        # list. Hiding len() would change the headers the client receives.
+        runtime, _ = make()
+        sized = WevnaMiddleware(simple_app(body=[b"hello"]), runtime)(
+            make_environ(), lambda *_: None
+        )
+        unsized = WevnaMiddleware(lambda e, s: iter([b"x"]), runtime)(
+            make_environ(), lambda *_: None
+        )
+
+        assert len(sized) == 1  # type: ignore[arg-type]
+        assert not hasattr(unsized, "__len__")
+
+    def test_a_framework_that_reported_the_exception_is_not_reported_twice(self) -> None:
+        runtime, seen = make()
+
+        def app(environ: dict[str, Any], start_response: Any) -> list[bytes]:
+            environ[REPORTED_KEY] = True  # what wevna.flask and wevna.django do
+            raise RuntimeError("already reported by the framework hook")
+
+        with pytest.raises(RuntimeError):
+            run(WevnaMiddleware(app, runtime), "/x")
+
+        assert "exception.captured" not in kinds(seen)
+        assert request_event(seen).attributes["statusCode"] == 500
 
     def test_a_failure_to_publish_never_reaches_the_application(self) -> None:
         class BrokenRuntime:

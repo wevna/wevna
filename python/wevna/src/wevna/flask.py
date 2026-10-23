@@ -17,11 +17,11 @@ from __future__ import annotations
 from typing import Any
 
 from wevna.runtime import default_runtime
-from wevna.wsgi import ROUTE_KEY, publish_exception
+from wevna.wsgi import REPORTED_KEY, ROUTE_KEY, publish_exception
 
 
 def instrument(app: Any, runtime: Any = None) -> None:
-    from flask import got_request_exception, request
+    from flask import got_request_exception, has_request_context, request
 
     def record_route() -> None:
         rule = request.url_rule
@@ -30,6 +30,10 @@ def instrument(app: Any, runtime: Any = None) -> None:
 
     def record_exception(_sender: Any, exception: BaseException, **_extra: Any) -> None:
         publish_exception(runtime or default_runtime(), exception, framework="flask")
+        # In debug or testing mode Flask re-raises after this signal, and the
+        # middleware would report the same exception again.
+        if has_request_context():
+            request.environ[REPORTED_KEY] = True
 
     app.before_request(record_route)
     got_request_exception.connect(record_exception, app, weak=False)

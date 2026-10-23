@@ -52,6 +52,14 @@ _log = logging.getLogger("wevna.wsgi")
 ROUTE_KEY = "wevna.route"
 """The ``environ`` key a framework hook sets to the matched route pattern."""
 
+REPORTED_KEY = "wevna.exception_reported"
+"""Set in ``environ`` by a framework hook that has already published the exception.
+
+Flask in debug or testing mode, and Django with ``DEBUG_PROPAGATE_EXCEPTIONS``,
+report an exception to their hook and then let it propagate, so the middleware
+sees it a second time. It checks this key so one exception is one event.
+"""
+
 
 def publish_exception(runtime: Runtime, error: BaseException, framework: str = "wsgi") -> None:
     """Publishes an ``exception.captured`` event. Never raises.
@@ -128,6 +136,18 @@ class _Response:
             self._context.run(self._finish)
 
 
+class _SizedResponse(_Response):
+    """A wrapped body that keeps the original's ``len()``.
+
+    Servers (wsgiref, gunicorn) set ``Content-Length`` from ``len(body)`` when the
+    body is a one-item list. Hiding ``__len__`` would change the response headers,
+    so it is passed through whenever the application's body has one.
+    """
+
+    def __len__(self) -> int:
+        return len(self._body)  # type: ignore[arg-type]
+
+
 class WevnaMiddleware:
     """Wraps a WSGI application so Wevna can watch it."""
 
@@ -179,7 +199,8 @@ class WevnaMiddleware:
             self._publish_request(environ, status_code, started)
 
         def fail(error: Exception) -> None:
-            publish_exception(self.runtime, error)
+            if not environ.get(REPORTED_KEY):
+                publish_exception(self.runtime, error)
             finish()
 
         try:
@@ -188,11 +209,13 @@ class WevnaMiddleware:
             # Published, then re-raised: observing an exception must not swallow
             # it, because the server's own error handling and the 500 the client
             # is owed both depend on it propagating.
-            publish_exception(self.runtime, error)
+            if not environ.get(REPORTED_KEY):
+                publish_exception(self.runtime, error)
             status_code = status_code or 500
             finish()
             raise
-        return _Response(body, context, finish, fail)
+        wrapper = _SizedResponse if hasattr(body, "__len__") else _Response
+        return wrapper(body, context, finish, fail)
 
     def _publish_request(self, environ: Environ, status_code: int | None, started: float) -> None:
         duration_ms = (perf_counter() - started) * 1000

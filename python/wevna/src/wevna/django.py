@@ -23,7 +23,7 @@ from collections.abc import Callable
 from typing import Any
 
 from wevna.runtime import default_runtime
-from wevna.wsgi import ROUTE_KEY, publish_exception
+from wevna.wsgi import REPORTED_KEY, ROUTE_KEY, publish_exception
 
 
 class WevnaDjangoMiddleware:
@@ -41,3 +41,6 @@ class WevnaDjangoMiddleware:
 
     def process_exception(self, request: Any, exception: Exception) -> None:
         publish_exception(default_runtime(), exception, framework="django")
+        # With DEBUG_PROPAGATE_EXCEPTIONS the exception continues up to the
+        # middleware, which would report it again.
+        request.META[REPORTED_KEY] = True

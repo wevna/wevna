@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import flask
+import pytest
 from wsgi_helpers import collect, kinds
 
 import wevna.flask as wevna_flask
@@ -133,3 +134,17 @@ def test_the_query_string_is_not_recorded() -> None:
     get(app, "/orders/1?api_key=SECRET")
 
     assert "SECRET" not in repr([e.payload for e in seen])
+
+
+def test_a_propagated_exception_is_reported_once_not_twice() -> None:
+    # Debug mode (and TESTING) propagate the exception out of Flask, so the
+    # middleware sees it after the Flask hook already reported it.
+    app, _, seen = build()
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+
+    with pytest.raises(RuntimeError):
+        get(app, "/boom")
+
+    assert kinds(seen).count("exception.captured") == 1
+    [request] = requests_of(seen)
+    assert request.attributes["statusCode"] == 500
