@@ -9,6 +9,7 @@ to do either would eventually forget.
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from collections.abc import Callable
 
@@ -32,6 +33,15 @@ class Runtime:
         self._bus = EventBus()
         self._session: Session | None = None
         self._sequence = 0
+        # Reentrant, and held across both stamping and delivery. Sync endpoints
+        # run in a threadpool, so publish() is called concurrently; without a
+        # lock two events could read the same counter value and share a
+        # sequence number, and one could be delivered before another that was
+        # numbered ahead of it. Reentrant because a listener may itself
+        # publish (a logging handler that logs), which must nest rather than
+        # deadlock. The only listener on the hot path enqueues onto the server's
+        # loop and returns, so producers are not serialized behind anything slow.
+        self._lock = threading.RLock()
 
     @property
     def session(self) -> Session | None:
@@ -85,37 +95,38 @@ class Runtime:
         Publishing before ``start()`` is a no-op rather than an error. The
         alternative would make correct instrumentation depend on import order.
         """
-        session = self._session
-        if session is None or session.status != "running":
-            return
+        with self._lock:
+            session = self._session
+            if session is None or session.status != "running":
+                return
 
-        try:
-            # Correlation is attached here, not by the producer. A producer
-            # that had to remember would work correctly in the code path its
-            # author tested and silently lose grouping everywhere else.
-            if event.correlation is None:
-                active = correlation_module.current()
-                if active is not None:
-                    event = CapturedEvent(
-                        id=event.id,
-                        kind=event.kind,
-                        occurred_at=event.occurred_at,
-                        attributes=event.attributes,
-                        correlation=active,
-                        source=event.source,
-                    )
+            try:
+                # Correlation is attached here, not by the producer. A producer
+                # that had to remember would work correctly in the code path its
+                # author tested and silently lose grouping everywhere else.
+                if event.correlation is None:
+                    active = correlation_module.current()
+                    if active is not None:
+                        event = CapturedEvent(
+                            id=event.id,
+                            kind=event.kind,
+                            occurred_at=event.occurred_at,
+                            attributes=event.attributes,
+                            correlation=active,
+                            source=event.source,
+                        )
 
-            envelope = Envelope(
-                session_id=session.id,
-                sequence=self._sequence,
-                payload=event,
-            )
-            self._sequence += 1
-        except Exception:
-            _log.exception("failed to build an envelope; dropping the event")
-            return
+                envelope = Envelope(
+                    session_id=session.id,
+                    sequence=self._sequence,
+                    payload=event,
+                )
+                self._sequence += 1
+            except Exception:
+                _log.exception("failed to build an envelope; dropping the event")
+                return
 
-        self._bus.publish(envelope)
+            self._bus.publish(envelope)
 
     def subscribe(self, listener: EventListener) -> Callable[[], None]:
         return self._bus.subscribe(listener)

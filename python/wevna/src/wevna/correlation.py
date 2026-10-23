@@ -13,16 +13,20 @@ and neither the application nor the other producers had to cooperate.
 
 from __future__ import annotations
 
+import functools
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Any, TypeVar
 
 from wevna.protocol import Correlation
 
 # Holds the correlation for the current execution flow, or None outside one.
 # Module-level by necessity: a ContextVar created per instance would not be
 # shared between the middleware that sets it and the producers that read it.
+_F = TypeVar("_F", bound=Callable[..., Any])
+
 _current: ContextVar[Correlation | None] = ContextVar("wevna_correlation", default=None)
 
 
@@ -66,3 +70,27 @@ def run_with(correlation: Correlation) -> Iterator[Correlation]:
         yield correlation
     finally:
         _current.reset(token)
+
+
+def bind(fn: _F) -> _F:
+    """Returns ``fn`` bound to the correlation that is current *now*.
+
+    asyncio tasks and Starlette's threadpool carry the caller's context into
+    the work they run; a bare ``ThreadPoolExecutor`` or ``threading.Thread``
+    does not, so queries made there would appear under no request. Wrap the
+    callable where it is handed off, while still inside the request::
+
+        pool.submit(wevna.correlation.bind(work), arg)
+
+    With no correlation active the function is returned unchanged.
+    """
+    captured = _current.get()
+    if captured is None:
+        return fn
+
+    @functools.wraps(fn)
+    def bound(*args: Any, **kwargs: Any) -> Any:
+        with run_with(captured):
+            return fn(*args, **kwargs)
+
+    return bound  # type: ignore[return-value]
