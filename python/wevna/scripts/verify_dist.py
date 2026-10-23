@@ -31,6 +31,19 @@ WHEEL_REQUIRED = (
 ASSET_DIR = "wevna/dashboard/assets/"
 
 
+def stray_files(names: set[str]) -> list[str]:
+    """Compiled files and build metadata from a local tree, never wanted in a release.
+
+    Both have been committed to this repository by mistake before. A build from a
+    tree that has them can carry them into the archive.
+    """
+    return sorted(
+        n
+        for n in names
+        if n.endswith((".pyc", ".pyo")) or "/__pycache__/" in n or ".egg-info/" in n
+    )
+
+
 def check_wheel(path: Path) -> list[str]:
     problems: list[str] = []
     with zipfile.ZipFile(path) as wheel:
@@ -46,6 +59,8 @@ def check_wheel(path: Path) -> list[str]:
         problems.append(f"{path.name}: no license file")
     if any(n.startswith("tests/") or "/tests/" in n for n in names):
         problems.append(f"{path.name}: contains tests")
+    for stray in stray_files(names):
+        problems.append(f"{path.name}: contains {stray}")
     return problems
 
 
@@ -61,6 +76,8 @@ def check_sdist(path: Path) -> list[str]:
     # A wheel built *from* the sdist needs the bundle too.
     if "src/wevna/dashboard/index.html" not in names:
         problems.append(f"{path.name}: missing src/wevna/dashboard/index.html")
+    for stray in stray_files(names):
+        problems.append(f"{path.name}: contains {stray}")
     return problems
 
 

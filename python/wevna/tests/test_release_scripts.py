@@ -117,6 +117,25 @@ def test_a_wheel_that_ships_the_test_suite_fails(tmp_path: Path) -> None:
     assert any("tests" in p for p in verify_dist.verify(tmp_path))
 
 
+@pytest.mark.parametrize(
+    "stray",
+    ["wevna/__pycache__/api.cpython-312.pyc", "wevna.egg-info/PKG-INFO"],
+)
+def test_a_wheel_with_compiled_files_or_egg_info_fails(tmp_path: Path, stray: str) -> None:
+    write_wheel(tmp_path, {**GOOD_WHEEL, stray: ""})
+    write_sdist(tmp_path, GOOD_SDIST)
+
+    assert any(stray in p for p in verify_dist.verify(tmp_path))
+
+
+def test_an_sdist_with_compiled_files_fails(tmp_path: Path) -> None:
+    stray = "src/wevna/__pycache__/api.cpython-312.pyc"
+    write_wheel(tmp_path, GOOD_WHEEL)
+    write_sdist(tmp_path, {**GOOD_SDIST, stray: ""})
+
+    assert any(stray in p for p in verify_dist.verify(tmp_path))
+
+
 def test_an_sdist_without_the_bundle_fails_because_wheels_get_built_from_it(
     tmp_path: Path,
 ) -> None:
