@@ -51,11 +51,14 @@ tsup.config.bundled_*.mjs
 # Ad-hoc screenshots taken while driving the dashboard locally.
 /*.png
 
-# Draft launch post — not repo content.
-DEVTO-POST.md
+# Local working notes: draft posts, release and advisory drafts, work reports.
+# Not repo content. scripts/check-tracked-files.mjs fails CI if one is committed.
+*-POST.md
+*-POSTS.md
 GITHUB-SUPPORT-REQUEST.md
-LAUNCH-POSTS.md
-DAILYDEV-POST.md
+ADVISORY-DRAFT.md
+RELEASE-CHECKLIST.md
+WORK-REPORT.md
 
 # Python
 .venv/

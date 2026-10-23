@@ -17,6 +17,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Draft posts, release notes and Python build output have been committed
+      # by mistake before. Fails fast, before anything is installed.
+      - name: No stray files tracked
+        run: node scripts/check-tracked-files.mjs
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
