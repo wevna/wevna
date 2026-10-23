@@ -1,3 +1,5 @@
+import { SEARCH_INPUT_ID } from "./use-keyboard-shortcuts.ts";
+
 export interface SearchControlsProps {
   query: string;
   kind: string;
@@ -16,6 +18,7 @@ export function SearchControls({
   return (
     <div className="search-controls">
       <input
+        id={SEARCH_INPUT_ID}
         type="search"
         className="search-controls__query input"
         placeholder="Search kind, route, attributes..."

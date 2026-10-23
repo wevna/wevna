@@ -10,6 +10,7 @@ export interface DashboardHeaderProps {
   timeline: TimelineControlsProps;
   theme: Theme;
   onToggleTheme: () => void;
+  onShowHelp?: () => void;
 }
 
 function statusLabel(sessionMode: SessionModeInfo): string {
@@ -34,6 +35,7 @@ export function DashboardHeader({
   timeline,
   theme,
   onToggleTheme,
+  onShowHelp,
 }: DashboardHeaderProps) {
   return (
     <header className="dashboard-header">
@@ -51,6 +53,17 @@ export function DashboardHeader({
 
       <div className="dashboard-header__actions">
         <TimelineControls {...timeline} />
+        {onShowHelp ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-icon"
+            onClick={onShowHelp}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+          >
+            ?
+          </button>
+        ) : null}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
     </header>
