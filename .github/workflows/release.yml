@@ -51,14 +51,17 @@ jobs:
 
       # pnpm, not npm: the published packages depend on @wevna/protocol via
       # `workspace:^`, and only pnpm rewrites that to a real semver range at
-      # pack time. `-r` publishes every non-private package, which is exactly
-      # the three public ones — the internal packages are marked private
-      # precisely so this needs no list to keep in sync.
+      # pack time. `-r` publishes every non-private package whose version is
+      # not already on npm. That is six packages: sdk, protocol, plugin-fetch and
+      # the three plugins (mongodb, prisma, mysql). The internal packages are
+      # marked private precisely so this needs no list to keep in sync.
       #
-      # No NODE_AUTH_TOKEN, deliberately. All three packages have a trusted
+      # No NODE_AUTH_TOKEN, deliberately. Each package needs a trusted
       # publisher on npm pinned to this repository and this workflow file, so
       # pnpm exchanges the `id-token: write` OIDC token above for a
-      # short-lived registry credential at publish time. There is no long-
+      # short-lived registry credential at publish time. A package without one
+      # fails to publish here, and packages published earlier in the same run
+      # stay published. Configure all six before tagging (RELEASE-CHECKLIST.md). There is no long-
       # lived secret to rotate, leak, or lose, and it sidesteps npm's
       # deprecation of 2FA-bypass tokens for direct publishing (Jan 2027).
       #
@@ -68,5 +71,11 @@ jobs:
       # provenance despite publishConfig.provenance being set — silently. If
       # a future run logs "Skipped OIDC", the attestation is missing again
       # and the trusted publisher config is what to check.
+      # Prints which packages the Publish step below would try to publish,
+      # without publishing anything (--dry-run). It exists so the list is in the
+      # run log before the real step starts, since `-r` decides it implicitly.
+      - name: Publish plan (dry run)
+        run: pnpm publish -r --dry-run --access public --no-git-checks
+
       - name: Publish
         run: pnpm publish -r --access public --no-git-checks

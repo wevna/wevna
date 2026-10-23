@@ -1,6 +1,6 @@
 {
   "name": "@wevna/plugin-fetch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Wevna plugin capturing outgoing HTTP requests made with the global fetch.",
   "type": "module",
   "main": "./dist/index.js",
