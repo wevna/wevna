@@ -56,6 +56,21 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added: `requests`
+
+- **`wevna.requests.instrument(session)` and `wevna.requests.instrument_all()`**
+  publish an `http.client` event per call, with the sanitized URL, status and
+  duration, and the same `ignore_hosts` as the httpx integration. `instrument_all`
+  patches `Session.send` on the class so `requests.get()` and libraries that use
+  `requests` are covered, and returns a function that undoes it. Optional extra:
+  `wevna[requests]`.
+- Errors are recorded by exception class, never by message, because a `requests`
+  message contains the URL with its query string. A redirect is one event
+  (`redirects` counts the hops) rather than a nested pair that would count its time
+  twice.
+- The wrapping shared with httpx moved to `wevna._http_client`; httpx behavior and
+  its tests are unchanged.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
