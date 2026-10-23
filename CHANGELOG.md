@@ -56,6 +56,24 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Packaging and release pipeline
+
+- A release workflow (`release-python.yml`, tag `py-v*.*.*`) publishes to PyPI
+  with trusted publishing, so no API token is stored. It publishes only after a
+  build, a content check and an install smoke test pass.
+- The same checks run as a dry run on pull requests that touch `python/`
+  (`python-package.yml`). The dry run and the release share one workflow.
+- `scripts/verify_dist.py` fails the build if the wheel or sdist lacks the
+  dashboard bundle, the license or the type marker. Without the bundle the
+  build still succeeds and the wheel serves a blank page.
+- `scripts/smoke_wheel.py` installs the wheel into a fresh virtualenv and checks
+  that it imports from site-packages, that `__version__` matches the metadata,
+  and that the server and the dashboard page respond.
+- The version is defined once, in `src/wevna/__init__.py`. `pyproject.toml` reads
+  it from there.
+- The package now includes its `LICENSE`, and the README links are absolute so
+  they work on PyPI.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
