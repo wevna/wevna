@@ -14,8 +14,8 @@
       "sanitized": "https://api.example.com/x?refreshToken=%5Bredacted%5D&keyboard_layout=qwerty"
     },
     {
-      "url": "https://api.example.com/x?author=ada",
-      "sanitized": "https://api.example.com/x?author=%5Bredacted%5D"
+      "url": "https://api.example.com/x?author=ada&auth=t0k&oauth_token=x",
+      "sanitized": "https://api.example.com/x?author=ada&auth=%5Bredacted%5D&oauth_token=%5Bredacted%5D"
     },
     {
       "url": "https://api.example.com/x?apiKey=a&API_KEY=b&x-api-key=c",

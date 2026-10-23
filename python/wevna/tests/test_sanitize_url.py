@@ -75,13 +75,15 @@ class TestRules:
         # "key" and "sig" are matched as whole words precisely so these survive.
         assert not is_sensitive(name)
 
-    def test_author_is_over_redacted(self) -> None:
-        # A known quirk, shared with the Node implementation on purpose: "auth"
-        # is matched as a substring, so `author` is caught. Mirrored rather than
-        # fixed here, because the two sanitizers agreeing matters more than
-        # either being perfect — and fixing it is tracked separately.
-        # See https://github.com/wevna/wevna/issues/48
-        assert is_sensitive("author")
+    def test_author_is_not_redacted_but_auth_is(self) -> None:
+        # "auth" used to be matched as a substring, which caught `author` — the
+        # known quirk tracked in https://github.com/wevna/wevna/issues/48, mirrored
+        # here on purpose while the Node implementation had it. It is now a
+        # whole-word match in both, so `author` survives and `auth` does not.
+        assert not is_sensitive("author")
+        assert is_sensitive("auth")
+        assert is_sensitive("oauth_token")  # still caught, by "token"
+        assert is_sensitive("Authorization")
 
 
 class TestAlwaysRemoved:

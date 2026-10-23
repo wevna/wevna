@@ -48,9 +48,8 @@ export const wevna = {
   },
   // Records the live protocol stream to filePath, in order, as it's
   // published — see session-recorder.ts. Entirely opt-in: a session that
-  // never calls this behaves exactly as it did before this existed. Not
-  // replay — this only writes a portable recording file; nothing reads one
-  // back yet.
+  // never calls this behaves exactly as it did before this existed. This
+  // only writes the recording file; openRecording() reads one back.
   startRecording(filePath: string): Promise<void> {
     return runtime.startRecording(filePath);
   },
@@ -64,7 +63,7 @@ export const wevna = {
 
 // Exception capture. Process-level uncaughtException/unhandledRejection
 // coverage is automatic (no wiring needed, same as console/HTTP), and
-// wevnaFastifyEnrichment (above) already captures anything Fastify catches
+// wevnaFastifyEnrichment (below) already captures anything Fastify catches
 // internally. Express has no equivalent hook to patch, so this is the one
 // piece of exception capture that needs an explicit registration step —
 // see exception-instrumentation.ts / express-error-handler.ts for why.
@@ -90,9 +89,8 @@ export type {
 // than part of the `wevna` object above: it starts its own local server
 // against a recording file, independent of (and not requiring) a live
 // Runtime, so it doesn't share that object's "one live session per
-// process" lifecycle. Not replay — this only opens the file and serves its
-// events through the same dashboard the live path uses; nothing controls
-// playback timing.
+// process" lifecycle. The recording is served through the same dashboard
+// the live path uses, which owns replay (play, pause, step, seek).
 export { openRecording } from "./open-recording.js";
 // The plugin authoring surface. Everything a plugin needs to be written
 // against lives here and nowhere else — a plugin that only imports these
