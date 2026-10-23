@@ -69,6 +69,15 @@ pip install "wevna[sqlalchemy,redis,httpx]"
 Each integration is an optional extra. Instrumentation for a library you don't
 use shouldn't make you install it.
 
+### The dashboard is not readable by websites
+
+The server refuses requests whose `Host` is not local (DNS rebinding) and
+WebSockets whose `Origin` is not local (cross-site WebSocket hijacking:
+browsers do not apply the same-origin policy to WebSockets, so without this any
+page you visit could stream your SQL and logs). Scripts and `curl` send no
+`Origin` and are unaffected. Binding to `0.0.0.0` turns the check off — you have
+chosen to be reachable. Same rules as the Node SDK.
+
 ### What each one records, and what it never does
 
 | | Recorded | **Never** recorded |

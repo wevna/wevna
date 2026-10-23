@@ -25,11 +25,13 @@ from typing import Any
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from wevna.host_guard import HostGuardMiddleware, allowed_hosts_for
 from wevna.protocol import Envelope
 
 _log = logging.getLogger("wevna.server")
@@ -121,7 +123,7 @@ class _Broadcaster:
         return len(self._clients)
 
 
-def build_app(broadcaster: _Broadcaster) -> Starlette:
+def build_app(broadcaster: _Broadcaster, allowed_hosts: tuple[str, ...] | None = None) -> Starlette:
     """The dashboard's own ASGI app — unrelated to the application being watched."""
 
     async def health(_request: Any) -> JSONResponse:
@@ -177,7 +179,19 @@ def build_app(broadcaster: _Broadcaster) -> Starlette:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
-    return Starlette(routes=routes, lifespan=lifespan)
+    # Outermost, so it sees every route including the WebSocket upgrade. Without
+    # it any web page the developer visits could connect to /ws and read the
+    # whole event stream — see host_guard.py.
+    return Starlette(
+        routes=routes,
+        lifespan=lifespan,
+        middleware=[
+            Middleware(
+                HostGuardMiddleware,
+                allowed_hosts=allowed_hosts or allowed_hosts_for("localhost"),
+            )
+        ],
+    )
 
 
 class DashboardServer:
@@ -212,7 +226,7 @@ class DashboardServer:
             return
 
         config = uvicorn.Config(
-            build_app(self._broadcaster),
+            build_app(self._broadcaster, allowed_hosts_for(self.host)),
             host=self.host,
             port=self.port,
             log_level="warning",
