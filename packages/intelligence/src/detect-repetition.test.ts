@@ -269,3 +269,40 @@ describe("detectRepeatedOperations for non-SQL datastores", () => {
     expect(detectRepeatedOperations(requestOf([entry, entry]), 2)).toEqual([]);
   });
 });
+
+describe("detectRepeatedOperations and pipelined Redis commands", () => {
+  const redis = (attributes: Record<string, unknown>) =>
+    makeEntry({
+      kind: "redis.command",
+      attributes: { command: "get", ...attributes },
+      durationMs: 1,
+    });
+
+  it("still reports the same command sent one round trip at a time", () => {
+    const result = detectRepeatedOperations(requestOf([redis({}), redis({}), redis({})]), 3);
+
+    expect(result.map((r) => [r.signature, r.count])).toEqual([["get", 3]]);
+  });
+
+  it("does not report commands that share a pipeline: batching is the fix, not the problem", () => {
+    const batched = (index: number) => redis({ batch: "b1", batchSize: 3, batchIndex: index });
+
+    const result = detectRepeatedOperations(requestOf([batched(0), batched(1), batched(2)]), 3);
+
+    expect(result).toEqual([]);
+  });
+
+  it("counts only the unbatched ones when both are present", () => {
+    const entries = [
+      redis({}),
+      redis({}),
+      redis({}),
+      redis({ batch: "b1", batchSize: 2, batchIndex: 0 }),
+      redis({ batch: "b1", batchSize: 2, batchIndex: 1 }),
+    ];
+
+    const result = detectRepeatedOperations(requestOf(entries), 3);
+
+    expect(result.map((r) => r.count)).toEqual([3]);
+  });
+});

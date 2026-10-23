@@ -202,25 +202,245 @@ class TestAsyncClient:
         assert "error" in commands(seen)[0]
 
 
-class TestKnownLimitations:
-    def test_pipelined_commands_are_not_captured(self, runtime: Runtime) -> None:
-        # Documented rather than fixed. A pipeline sends through its own object,
-        # not the client's execute_command. Reporting the batch as one
-        # misleading event would be worse than reporting nothing, so nothing is
-        # reported until pipelines get their own handling.
+class TestPipelines:
+    """Each queued command is its own event; the batch is one round trip."""
+
+    def test_every_queued_command_becomes_an_event_in_order(self, runtime: Runtime) -> None:
         client = fakeredis.FakeRedis()
         instrument(client, runtime=runtime)
         seen = collect(runtime)
 
         pipe = client.pipeline()
         pipe.set("a", "1")
-        pipe.set("b", "2")
+        pipe.get("a")
+        pipe.incr("n")
         pipe.execute()
 
-        assert commands(seen) == [], (
-            "pipelines are known to be uncaptured; if this now passes commands "
-            "through execute_command, the docstring and README need updating"
-        )
+        recorded = commands(seen)
+        assert [c["command"] for c in recorded] == ["set", "get", "incrby"]
+        assert [c["batchIndex"] for c in recorded] == [0, 1, 2]
+        assert {c["batchSize"] for c in recorded} == {3}
+
+    def test_the_commands_of_one_batch_share_an_id_and_two_batches_do_not(
+        self, runtime: Runtime
+    ) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        for _ in range(2):
+            pipe = client.pipeline()
+            pipe.set("a", "1")
+            pipe.set("b", "2")
+            pipe.execute()
+
+        batches = [c["batch"] for c in commands(seen)]
+        assert batches[0] == batches[1]
+        assert batches[2] == batches[3]
+        assert batches[0] != batches[2]
+
+    def test_time_attribution_still_sums_to_the_real_round_trip(self, runtime: Runtime) -> None:
+        # Reporting each command with the full batch time would count the round
+        # trip N times. An equal share each sums to the real total.
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline()
+        for index in range(5):
+            pipe.set(f"k{index}", "v")
+        pipe.execute()
+
+        recorded = commands(seen)
+        total = recorded[0]["batchDurationMs"]
+        assert isinstance(total, float)
+        durations = [float(c["durationMs"]) for c in recorded]  # type: ignore[arg-type]
+        assert sum(durations) == pytest.approx(total)
+        assert {c["batchDurationMs"] for c in recorded} == {total}
+
+    def test_the_commands_are_tiled_across_the_batch_window_in_order(
+        self, runtime: Runtime
+    ) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline()
+        for index in range(4):
+            pipe.set(f"k{index}", "v")
+        pipe.execute()
+
+        times = [e.payload.occurred_at for e in seen if e.payload.kind == "redis.command"]
+        assert times == sorted(times)
+
+    def test_keys_and_values_are_never_recorded(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline()
+        pipe.set("session:SECRET-KEY", "SECRET-VALUE")
+        pipe.get("session:SECRET-KEY")
+        pipe.execute()
+
+        assert "SECRET" not in repr([e.payload for e in seen])
+
+    @pytest.mark.parametrize("transaction", [True, False])
+    def test_transactions_and_plain_pipelines_both_work(
+        self, runtime: Runtime, transaction: bool
+    ) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline(transaction=transaction)
+        pipe.set("a", "1")
+        pipe.execute()
+
+        [recorded] = commands(seen)
+        assert recorded["transaction"] is transaction
+        # MULTI and EXEC are the library's wrapping, not the user's commands.
+        assert recorded["command"] == "set"
+
+    def test_results_are_returned_unchanged(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+
+        pipe = client.pipeline()
+        pipe.set("a", "1")
+        pipe.get("a")
+
+        assert pipe.execute() == [True, b"1"]
+
+    def test_the_context_manager_form_is_captured(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        with client.pipeline() as pipe:
+            pipe.set("a", "1")
+            pipe.execute()
+
+        assert [c["command"] for c in commands(seen)] == ["set"]
+
+    def test_client_transaction_with_a_watch_is_captured(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        client.set("counter", 1)
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        def bump(pipe: object) -> None:
+            pipe.multi()  # type: ignore[attr-defined]
+            pipe.incr("counter")  # type: ignore[attr-defined]
+
+        client.transaction(bump, "counter")
+
+        assert "incrby" in [c["command"] for c in commands(seen)]
+
+    def test_an_empty_pipeline_publishes_nothing(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        assert client.pipeline().execute() == []
+
+        assert commands(seen) == []
+
+    def test_a_failed_command_with_raise_on_error_false_marks_only_that_command(
+        self, runtime: Runtime
+    ) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline(transaction=False)
+        pipe.set("a", "1")
+        pipe.lpush("a", "x")  # wrong type for the key: Redis rejects this one
+        pipe.get("a")
+        results = pipe.execute(raise_on_error=False)
+
+        assert isinstance(results[1], Exception)
+        recorded = commands(seen)
+        assert [("error" in c) for c in recorded] == [False, True, False]
+
+    def test_a_batch_that_raises_marks_every_command_and_reraises(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline(transaction=False)
+        pipe.set("a", "1")
+        pipe.lpush("a", "x")
+        with pytest.raises(Exception):  # noqa: B017
+            pipe.execute()
+
+        recorded = commands(seen)
+        assert [c["command"] for c in recorded] == ["set", "lpush"]
+        assert any("error" in c for c in recorded)
+
+    def test_pipelined_commands_belong_to_the_current_request(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        with correlation.start("req-1"):
+            pipe = client.pipeline()
+            pipe.set("a", "1")
+            pipe.execute()
+
+        [event] = [e for e in seen if e.payload.kind == "redis.command"]
+        assert event.payload.correlation is not None
+        assert event.payload.correlation.id == "req-1"
+
+    def test_instrumenting_twice_does_not_double_the_events(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        pipe = client.pipeline()
+        pipe.set("a", "1")
+        pipe.execute()
+
+        assert len(commands(seen)) == 1
+
+    def test_commands_outside_a_pipeline_have_no_batch_marker(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        client.set("a", "1")
+
+        assert "batch" not in commands(seen)[0]
+
+    def test_a_failure_while_publishing_never_fails_the_pipeline(self, runtime: Runtime) -> None:
+        client = fakeredis.FakeRedis()
+        instrument(client, runtime=runtime)
+
+        def explode(_envelope: Envelope) -> None:
+            raise RuntimeError("subscriber failed")
+
+        runtime.subscribe(explode)
+        pipe = client.pipeline()
+        pipe.set("a", "1")
+
+        assert pipe.execute() == [True]
+
+    async def test_async_pipelines_are_captured(self, runtime: Runtime) -> None:
+        client = fakeredis.aioredis.FakeRedis()
+        instrument(client, runtime=runtime)
+        seen = collect(runtime)
+
+        async with client.pipeline() as pipe:
+            pipe.set("a", "1")
+            pipe.get("a")
+            results = await pipe.execute()
+        await client.aclose()
+
+        assert results == [True, b"1"]
+        recorded = commands(seen)
+        assert [c["command"] for c in recorded] == ["set", "get"]
+        assert {c["batchSize"] for c in recorded} == {2}
 
 
 class TestNeverBreaksTheApplication:

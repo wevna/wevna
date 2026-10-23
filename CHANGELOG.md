@@ -56,6 +56,16 @@ what each version number covers.
 
 ## Unreleased — Python SDK (`wevna`, alpha)
 
+### Added: Redis pipelines
+
+- **redis-py pipelines and transactions are captured**, sync and async. Each queued
+  command is its own `redis.command` event carrying `batch`, `batchSize`,
+  `batchIndex`, `batchDurationMs` and `transaction`. Each gets an equal share of
+  the batch's real duration, because commands in a pipeline share one round trip
+  and per-command timing does not exist. Arguments are never recorded.
+- The dashboard's repeated-command insight (`@wevna/sdk`) skips commands that carry
+  a `batch` marker: batching reads is the fix for repeated reads.
+
 ### Added — Phase 2: databases and outgoing HTTP
 
 - **SQLAlchemy** (`wevna.sqlalchemy.instrument`) — sync and async engines, ORM
