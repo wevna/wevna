@@ -284,6 +284,36 @@ class TestBoundedMemory:
         assert len([ln for ln in lines if ln["type"] == "event"]) == 3
         assert lines[-1]["eventCount"] == 3
 
+    def test_a_writer_still_stuck_at_stop_gets_no_footer_and_raises_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # stop() waits a bounded time for the writer. A footer written while the
+        # writer is still going would land between its lines, so it is left off.
+        import wevna.recording as recording_module
+
+        monkeypatch.setattr(recording_module, "STOP_TIMEOUT_SECONDS", 0.2)
+        gate = threading.Event()
+
+        class StuckRecorder(SessionRecorder):
+            def _write_loop(self) -> None:
+                gate.wait(timeout=10)
+                super()._write_loop()
+
+        path = tmp_path / "s.jsonl"
+        runtime = Runtime()
+        recorder = StuckRecorder()
+        recorder.start(runtime.subscribe, runtime.start_session(), path)
+        thread = recorder._thread
+        runtime.publish(event())
+
+        recorder.stop()  # must return, and must not raise
+        gate.set()
+        assert thread is not None
+        thread.join(timeout=5)
+
+        assert not thread.is_alive()
+        assert [ln["type"] for ln in lines_of(path)] == ["header"]
+
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
 class TestForkedWorkers:

@@ -42,6 +42,9 @@ _log = logging.getLogger("wevna.recording")
 # the process dies. Past it events are dropped and counted.
 MAX_QUEUED_EVENTS = 10_000
 
+# How long stop() waits for the writer thread to drain before giving up on it.
+STOP_TIMEOUT_SECONDS = 10.0
+
 # Most lines the writer thread writes in one call.
 WRITE_BATCH = 500
 
@@ -148,7 +151,13 @@ class SessionRecorder:
             self._closing.set()
             thread, self._thread = self._thread, None
             if thread is not None:
-                thread.join(timeout=10)
+                thread.join(timeout=STOP_TIMEOUT_SECONDS)
+                if thread.is_alive():
+                    # The writer is stuck on a slow disk. A footer written now would
+                    # land between its lines, so leave it off: the loader reports a
+                    # missing footer, which is the truth about this recording.
+                    self._failed = True
+                    _log.warning("the recording writer did not finish; closing without a footer")
             self._file = None
 
             try:
@@ -216,8 +225,9 @@ class SessionRecorder:
             try:
                 handle.write("".join(f"{item}\n" for item in batch))
                 self._written += len(batch)
-            except OSError:
-                # The disk went away or filled. Stop recording rather than raise
+            except (OSError, ValueError):
+                # The disk went away or filled (OSError), or stop() gave up waiting
+                # and closed the file under us (ValueError). Stop recording rather than raise
                 # into the application, as the Node recorder does on a stream
                 # error, and keep draining.
                 self._failed = True
