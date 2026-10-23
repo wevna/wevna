@@ -16,6 +16,14 @@ may be restructured, renamed, or deleted in any release.
 | `@wevna/sdk` | The SDK. What you install and call. |
 | `@wevna/protocol` | Event, envelope and recording-file types. Needed to write a plugin or read a recording. |
 | `@wevna/plugin-fetch` | Official plugin: outgoing HTTP capture. |
+| `@wevna/plugin-mongodb` | Official plugin: MongoDB commands. `0.x`, see below. |
+| `@wevna/plugin-prisma` | Official plugin: Prisma Client operations. `0.x`, see below. |
+| `@wevna/plugin-mysql` | Official plugin: MySQL and MariaDB through `mysql2`. `0.x`, see below. |
+
+The three `0.x` plugins are new. Semver allows a `0.x` package to change in any
+release, and these may: their options and the attributes on their events can
+still move. They are built against the plugin API, whose version
+(`PLUGIN_API_VERSION`) is covered below.
 
 `@wevna/server`, `@wevna/dashboard` and `@wevna/intelligence` are **internal**.
 They are bundled into `@wevna/sdk` rather than published. Do not depend on them —
@@ -39,7 +47,7 @@ below regardless of which language wrote a recording — while the Python
 Wevna versions three things separately, because they change for different
 reasons and conflating them would force major bumps that break nobody.
 
-### 1. The package version (semver, currently `1.0.0`)
+### 1. The package version (semver, currently `1.2.0`)
 
 Covers everything exported from `@wevna/sdk`'s entrypoint: the `wevna` object's
 methods, the framework helpers, `openRecording`, `SessionLoader`, and the

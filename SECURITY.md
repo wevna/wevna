@@ -22,6 +22,31 @@ manage. You'll get an acknowledgement within 72 hours and an assessment
 within a week. We'll credit you in the advisory unless you'd rather we
 didn't.
 
+## Known issues fixed
+
+### Any web page could read the live event stream (fixed in 1.2.0)
+
+- **Affected:** every `@wevna/sdk` version before 1.2.0, while a Wevna process
+  was running.
+- **What an attacker could do:** any web page open in the developer's browser
+  could connect to `ws://localhost:4123/ws` and read the live event stream:
+  SQL statement text, request URLs, console output and exceptions. Browsers do
+  not apply the same-origin policy to WebSockets, so no user interaction beyond
+  visiting the page was needed. A page that rebinds its own hostname to
+  `127.0.0.1` (DNS rebinding) could reach the other HTTP routes the same way.
+- **What it did not allow:** writing to the app, changing its behaviour, or
+  reading anything Wevna does not capture. SQL parameter values, Redis
+  arguments, request and response bodies and headers are never recorded.
+- **Fix:** the server refuses a `Host` header that is not local on every
+  route, and an `Origin` header that is not local on the WebSocket. Clients
+  that send no `Origin` (scripts, `curl`) are unaffected. Binding to `0.0.0.0`
+  or `::` disables the check, because it is a deliberate choice to be
+  reachable.
+- **Python SDK:** the Python dashboard server had the same flaw and has the
+  same fix. It was never published, so no released Python version is affected.
+- **Workaround on older versions:** do not browse untrusted sites in the same
+  browser while a Wevna process is running, or upgrade.
+
 ## Wevna's threat model
 
 Wevna is a **local-first development tool**. It runs inside a developer's own
