@@ -287,3 +287,60 @@ class TestForkedWorkers:
         assert os.waitstatus_to_exitcode(status) == 0
         broadcaster.publish(envelope())  # and the parent is unaffected
         assert len(spy.scheduled) == 1
+
+
+class TestWireJson:
+    """What goes over the wire must be strict JSON, because the reader is JavaScript.
+
+    Python's ``json.dumps`` writes ``NaN`` and ``Infinity`` as bare tokens by
+    default. They are not JSON, and ``JSON.parse`` in the dashboard (and in the
+    Node session loader) rejects the whole message, so one ``float('nan')`` in a
+    duration lost the entire event. JavaScript's own ``JSON.stringify`` writes
+    ``null`` for them, so that is what a Node-produced stream contains.
+    """
+
+    @staticmethod
+    def _wire_text(attributes: dict[str, object]) -> str:
+        import asyncio
+
+        broadcaster = _Broadcaster()
+        loop = asyncio.new_event_loop()
+        try:
+            broadcaster.bind(loop)
+            sent: list[str] = []
+            broadcaster._enqueue = sent.append  # type: ignore[assignment]
+            bad = Envelope(
+                session_id="s",
+                sequence=0,
+                payload=CapturedEvent(
+                    id="e", kind="sql.query", occurred_at=1, attributes=attributes
+                ),
+            )
+            broadcaster.publish(bad)
+            loop.run_until_complete(asyncio.sleep(0.02))
+            assert len(sent) == 1
+            return sent[0]
+        finally:
+            loop.close()
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_numbers_become_null_not_invalid_json(self, value: float) -> None:
+        text = self._wire_text({"durationMs": value, "rows": 3})
+
+        def reject(token: str) -> object:
+            raise AssertionError(f"not valid JSON: bare {token}")
+
+        parsed = json.loads(text, parse_constant=reject)
+        assert parsed["payload"]["attributes"] == {"durationMs": None, "rows": 3}
+
+    def test_non_finite_numbers_nested_in_lists_and_dicts_are_found(self) -> None:
+        text = self._wire_text({"timings": [1.0, float("nan")], "nested": {"x": float("inf")}})
+
+        parsed = json.loads(text, parse_constant=lambda t: (_ for _ in ()).throw(AssertionError(t)))
+        assert parsed["payload"]["attributes"] == {"timings": [1.0, None], "nested": {"x": None}}
+
+    def test_finite_values_are_untouched(self) -> None:
+        text = self._wire_text({"durationMs": 12.5, "ok": True, "name": "x", "none": None})
+
+        attributes = json.loads(text)["payload"]["attributes"]
+        assert attributes == {"durationMs": 12.5, "ok": True, "name": "x", "none": None}

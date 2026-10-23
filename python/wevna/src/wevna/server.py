@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import threading
@@ -33,7 +32,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from wevna.host_guard import HostGuardMiddleware, allowed_hosts_for
-from wevna.protocol import Envelope
+from wevna.protocol import Envelope, dumps_wire
 
 _log = logging.getLogger("wevna.server")
 
@@ -91,7 +90,7 @@ class _Broadcaster:
             return
 
         try:
-            message = json.dumps(envelope.to_wire())
+            message = dumps_wire(envelope.to_wire())
         except (TypeError, ValueError):
             # A producer handed us something JSON cannot represent. Dropping
             # the one event with a diagnostic is the correct degradation — the
